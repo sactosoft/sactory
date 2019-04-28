@@ -1,0 +1,40 @@
+{
+	"name": "factory",
+	"version": "0.35.0",
+	"description": "HTML-spiced javascript for DOM creation and manipulation",
+	"main": "index.js",
+	"scripts": {
+		"dist": "gulp dist",
+		"compile": "node ./src/watcher.js compile",
+		"watch": "node ./src/watcher.js watch",
+		"test": "npm run compile -- ./test/builder ./test/src && node ./test/index.js"
+	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/Kripth/factory.git"
+	},
+	"keywords": [
+		"factory",
+		"html",
+		"dom"
+	],
+	"author": "Mark White",
+	"license": "MIT",
+	"bugs": {
+		"url": "https://github.com/Kripth/factory/issues"
+	},
+	"homepage": "https://github.com/Kripth/factory",
+	"devDependencies": {
+		"express": "^4.16.4",
+		"gulp": "^4.0.1",
+		"gulp-concat": "^2.6.1",
+		"gulp-footer": "^2.0.2",
+		"gulp-header": "^2.0.7",
+		"gulp-rename": "^1.4.0",
+		"gulp-replace": "^1.0.0",
+		"gulp-uglify": "^3.0.2"
+	},
+	"dependencies": {
+		"jsdom": "^15.0.0"
+	}
+}
