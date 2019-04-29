@@ -10,7 +10,7 @@ function merge() {
 }
 
 module.exports = merge(
-	require("./src/factory"),
+	require("./src/util"),
 	require("./src/runtime/server"),
 	require("./src/runtime/common"),
 	require("./src/transpiler"),

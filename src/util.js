@@ -1,12 +1,5 @@
 var Factory = {};
 
-Factory.APP_NAME = "Factory";
-
-Factory.VERSION_MAJOR = 0;
-Factory.VERSION_MINOR = 35;
-Factory.VERSION_PATCH = 0;
-Factory.VERSION = [Factory.VERSION_MAJOR, Factory.VERSION_MINOR, Factory.VERSION_PATCH].join('.');
-
 function hash(str) {
 	var hash = 0;
 	for(var i=0; i<str.length; i++) {

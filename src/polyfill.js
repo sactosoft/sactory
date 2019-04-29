@@ -10,4 +10,12 @@ Polyfill.endsWith = String.prototype.endsWith || function(search, this_len) {
 	return this.substring(this_len - search.length, this_len) === search;
 };
 
+Polyfill.trimStart = String.prototype.trimStart || function(){
+	return this.replace(/^[\s\uFEFF\xA0]+/g);
+};
+
+Polyfill.trimEnd = String.prototype.trimEnd || function(){
+	return this.replace(/[\s\uFEFF\xA0]+$/g);
+};
+
 module.exports = Polyfill;

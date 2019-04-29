@@ -158,8 +158,18 @@ Parser.prototype.readName = function(force){
 	}
 };
 
+Parser.prototype.readVarName = function(force){
+	var match = /^[a-zA-Z_\$][a-zA-Z0-9_\$]*/.exec(this.input.substr(this.index));
+	if(match) {
+		this.index += match[0].length;
+		return match[0];
+	} else {
+		this.error("Could not find a valid variable name.");
+	}
+};
+
 Parser.prototype.readTagName = function(){
-	var match = /^[\#\&]?[a-zA-Z0-9_\-\.\:\$]*/.exec(this.input.substr(this.index));
+	var match = /^((\*(head|body))|([\#\&]?[a-zA-Z0-9_\-\.\:\$]*))/.exec(this.input.substr(this.index));
 	if(match) {
 		this.index += match[0].length;
 		return match[0];
@@ -210,12 +220,12 @@ Parser.prototype.readExpr = function(){
 };
 
 Parser.prototype.readVar = function(){
-	if(this.peek() == '(') {
+	if(this.peek() == '{') {
 		var start = this.index + 1;
 		this.skipExpr();
-		return this.input.substring(start, this.index - 1);
+		return '(' + this.input.substring(start, this.index - 1) + ')';
 	} else {
-		return this.readExpr();
+		return this.readVarName();
 	}
 };
 

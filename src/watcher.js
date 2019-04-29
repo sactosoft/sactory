@@ -1,6 +1,8 @@
-var Common = require("./factory");
+var Util = require("./util");
 var Polyfill = require("./polyfill");
 var Factory = require("./transpiler");
+
+var version = require("../version");
 
 var Watcher = {
 	
@@ -45,8 +47,8 @@ var Watcher = {
 								file: filename
 							}), function(error){});*/
 							fs.writeFile(dest + filename,
-								"/*! This file was automatically generated using " + Common.APP_NAME + " v" + Common.VERSION + " from '" + source + "'. Do not edit manually! */" +
-								/*"Factory.check(" + Common.VERSION_MAJOR + "," + Common.VERSION_MINOR + "," + Common.VERSION_PATCH + ");" +*/ conv,
+								"/*! This file was automatically generated using Factory v" + version.version + " from '" + source + "'. Do not edit manually! */" +
+								/*"Factory.check(" + Util.VERSION_MAJOR + "," + Util.VERSION_MINOR + "," + Util.VERSION_PATCH + ");" +*/ conv,
 								function(error){
 									
 								if(error) {
@@ -55,7 +57,7 @@ var Watcher = {
 									console.log("Converted to " + dest + filename);
 								}
 							});
-							Common.reset(namespace);
+							Util.reset(namespace);
 						}
 					}
 				});

@@ -13,18 +13,20 @@ var NAMESPACES = {
 var definedTemplates = {};
 
 Factory.defineTemplate = function(name, tagName, args, handler){
-	if(typeof tagName == "function") {
-		modifier = args;
+	if(typeof tagName == "function" || Array.isArray(tagName)) {
+		handler = args;
 		args = tagName;
 		tagName = null;
 	}
 	if(typeof args == "function") {
-		modifier = args;
+		handler = args;
 		args = [];
 	}
+	var forced = tagName && tagName.charAt(0) == '!';
 	definedTemplates[name] = {
 		name: name,
-		tagName: tagName,
+		tagName: forced && tagName.substr(1) || tagName,
+		forced: forced,
 		args: args || [],
 		handler: handler
 	};
@@ -69,6 +71,7 @@ Factory.updateElement = function(element, str, args){
 		if(template) {
 			templates.push(template);
 			if(!tagName) tagName = template.tagName;
+			else if(template.forced && tagName) throw new Error("Template '" + templateName + "' forces the tag name but it's already defined.");
 		} else if(!optional) {
 			throw new Error("Template '" + templateName + "' could not be found.")
 		}
@@ -109,6 +112,8 @@ Factory.updateElement = function(element, str, args){
 		if(!arg.removed) element.__builder.set(arg.key, arg.value);
 	});
 	
+	var container = element;
+	
 	templates.forEach(function(template){
 		// filter template-specific attributes
 		var a = {};
@@ -121,16 +126,27 @@ Factory.updateElement = function(element, str, args){
 				a[key] = value;
 			}
 		}
-		element = template.handler.call(element, element, a) || element;
+		container = template.handler.call(container, container, a) || container;
 	});
 	
-	return element;
+	return {
+		element: element,
+		container: container
+	};
 	
 };
 
-Factory.call = function(context, element, fun){
-	fun.call(context, element);
+Factory.callImpl = function(context, element, container, fun){
+	fun.call(context, container);
 	return element;
+};
+
+Factory.call = function(context, element, fun){
+	return Factory.callImpl(context, element.element, element.container, fun);
+};
+
+Factory.callElement = function(context, element, fun){
+	return Factory.callImpl(context, element, element, fun);
 };
 
 Factory.unique = function(context, id, fun){
@@ -149,6 +165,10 @@ Factory.append = function(element, child, afterappend, beforeremove){
 		child.__builder.beforeremove = beforeremove;
 	}
 	return child;
+};
+
+Factory.appendElement = function(element, child, afterappend, beforeremove){
+	return Factory.append(element, child.element, afterappend, beforeremove);
 };
 
 Factory.query = function(context, doc, selector, fun){
@@ -220,7 +240,7 @@ Factory.compilecss = function(root){
 	return ret;
 };
 
-Factory.compilebcss = function(root){
+Factory.compilecssb = function(root){
 	var ret = {};
 	function compile(selectors, curr, obj) {
 		for(var selector in obj) {

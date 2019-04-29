@@ -1,4 +1,5 @@
 var express = require("express");
+var Factory = global.Factory = require("..");
 
 var app = express();
 var port = 3000;
@@ -12,8 +13,9 @@ app.get('/', function(req, res){
 			<script src='/dist/factory.js'></script>
 			<script src='/dist/transpiler.js'></script>
 			<script type='text/x-builder'>
-				@ = document.body;
-				<h3 data-working @text="It's working!" />
+				<div *body>
+					<h3 data-working @text="It's working!" />
+				</div>
 			</script>
 		</head>
 	`);

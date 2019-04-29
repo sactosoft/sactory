@@ -1,6 +1,8 @@
 var Polyfill = require("./polyfill");
-var Common = require("./factory");
+var Util = require("./util");
 var Parser = require("./parser");
+
+require("./document"); // init global variables
 
 var Factory = {};
 
@@ -141,90 +143,142 @@ CSSParser.prototype.replaceText = function(text){
 	return text;
 };
 
-function BCSSParser(data, attributes) {
+function CSSBParser(data, attributes) {
 	SourceParser.call(this, data, attributes);
 	this.expr = [];
-	this.scopes = ["__s" + Common.nextId(this.namespace)];
-	this.scope = attributes.scoped && "__style" + Common.nextId(this.namespace);
+	this.scopes = ["__s" + Util.nextId(this.namespace)];
+	this.scope = attributes.scoped && "__style" + Util.nextId(this.namespace);
 }
 
-BCSSParser.prototype = Object.create(SourceParser.prototype);
+CSSBParser.prototype = Object.create(SourceParser.prototype);
 
-BCSSParser.prototype.addScope = function(selector){
-	var scope = "__s" + Common.nextId(this.namespace);
+CSSBParser.prototype.addScope = function(selector){
+	var scope = "__s" + Util.nextId(this.namespace);
 	this.add("var " + scope + "=" + this.scopes[this.scopes.length - 1] + "[" + selector + "]={};");
 	this.scopes.push(scope);
 };
 
-BCSSParser.prototype.removeScope = function(){
+CSSBParser.prototype.removeScope = function(){
 	this.scopes.pop();
 };
 
-BCSSParser.prototype.skip = function(){
+CSSBParser.prototype.skip = function(){
 	var skipped = this.parser.skip();
 	if(skipped) this.add(skipped);
 };
 
-BCSSParser.prototype.start = function(){
+CSSBParser.prototype.start = function(){
 	this.add("var " + this.scopes[0] + "={};");
 	if(this.scope) {
 		this.addScope("\".__style\"+" + this.element + ".__builder.id");
 	}
 };
 
-BCSSParser.prototype.parse = function(handle, eof){
+CSSBParser.prototype.parse = function(handle, eof){
 	this.skip();
 	var input = this.parser.input.substr(this.parser.index);
-	var control = Polyfill.startsWith.call(input, "if") || Polyfill.startsWith.call(input, "else") || Polyfill.startsWith.call(input, "for") || Polyfill.startsWith.call(input, "while");
-	var result = this.parser.find(control ? ['{'] : ['<', '{', '}', ';'], false, true);
-	function makeExpr(input) {
-		var parser = new Parser(input);
-		var ret = [];
-		while(!parser.eof()) {
-			var result = parser.find(['$'], false, false);
-			if(result.pre) ret.push(JSON.stringify(result.pre));
-			if(result.match) ret.push(parser.readVar());
-			else break;
+	var length;
+	function start(value) {
+		if(Polyfill.startsWith.call(input, value)) {
+			length = value.length;
+			return true;
+		} else {
+			return false;
 		}
-		return ret.join('+');
 	}
-	switch(result.match) {
-		case '<':
-			handle();
-			break;
-		case '{':
-			var selector = result.pre.trim();
-			var expr = true;
-			if(control) {
-				this.add(selector + "{");
+	function skipStatement() {
+		this.add(this.parser.input.substr(this.parser.index, length));
+		this.parser.index += length;
+		this.skip();
+	}
+	if(start( "if") || start("else if") || start("for") || start("while")) {
+		skipStatement.call(this);
+		if(this.parser.peek() != '(') throw new Error("Expected '(' after statement (if/else if/for/while).");
+		var start = this.parser.index;
+		this.parser.skipExpr();
+		this.add(this.parser.input.substring(start, this.parser.index));
+		this.skip();
+		if(this.parser.peek() == '{') {
+			this.add(this.parser.read());
+			this.expr.push(true);
+		}
+	} else if(start("else")) {
+		skipStatement.call(this);
+		if(this.parser.peek() == '{') {
+			this.add(this.parser.read());
+			this.expr.push(true);
+		}
+	} else if(start("var ") || start("const ") || start("let ")) {
+		skipStatement.call(this);
+		this.add(this.parser.readVarName());
+		this.skip();
+		this.parser.expect('=');
+		this.add('=');
+		this.add(this.parser.find([';'], true, true).pre + ';');
+	} else {
+		function value(e) {
+			if(e.length && e[0].string && (e[0].value = Polyfill.trimStart.call(e[0].value)).length == 0) e.shift();
+			if(e.length && e[e.length - 1].string && (e[e.length - 1].value = Polyfill.trimEnd.call(e[e.length - 1].value)).length == 0) e.pop();
+			if(e.length) {
+				var ret = [];
+				e.forEach(function(v){
+					ret.push(v.string && JSON.stringify(v.value) || v.value);
+				});
+				return ret.join('+');
 			} else {
-				expr = false;
-				this.addScope(makeExpr(result.pre.trim()));
+				return "\"\"";
 			}
-			this.expr.push(expr);
-			break;
-		case '}':
-			if(this.expr.pop()) {
-				this.add("}");
-			} else {
-				this.removeScope();
+		}
+		var search = ['<', '$', '{', '}', ';', ':'];
+		var expr = {key: [], value: []};
+		var curr = expr.key;
+		do {
+			var loop = false;
+			var result = this.parser.find(search, false, true);
+			if(result.pre.length) curr.push({string: true, value: result.pre});
+			switch(result.match) {
+				case '<':
+					handle();
+					break;
+				case '$':
+					curr.push({string: false, value: this.parser.readVar()});
+					loop = true;
+					break;
+				case ':':
+					search.pop();
+					curr = expr.value;
+					loop = true;
+					break;
+				case '{':
+					if(expr.value.length) {
+						this.addScope(value(expr.key.concat({string: true, value: ':'}).concat(expr.value)));
+					} else {
+						this.addScope(value(expr.key));
+					}
+					this.expr.push(false);
+					break;
+				case '}':
+					if(this.expr.pop()) {
+						this.add("}");
+					} else {
+						this.removeScope();
+					}
+					break;
+				case ';':
+					this.add(this.scopes[this.scopes.length - 1] + "[" + value(expr.key) + "]=" + value(expr.value) + ";");
+					break;
+				default:
+					eof();
 			}
-			break;
-		case ';':
-			var separator = result.pre.indexOf(':');
-			if(separator == -1) separator = result.pre.length;
-			this.add(this.scopes[this.scopes.length - 1] + "[" + makeExpr(result.pre.substring(0, separator).trim()) + "]=" + makeExpr(result.pre.substr(separator + 1).trim()) + ";");
-			break;
-		default:
-			eof();
+		} while(loop);
 	}
 };
 
-BCSSParser.prototype.end = function(){
-	this.add(this.element + ".textContent=Factory.compilebcss(" + this.scopes[0] + ");");
+CSSBParser.prototype.end = function(){
+	this.add(this.element + ".textContent=Factory.compilecssb(" + this.scopes[0] + ");");
 };
 
-BCSSParser.prototype.finalize = function(){
+CSSBParser.prototype.finalize = function(){
 	if(this.scope) this.add(", function(){ this.parentNode.classList.add(\"__style\" + this.__builder.id); }, function(){ this.parentNode.classList.remove(\"__style\" + this.__builder.id); }");
 };
 
@@ -234,20 +288,20 @@ function MarkdownParser(data, attributes) {
 
 MarkdownParser.prototype = Object.create(SourceParser.prototype);
 
-Factory.registerMode("Javascript", ["javascript", "js"], JavascriptParser, {isDefault: true, code: true});
+Factory.registerMode("Javascript", ["javascript", "js", "code"], JavascriptParser, {isDefault: true, code: true});
 Factory.registerMode("HTML", ["html"], TextParser, {comments: false, strings: false});
 Factory.registerMode("Text", ["text"], TextParser, {comments: false, strings: false, children: false, tags: {"script": []}});
 Factory.registerMode("CSS", ["css"], CSSParser, {children: false});
-Factory.registerMode("BCSS", ["bcss"], BCSSParser, {strings: false, children: false, tags: {"style": ["scoped"]}});
+Factory.registerMode("CSSB", ["cssb"], CSSBParser, {strings: false, children: false, tags: {"style": ["scoped"]}});
 //Factory.registerMode("Markdown", ["markdown"], MarkdownParser, {comments: false, children: false, tags: ["markdown"]});
 
 Factory.convertSource = function(input, namespace, scope){
 	
 	var parser = new Parser(input);
 	
-	var element = "__el" + Common.nextId(namespace);
+	var element = "__el" + Util.nextId(namespace);
 	
-	var source = [/*"var Factory=Factory||require('factory');", */"var " + element + "=" + (scope || null) + ";"];
+	var source = ["var Factory=(typeof global=='object'&&global||window).Factory||require('factory');", "var " + element + "=" + (scope || null) + ";"];
 	
 	var tags = [];
 	var inheritance = [];
@@ -370,6 +424,10 @@ Factory.convertSource = function(input, namespace, scope){
 						parent = value;
 					} else if(attr == "*unique") {
 						unique = true;
+					} else if(attr == "*head") {
+						parent = "document.head";
+					} else if(attr == "*body") {
+						parent = "document.body";
 					} else if(attr.charAt(0) == '#') {
 						newMode = modeNames[attr.substr(1)];
 					} else if(attr.charAt(0) == ':') {
@@ -394,6 +452,9 @@ Factory.convertSource = function(input, namespace, scope){
 				} else if(tagName.charAt(0) == '&') {
 					append = false;
 					tagName = tagName.substr(1);
+				} else if(tagName == "*head" || tagName == "*body") {
+					create = false;
+					parent = "document." + tagName.substr(1);
 				}
 				if(newMode === undefined) {
 					for(var i=0; i<modeRegistry.length; i++) {
@@ -444,8 +505,8 @@ Factory.convertSource = function(input, namespace, scope){
 					parser.expect('>');
 					if(create) {
 						if(append) {
-							var e = "Factory.append(" + parent + ", " + createExpr() + ")";
-							if(unique) e = "Factory.unique(this, " + Common.nextId(namespace) + ", function(){return " + e + "})";
+							var e = "Factory.appendElement(" + parent + ", " + createExpr() + ")";
+							if(unique) e = "Factory.unique(this, " + Util.nextId(namespace) + ", function(){return " + e + "})";
 							source.push(e);
 						} else {
 							source.push(createExpr());
@@ -468,7 +529,7 @@ Factory.convertSource = function(input, namespace, scope){
 							var e = "Factory.append(" + parent + ", Factory.call(this, " + expr + ", function(" + element + "){";
 							currentClosing += ")";
 							if(unique) {
-								e = "Factory.unique(this, " + Common.nextId(namespace) + ", function(){return " + e;
+								e = "Factory.unique(this, " + Util.nextId(namespace) + ", function(){return " + e;
 								currentClosing += "})";
 							}
 							source.push(e);
@@ -476,7 +537,7 @@ Factory.convertSource = function(input, namespace, scope){
 							source.push("Factory.call(this, " + expr + ", function(" + element + "){");
 						}
 					} else {
-						source.push("Factory.call(this, " + parent + ", function(" + element + "){");
+						source.push("Factory.callElement(this, " + parent + ", function(" + element + "){");
 					}
 					inheritance.push(currentInheritance);
 					closing.push(currentClosing);

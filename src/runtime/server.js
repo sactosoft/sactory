@@ -2,11 +2,7 @@ var jsdom = require("jsdom");
 var Builder = require("./builder");
 var Factory = require("./common");
 
-var JSDOM = jsdom.JSDOM;
-
-var dom = new JSDOM("");
-global.window = dom.window;
-global.document = dom.window.document;
+require("../document"); // init global variables
 
 Object.defineProperty(window.Element.prototype, "__builder", {
 	get: function(){
@@ -17,9 +13,11 @@ Object.defineProperty(window.Element.prototype, "__builder", {
 module.exports = {
 	
 	createDocument: function(){
-		var ret = Factory.createElement("div", []);
+		var dom = new jsdom.JSDOM("");
+		global.window = dom.window;
+		var ret = global.document = dom.window.document;
 		ret.toString = function(){
-			return "<!DOCTYPE html>" + ret.innerHTML;
+			return dom.serialize();
 		};
 		return ret;
 	}
