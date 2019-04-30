@@ -10,6 +10,9 @@ var modeRegistry = [];
 var modeNames = {};
 var defaultMode;
 
+/**
+ * @since 0.15.0
+ */
 Factory.registerMode = function(displayName, names, parser, options){
 	var id = modeRegistry.length;
 	modeRegistry.push({
@@ -24,15 +27,25 @@ Factory.registerMode = function(displayName, names, parser, options){
 	return id;
 };
 
+/**
+ * @since 0.35.0
+ */
 Factory.startMode = function(mode, namespace, parser, element, source, attributes){
 	var m = modeRegistry[mode];
 	return m && new m.parser({info: m.info, namespace: namespace || "", parser: parser, element: element || "", source: source || []}, attributes || {});
 };
 
+/**
+ * @since 0.35.0
+ */
 Factory.startModeByName = function(mode, namespace, parser, element, source, attributes){
 	return Factory.startMode(modeNames[mode], namespace, parser, element, source, attributes);
 };
 
+/**
+ * @class
+ * @since 0.15.0
+ */
 function SourceParser(data, attributes) {
 	this.info = data.info;
 	this.namespace = data.namespace;
@@ -53,6 +66,10 @@ SourceParser.prototype.finalize = function(){};
 
 SourceParser.prototype.parse = function(handle, eof){};
 
+/**
+ * @class
+ * @since 0.29.0
+ */
 function BreakpointParser(data, attributes, breakpoints) {
 	SourceParser.call(this, data, attributes);
 	this.breakpoints = ['<'].concat(breakpoints);
@@ -79,6 +96,47 @@ BreakpointParser.prototype.parse = function(handle, eof){
 	}
 };
 
+/**
+ * @class
+ * @since 0.28.0
+ */
+function TextParser(data, attributes) {
+	SourceParser.call(this, data, attributes);
+	this.textMode = false;
+}
+
+TextParser.prototype = Object.create(SourceParser.prototype);
+
+TextParser.prototype.replaceText = function(text){
+	return text;
+};
+
+TextParser.prototype.handle = function(){
+	return true;
+};
+
+TextParser.prototype.parse = function(handle, eof){
+	var result = this.parser.find(['<', '$']);
+	if(result.pre) {
+		this.add(this.element + ".__builder.text=" + JSON.stringify(this.replaceText(result.pre)).replace(/\\n/gm, "\\n\" +\n\"") + ";");
+	}
+	switch(result.match) {
+		case '$':
+			this.add(this.element + ".__builder.text=" + this.parser.readVar(true) + ";");
+			break;
+		case '<':
+			if(this.handle()) handle();
+			else this.add(this.element + ".__builder.text='<';");
+			break;
+		default:
+			eof();
+	}
+};
+
+/**
+ * @class
+ * @since 0.15.0
+ */
 function JavascriptParser(data, attributes) {
 	BreakpointParser.call(this, data, attributes, ['@']);
 }
@@ -103,46 +161,50 @@ JavascriptParser.prototype.next = function(match){
 	}
 };
 
-function TextParser(data, attributes) {
-	SourceParser.call(this, data, attributes);
-	this.textMode = false;
+/**
+ * @class
+ * @since 0.15.0
+ */
+function HTMLParser(data, attributes) {
+	TextParser.call(this, data, attributes);
 }
 
-TextParser.prototype = Object.create(SourceParser.prototype);
+HTMLParser.prototype = Object.create(TextParser.prototype);
 
-TextParser.prototype.replaceText = function(text){
+HTMLParser.prototype.replaceText = function(text){
 	var textarea = document.createElement("textarea");
 	textarea.innerHTML = text;
 	return textarea.value;
 };
 
-TextParser.prototype.parse = function(handle, eof){
-	var result = this.parser.find(['<', '$']);
-	if(result.pre) {
-		this.add(this.element + ".__builder.text=" + JSON.stringify(this.replaceText(result.pre)).replace(/\\n/gm, "\\n\" +\n\"") + ";");
-	}
-	switch(result.match) {
-		case '$':
-			this.add(this.element + ".__builder.text=" + this.parser.readVar() + ";");
-			break;
-		case '<':
-			handle();
-			break;
-		default:
-			eof();
-	}
+/**
+ * @class
+ * @since 0.37.0
+ */
+function ScriptParser(data, attributes) {
+	TextParser.call(this, data, attributes);
+}
+
+ScriptParser.prototype = Object.create(TextParser.prototype);
+
+ScriptParser.prototype.handle = function(){
+	return !!/^\/#?script>/.exec(this.parser.input.substr(this.parser.index));
 };
 
+/**
+ * @class
+ * @since 0.15.0
+ */
 function CSSParser(data, attributes) {
 	TextParser.call(this, data, attributes);
 }
 
 CSSParser.prototype = Object.create(TextParser.prototype);
 
-CSSParser.prototype.replaceText = function(text){
-	return text;
-};
-
+/**
+ * @class
+ * @since 0.15.0
+ */
 function CSSBParser(data, attributes) {
 	SourceParser.call(this, data, attributes);
 	this.expr = [];
@@ -210,19 +272,21 @@ CSSBParser.prototype.parse = function(handle, eof){
 		}
 	} else if(start("var ") || start("const ") || start("let ")) {
 		skipStatement.call(this);
-		this.add(this.parser.readVarName());
+		this.add(this.parser.readVarName(true));
 		this.skip();
 		this.parser.expect('=');
 		this.add('=');
-		this.add(this.parser.find([';'], true, true).pre + ';');
+		this.skip();
+		this.add(CSSBParser.createExpr(this.parser.find([';'], true, true).pre, this.namespace) + ';');
 	} else {
-		function value(e) {
+		var namespace = this.namespace;
+		function value(e, computable) {
 			if(e.length && e[0].string && (e[0].value = Polyfill.trimStart.call(e[0].value)).length == 0) e.shift();
 			if(e.length && e[e.length - 1].string && (e[e.length - 1].value = Polyfill.trimEnd.call(e[e.length - 1].value)).length == 0) e.pop();
 			if(e.length) {
 				var ret = [];
 				e.forEach(function(v){
-					ret.push(v.string && JSON.stringify(v.value) || v.value);
+					ret.push(v.string && JSON.stringify(v.value) || (!computable && v.value || CSSBParser.createExpr(v.value, namespace)));
 				});
 				return ret.join('+');
 			} else {
@@ -241,7 +305,7 @@ CSSBParser.prototype.parse = function(handle, eof){
 					handle();
 					break;
 				case '$':
-					curr.push({string: false, value: this.parser.readVar()});
+					curr.push({string: false, value: this.parser.readVar(true)});
 					loop = true;
 					break;
 				case ':':
@@ -265,7 +329,7 @@ CSSBParser.prototype.parse = function(handle, eof){
 					}
 					break;
 				case ';':
-					this.add(this.scopes[this.scopes.length - 1] + "[" + value(expr.key) + "]=" + value(expr.value) + ";");
+					this.add(this.scopes[this.scopes.length - 1] + "[" + value(expr.key) + "]=" + (expr.value.length && value(expr.value, true) || null) + ";");
 					break;
 				default:
 					eof();
@@ -282,33 +346,84 @@ CSSBParser.prototype.finalize = function(){
 	if(this.scope) this.add(", function(){ this.parentNode.classList.add(\"__style\" + this.__builder.id); }, function(){ this.parentNode.classList.remove(\"__style\" + this.__builder.id); }");
 };
 
-function MarkdownParser(data, attributes) {
-	SourceParser.call(this, data, attributes);
-}
+CSSBParser.createExprImpl = function(expr, info){
+	var parser = new Parser(expr);
+	function skip() {
+		var skipped = parser.skipImpl({strings: false, comments: true});
+		if(skipped) info.computed += skipped;
+	}
+	function readSign() {
+		var result = parser.readImpl(/^((\+\+?)|(\-\-?))/, false);
+		if(result) info.computed += result;
+	}
+	function readOp() {
+		var result = parser.readImpl(/^(\+|\-|\*|\/|\%)/, false);
+		if(result) {
+			info.computed += result;
+			info.op++;
+			return true;
+		}
+	}
+	while(!parser.eof()) {
+		skip();
+		readSign();
+		if(parser.peek() == '(') {
+			info.computed += '(';
+			var start = parser.index + 1;
+			parser.skipExpr();
+			if(!CSSBParser.createExprImpl(parser.input.substring(start, parser.index - 1), info)) return false;
+			info.computed += ')';
+		} else {
+			var v = parser.readExpr();
+			if(/^[a-zA-Z_\$]/.exec(v)) {
+				// it's a variable
+				info.is = true;
+				info.computed += "Factory.unit(" + info.param + "," + v + ")";
+			} else {
+				info.computed += v;
+			}
+		}
+		readSign();
+		skip();
+		var op = readOp();
+		skip();
+		if(!op && !parser.eof()) return false;
+	}
+	return true;
+};
 
-MarkdownParser.prototype = Object.create(SourceParser.prototype);
+CSSBParser.createExpr = function(expr, namespace){
+	var param = "__u" + Util.nextId(namespace);
+	var info = {
+		param: param,
+		computed: "(function(" + param + "){return Factory.compute(" + param + ",",
+		is: false,
+		op: 0
+	};
+	return CSSBParser.createExprImpl(expr, info) && info.is && info.op && (info.computed + ")})({})") || expr;
+};
 
 Factory.registerMode("Javascript", ["javascript", "js", "code"], JavascriptParser, {isDefault: true, code: true});
-Factory.registerMode("HTML", ["html"], TextParser, {comments: false, strings: false});
-Factory.registerMode("Text", ["text"], TextParser, {comments: false, strings: false, children: false, tags: {"script": []}});
+Factory.registerMode("HTML", ["html"], HTMLParser, {comments: false, strings: false});
+Factory.registerMode("Text", ["text"], HTMLParser, {comments: false, strings: false, children: false});
+Factory.registerMode("Script", ["script"], ScriptParser, {comments: false, strings: false, children: false, tags: {"script": []}});
 Factory.registerMode("CSS", ["css"], CSSParser, {children: false});
-Factory.registerMode("CSSB", ["cssb"], CSSBParser, {strings: false, children: false, tags: {"style": ["scoped"]}});
-//Factory.registerMode("Markdown", ["markdown"], MarkdownParser, {comments: false, children: false, tags: ["markdown"]});
+Factory.registerMode("CSSB", ["cssb", "style", "fcss"], CSSBParser, {strings: false, children: false, tags: {"style": ["scoped"]}});
 
-Factory.convertSource = function(input, namespace, scope){
+Factory.convertSource = function(input, options){
 	
 	var parser = new Parser(input);
 	
-	var element = "__el" + Util.nextId(namespace);
+	var element = "__el" + Util.nextId(options.namespace);
 	
-	var source = ["var Factory=(typeof global=='object'&&global||window).Factory||require('factory');", "var " + element + "=" + (scope || null) + ";"];
+	var source = ["(function(Factory, " + element + "){"];
 	
 	var tags = [];
 	var inheritance = [];
 	var closing = [];
 	var modes = [];
 	var currentMode;
-	var valueParser = Factory.startMode(defaultMode, namespace, null, element);
+	var valueParser = Factory.startMode(defaultMode, options.namespace, null, element);
 	
 	function parseValue(value) {
 		valueParser.parser = new Parser(value);
@@ -319,7 +434,7 @@ Factory.convertSource = function(input, namespace, scope){
 	function startMode(mode, attributes) {
 		var info = modeRegistry[mode];
 		if(!info) throw new Error("Mode '" + mode + "' could not be found.");
-		var currentParser = new info.parser({info: info, namespace: namespace, parser: parser, element: element, source: source}, attributes);
+		var currentParser = new info.parser({info: info, namespace: options.namespace, parser: parser, element: element, source: source}, attributes);
 		parser.options = info.options;
 		currentMode = {
 			name: info.name,
@@ -401,22 +516,22 @@ Factory.convertSource = function(input, namespace, scope){
 				var rattributes = [];
 				var selector, tagName;
 				if(selector = parser.readComputedExpr()) {
-					tagName = parser.peek() == '$' && parser.readTagName() || "";
+					tagName = parser.peek() == '$' && parser.readTagName(true) || "";
 					append = false;
 				} else {
-					tagName = parser.readTagName();
+					tagName = parser.readTagName(true);
 				}
 				skip();
 				var next = false;
 				while(!parser.eof() && (next = parser.peek()) != '>' && next != '/') {
 					skip();
-					var attr = parser.readComputedExpr() || parser.readAttributeName();
+					var attr = parser.readComputedExpr() || parser.readAttributeName(true);
 					var value;
 					skip();
 					if(parser.peek() == '=') {
 						parser.index++;
 						skip();
-						value = parser.readExpr();
+						value = parser.readAttributeValue();
 					} else {
 						value = "\"\"";
 					}
@@ -424,10 +539,8 @@ Factory.convertSource = function(input, namespace, scope){
 						parent = value;
 					} else if(attr == "*unique") {
 						unique = true;
-					} else if(attr == "*head") {
-						parent = "document.head";
-					} else if(attr == "*body") {
-						parent = "document.body";
+					} else if(attr == "*head" || attr == "*body") {
+						parent = "document." + attr.substr(1);
 					} else if(attr.charAt(0) == '#') {
 						newMode = modeNames[attr.substr(1)];
 					} else if(attr.charAt(0) == ':') {
@@ -506,7 +619,7 @@ Factory.convertSource = function(input, namespace, scope){
 					if(create) {
 						if(append) {
 							var e = "Factory.appendElement(" + parent + ", " + createExpr() + ")";
-							if(unique) e = "Factory.unique(this, " + Util.nextId(namespace) + ", function(){return " + e + "})";
+							if(unique) e = "Factory.unique(this, " + Util.nextId(options.namespace) + ", function(){return " + e + "})";
 							source.push(e);
 						} else {
 							source.push(createExpr());
@@ -529,7 +642,7 @@ Factory.convertSource = function(input, namespace, scope){
 							var e = "Factory.append(" + parent + ", Factory.call(this, " + expr + ", function(" + element + "){";
 							currentClosing += ")";
 							if(unique) {
-								e = "Factory.unique(this, " + Util.nextId(namespace) + ", function(){return " + e;
+								e = "Factory.unique(this, " + Util.nextId(options.namespace) + ", function(){return " + e;
 								currentClosing += "})";
 							}
 							source.push(e);
@@ -552,6 +665,8 @@ Factory.convertSource = function(input, namespace, scope){
 	
 	endMode().finalize();
 	
+	source.push("})(typeof global=='object'&&global.Factory||typeof window=='object'&&window.Factory||require('factory'), " + (options.scope || null) + ");");
+	
 	console.log(source.join(""));
 	
 	return source.join("");
@@ -568,7 +683,7 @@ if(typeof window == "object") {
 				content = builder.outerHTML;
 				builder.setAttribute("type", "text/x-builder");
 			}
-			eval.call(window, Factory.convertSource(content || builder.textContent, "", null));
+			eval.call(window, Factory.convertSource(content || builder.textContent, {}));
 		});
 	}
 	

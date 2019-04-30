@@ -34,7 +34,7 @@ var Watcher = {
 						var namespace = folder + filename;
 						var conv;
 						try {
-							conv = Factory.convertSource(data.toString(), namespace);
+							conv = Factory.convertSource(data.toString(), {namespace: namespace});
 						} catch(e) {
 							console.error(e);
 						}
@@ -86,7 +86,7 @@ var Watcher = {
 				update(filename);
 			});
 			
-			console.log("Watching " + folder + "**/*.jsb using " + APP_NAME + " v" + Factory.VERSION);
+			console.log("Watching " + folder + "**/*.jsb using Factory v" + Factory.VERSION);
 			
 		}
 		

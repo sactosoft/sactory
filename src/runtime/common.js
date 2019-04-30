@@ -1,3 +1,5 @@
+var Polyfill = require("../polyfill");
+
 var Factory = {};
 
 var NAMESPACES = {
@@ -12,6 +14,8 @@ var NAMESPACES = {
 
 var definedTemplates = {};
 
+/**
+ */
 Factory.defineTemplate = function(name, tagName, args, handler){
 	if(typeof tagName == "function" || Array.isArray(tagName)) {
 		handler = args;
@@ -36,6 +40,9 @@ Factory.defineTemplate = function(name, tagName, args, handler){
 
 var definedComponents = {};
 
+/**
+ * @since 0.31.0
+ */
 Factory.defineComponent = function(name, tagName, component){
 	definedComponents[name] = {
 		name: name,
@@ -44,18 +51,26 @@ Factory.defineComponent = function(name, tagName, component){
 	};
 };
 
-// init global functions used in interpretation
+// init global functions used at runtime
 
+/**
+ * @since 0.32.0
+ */
 Factory.check = function(major, minor, patch){
 	if(major != Factory.VERSION_MAJOR || minor != Factory.VERSION_MINOR) {
 		throw new Error("Code transpiled using version " + major + "." + minor + "." + patch + " cannot be run in the current environment using version " + Factory.VERSION + ".");
 	}
 };
 
+/**
+ */
 Factory.createElement = function(str, args){
 	return Factory.updateElement(null, str, args);
 };
 
+/**
+ * @since 0.29.0
+ */
 Factory.updateElement = function(element, str, args){
 	
 	var split = str.split('$');
@@ -136,19 +151,30 @@ Factory.updateElement = function(element, str, args){
 	
 };
 
+/**
+ * @since 0.36.0
+ */
 Factory.callImpl = function(context, element, container, fun){
 	fun.call(context, container);
 	return element;
 };
 
+/**
+ */
 Factory.call = function(context, element, fun){
 	return Factory.callImpl(context, element.element, element.container, fun);
 };
 
+/**
+ * @since 0.36.0
+ */
 Factory.callElement = function(context, element, fun){
 	return Factory.callImpl(context, element, element, fun);
 };
 
+/**
+ * @since 0.32.0
+ */
 Factory.unique = function(context, id, fun){
 	var className = "__factory" + id;
 	if(!document.querySelector("." + className)) {
@@ -158,6 +184,9 @@ Factory.unique = function(context, id, fun){
 	}
 };
 
+/**
+ * @since 0.17.0
+ */
 Factory.append = function(element, child, afterappend, beforeremove){
 	if(element) {
 		element.appendChild(child);
@@ -167,10 +196,16 @@ Factory.append = function(element, child, afterappend, beforeremove){
 	return child;
 };
 
+/**
+ * @since 0.36.0
+ */
 Factory.appendElement = function(element, child, afterappend, beforeremove){
 	return Factory.append(element, child.element, afterappend, beforeremove);
 };
 
+/**
+ * @since 0.32.0
+ */
 Factory.query = function(context, doc, selector, fun){
 	if(!fun) {
 		fun = selector;
@@ -192,6 +227,9 @@ Factory.query = function(context, doc, selector, fun){
 	return ret;
 };
 
+/**
+ * @since 0.11.0
+ */
 Factory.bind = function(context, element, target, change, fun){
 	var recordId = nextId();
 	var oldValue;
@@ -219,6 +257,50 @@ Factory.bind = function(context, element, target, change, fun){
 	}
 };
 
+/**
+ * Converts a css unit to a number and update the {@code unit} object that stores
+ * the unit type.
+ * @param {Object} unit - Storage for the unit. The same expression should use the same storage.
+ * @param {string|*} value - The value that, if of type string, is checked for unit conversion.
+ * @returns The value stripped from the unit and converted to number, if a unit was found, or the unmodified value.
+ * @throws If a unit has already been used in the same expression and it's different from the current one.
+ * @since 0.37.0
+ */
+Factory.unit = function(unit, value){
+	if(typeof value == "string") {
+		function check(u) {
+			if(Polyfill.endsWith.call(value, u)) {
+				if(unit.unit && unit.unit != u) throw new Error("Units '" + unit.unit + "' and '" + u + "' are not compatible. Use the calc() function instead.");
+				unit.unit = u;
+				value = parseFloat(value.substring(0, value.length - u.length));
+				return true;
+			}
+		}
+		check("cm") || check("mm") || check("in") || check("px") || check("pt") || check("pc") ||
+		check("rem") || check("em") || check("ex") || check("ch") || check("vw") || check("vh") || check("vmin") || check("vmax") || check("%");
+	}
+	return value;
+};
+
+/**
+ * Computes the result of an expression that uses {@link unit}.
+ * @param {Object} unit - Storage for the unit populated by {@link unit}.
+ * @param {number|*} result - The result of the expression. If a number it is checked for unit concatenation.
+ * @returns the number concatenated with the unit if present, the unmodified value otherwise.
+ * @since 0.37.0
+ */
+Factory.compute = function(unit, result){
+	if(typeof result == "number" && unit.unit) {
+		return result + unit.unit;
+	} else {
+		return result;
+	}
+};
+
+/**
+ * Converts an object to minified CSS.
+ * @since 0.19.0
+ */
 Factory.compilecss = function(root){
 	var ret = "";
 	function compile(obj) {
@@ -230,6 +312,8 @@ Factory.compilecss = function(root){
 					compile(value);
 					ret += "}";
 				}
+			} else if(value === null) {
+				ret += selector + ';';
 			} else {
 				if(selector == "content" && (value.charAt(0) != '"' || value.charAt(value.length - 1) != '"') && (value.charAt(0) != '\'' || value.charAt(value.length - 1) != '\'')) value = JSON.stringify(value);
 				ret += selector + ":" + value + ";";
@@ -240,6 +324,10 @@ Factory.compilecss = function(root){
 	return ret;
 };
 
+/**
+ * Converts an object in CSSB format to minified CSS.
+ * @since 0.19.0
+ */
 Factory.compilecssb = function(root){
 	var ret = {};
 	function compile(selectors, curr, obj) {

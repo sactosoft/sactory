@@ -18,8 +18,10 @@ ParserError.prototype = Object.create(Error.prototype, {
 
 ParserError.prototype.name = "ParserError";
 
-//Object.setPrototypeOf(ParserError, Error);
-
+/**
+ * Parses an input without consuming it.
+ * @class
+ */
 function Parser(input) {
 	this.index = 0;
 	this.input = input;
@@ -27,6 +29,11 @@ function Parser(input) {
 	this.options = {};
 }
 
+/**
+ * Throws an error showing the given message and the current line number.
+ * @throws {ParserError}
+ * @since 0.33.0
+ */
 Parser.prototype.error = function(message){
 	var line = 0;
 	for(var i=0; i<=this.index; i++) {
@@ -35,18 +42,38 @@ Parser.prototype.error = function(message){
 	throw new ParserError("Line " + line + ": " + message);
 };
 
+/**
+ * Indicates whether the index has reached the input's length.
+ * @returns true if index is equals or greater than the input's length.
+ */
 Parser.prototype.eof = function(){
 	return this.index >= this.input.length;
 };
 
+/**
+ * Peeks the next character without altering the reading index.
+ * @returns The character read.
+ */
 Parser.prototype.peek = function(){
 	return this.input[this.index];
 };
 
+/**
+ * Reads the next character and increments the reading index.
+ * @returns The character read.
+ * @since 0.19.0
+ */
 Parser.prototype.read = function(){
 	return this.input[this.index++];
 };
 
+/**
+ * Asserts that the next character is equal to the given one and increases the
+ * current index.
+ * @param {string} c - The character that will be compared to the one at the current index.
+ * @throws {ParserError} When the character at the current index is different from the given one.
+ * @since 0.16.0
+ */
 Parser.prototype.expect = function(c){
 	var curr = this.input[this.index++];
 	if(curr !== c) this.error("Expected '" + c + "' but got '" + curr + "'.");
@@ -55,6 +82,9 @@ Parser.prototype.expect = function(c){
 /**
  * Skips whitespaces, comments (if options.comments !== false) and
  * strings (if options.strings !== false).
+ * @returns The skipped data.
+ * @throws {ParserError} When a string or a comment is not properly closed.
+ * @since 0.19.0
  */
 Parser.prototype.skipImpl = function(options){
 	var start = this.index;
@@ -90,10 +120,22 @@ Parser.prototype.skipImpl = function(options){
 	return this.input.substring(start, this.index);
 };
 
+/**
+ * Calls {@link skipImpl} using the default options obtained in the constructor.
+ * @returns The skipped data.
+ * @throws {ParserError} When a string or a comment is not properly closed.
+ */
 Parser.prototype.skip = function(){
 	return this.skipImpl(this.options);
 };
 
+/**
+ * Skips a string.
+ * This function skips data until the first character is found again and is
+ * not escaped using a backslash.
+ * @throws {ParserError} When the string is not properly closed.
+ * @since 0.19.0
+ */
 Parser.prototype.skipString = function(){
 	var type = this.read();
 	while(!this.eof()) {
@@ -104,6 +146,13 @@ Parser.prototype.skipString = function(){
 	}
 };
 
+/**
+ * Skips an expression that starts with a parentheses or a bracket.
+ * Comments and strings are skipped and their content is not treated as possible
+ * parenthesies/brackets.
+ * @throws {ParserError} When the expression is not properly closed.
+ * @since 0.20.0
+ */
 Parser.prototype.skipExpr = function(){
 	var par = {'}': '{', ']': '[', ')': '('};
 	var match = par[this.read()];
@@ -123,6 +172,14 @@ Parser.prototype.skipExpr = function(){
 	this.error("Expression not completed.");
 };
 
+/**
+ * Finds one of the characters in the given array.
+ * @param {string[]} search - An array containing the characters to be found.
+ * @param {boolean=} force - Whether to throw an error if none of the characters in `search` could be found.
+ * @param {boolean=} skip - Whether to call {@link skip} or search the whole input.
+ * @returns An object with the data before the match (`pre` property) and the match (`match` property).
+ * @throws {ParserError} When a string or a comment is not closed or force is true and none of the given characters could be found.
+ */
 Parser.prototype.find = function(search, force, skip){
 	var start = this.index;
 	while(!this.eof()) {
@@ -131,10 +188,19 @@ Parser.prototype.find = function(search, force, skip){
 		if(search.indexOf(next) != -1) return {pre: this.input.substring(start, this.index - 1), match: next};
 		else this.last = next;
 	}
-	if(force && this.eof()) this.error("Expected [" + search.join(", ") + "] but not found.");
+	if(force && this.eof()) this.error("Expected [" + search.join(", ") + "] but none found.");
 	return {pre: this.input.substr(start)};
 };
 
+/**
+ * Finds the given sequence (without skipping comments and strings) and sets the
+ * current index to the end of the match.
+ * @param {string} sequence - The sequence to find.
+ * @param {boolean=} force - Whether to throw an error if no match can be found or return an empty string.
+ * @returns The data between the current index and the match (the matched sequence is not included).
+ * @throws {ParserError} When force is true and no match could be found.
+ * @since 0.16.0
+ */
 Parser.prototype.findSequence = function(sequence, force){
 	var index = this.input.substr(this.index).indexOf(sequence);
 	if(index == -1) {
@@ -146,48 +212,61 @@ Parser.prototype.findSequence = function(sequence, force){
 	return ret;
 };
 
-Parser.prototype.readName = function(force){
-	var match = /^[a-zA-Z0-9_\-\.]+/.exec(this.input.substr(this.index));
+/**
+ * Reads from the given regular expression.
+ * @param {RegExp} regex - The regular expression that will be executed against the current input. The start of string caret (^) is not inserted automatically.
+ * @param {boolean=} force - Indicates whether to return false or throw an error when a result could not be found.
+ * @param {function=} message - Optional function lazily evaluated that returns a custom error message.
+ * @throws {ParserError} When the force param is true and a result could not be found.
+ * @since 0.37.0
+ */
+Parser.prototype.readImpl = function(regex, force, message){
+	var match = regex.exec(this.input.substr(this.index));
 	if(match) {
 		this.index += match[0].length;
 		return match[0];
-	} else if(force === false) {
+	} else if(force) {
+		this.error(message && message() || ("Regular expression '" + regex + "' could not be satisfied."));
+	} else {
 		return false;
-	} else {
-		this.error("Name not found.");
 	}
 };
 
+/**
+ * Reads a javascript variable name.
+ * @param {boolean=} force - Indicates whether to return false or throw an error when a result could not be found.
+ * @throws {ParserError} When the force param is true and a result could not be found.
+ * @since 0.36.0
+ */
 Parser.prototype.readVarName = function(force){
-	var match = /^[a-zA-Z_\$][a-zA-Z0-9_\$]*/.exec(this.input.substr(this.index));
-	if(match) {
-		this.index += match[0].length;
-		return match[0];
-	} else {
-		this.error("Could not find a valid variable name.");
-	}
+	return this.readImpl(/^[a-zA-Z_\$][a-zA-Z0-9_\$]*/, force, function(){ return "Could not find a valid variable name."; });
 };
 
-Parser.prototype.readTagName = function(){
-	var match = /^((\*(head|body))|([\#\&]?[a-zA-Z0-9_\-\.\:\$]*))/.exec(this.input.substr(this.index));
-	if(match) {
-		this.index += match[0].length;
-		return match[0];
-	} else {
-		this.error("Could not find a valid tag name.");
-	}
+/**
+ * Reads a tag name.
+ * @param {boolean=} force - Indicates whether to return false or throw an error when a result could not be found.
+ * @throws {ParserError} When the force param is true and a result could not be found.
+ * @since 0.13.0
+ */
+Parser.prototype.readTagName = function(force){
+	return this.readImpl(/^((\*(head|body))|([\#\&]?[a-zA-Z0-9_\-\.\:\$]*))/, force, function(){ return "Could not find a valid tag name."; });
 };
 
-Parser.prototype.readAttributeName = function(){
-	var match = /^~?(\@\@?|\#|\*|\$|\+)?[a-zA-Z0-9_\-\.\:]*/.exec(this.input.substr(this.index));
-	if(match) {
-		this.index += match[0].length;
-		return match[0];
-	} else {
-		this.error("Could not find a valid attribute name");
-	}
+/**
+ * Reads an attribute name.
+ * @param {boolean=} force - Indicates whether to return false or throw an error when a result could not be found.
+ * @throws {ParserError} When the force param is true and a result could not be found.
+ * @since 0.22.0
+ */
+Parser.prototype.readAttributeName = function(force){
+	return this.readImpl(/^~?(\@\@?|\#|\*|\$|\+)?[a-zA-Z0-9_\-\.\:]*/, force, function(){ return "Could not find a valid attribute name."; });
 };
 
+/**
+ * Reads an expression wrapped in square brackets and removes them or a string.
+ * @returns A string if found, false otherwise.
+ * @since 0.32.0
+ */
 Parser.prototype.readComputedExpr = function(){
 	var peek = this.peek();
 	if(peek == '[') {
@@ -203,29 +282,52 @@ Parser.prototype.readComputedExpr = function(){
 	}
 };
 
+/**
+ * Reads an expression or a series of them. Note that this function's behaviour is different
+ * from {@link skipExpr}'s one as more than one expression is read and it doesn't need to be
+ * wrapped in parentheses or brackets.
+ * @returns The expression read or an empty string if no expression could be found.
+ */
 Parser.prototype.readExpr = function(){
 	var start = this.index;
 	var peek = this.peek();
 	if(peek == '"' || peek == '\'' || peek == '`') {
 		this.skipString();
-	} else {
-		while(!this.eof()) {
-			this.readName(false);
-			peek = this.peek();
-			if(peek == '{' || peek == '[' || peek == '(') this.skipExpr();
-			else break;
-		}
+	}
+	while(!this.eof()) {
+		this.readImpl(/^[a-zA-Z0-9_\$\.]+/, false);
+		peek = this.peek();
+		if(peek == '{' || peek == '[' || peek == '(') this.skipExpr();
+		else break;
 	}
 	return this.input.substring(start, this.index);
 };
 
-Parser.prototype.readVar = function(){
+/**
+ * Reads an expression and throws an error if empty.
+ * @throws {ParserError} If no expression could be found.
+ * @since 0.37.0
+ */
+Parser.prototype.readAttributeValue = function(){
+	var value = this.readExpr();
+	if(!value) this.error("Could not find a valid expression for the attribute value.");
+	return value;
+};
+
+/**
+ * Reads a variable searching a valid javascript variable name or an expression
+ * if wrapped around curly brackets.
+ * @param {boolean=} force - Indicates whether to return false or throw an error when a result could not be found.
+ * @throws {ParserError} When the force param is true and a result could not be found.
+ * @since 0.29.0
+ */
+Parser.prototype.readVar = function(force){
 	if(this.peek() == '{') {
 		var start = this.index + 1;
 		this.skipExpr();
 		return '(' + this.input.substring(start, this.index - 1) + ')';
 	} else {
-		return this.readVarName();
+		return this.readVarName(force);
 	}
 };
 

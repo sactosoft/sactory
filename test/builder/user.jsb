@@ -5,7 +5,8 @@ module.exports = function(app){
 	var types = ["primary", "info", "success", "warning", "danger"];
 	
 	var theme = {
-		margin: 0,
+		margin: "10px",
+		padding: "8px",
 		dark: false,
 		className: {
 			name: "name"
@@ -59,6 +60,7 @@ module.exports = function(app){
 					var ${'$'} = document.querySelector;
 				</script>
 				<style>
+					@import test;
 					:root {
 						for(let type of types) {
 							var color = theme.color[type];
@@ -68,10 +70,9 @@ module.exports = function(app){
 						}
 					}
 					body {
-						margin: ${theme.margin}px ${theme.margin / 2}px;
-						padding: 0;
-						if(theme.dark) background: #333;
-						else background: #eee;
+						margin: ${theme.margin} ${(theme.padding + 1) * (theme.margin / 2)};
+						if(theme.padding) padding: ${theme.padding / 2};
+						else padding: 0;
 					}
 					.${theme.className.name} {
 						margin: 0;
