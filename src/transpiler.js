@@ -216,7 +216,7 @@ CSSBParser.prototype = Object.create(SourceParser.prototype);
 
 CSSBParser.prototype.addScope = function(selector){
 	var scope = "__s" + Util.nextId(this.namespace);
-	this.add("var " + scope + "=" + this.scopes[this.scopes.length - 1] + "[" + selector + "]={};");
+	this.add("var " + scope + "=Factory.select(" + this.scopes[this.scopes.length - 1] + "," + selector + ");");
 	this.scopes.push(scope);
 };
 
@@ -230,7 +230,7 @@ CSSBParser.prototype.skip = function(){
 };
 
 CSSBParser.prototype.start = function(){
-	this.add("var " + this.scopes[0] + "={};");
+	this.add("var " + this.scopes[0] + "=[];");
 	if(this.scope) {
 		this.addScope("\".__style\"+" + this.element + ".__builder.id");
 	}
@@ -281,6 +281,15 @@ CSSBParser.prototype.parse = function(handle, eof){
 	} else {
 		var namespace = this.namespace;
 		function value(e, computable) {
+			e = (function(){
+				// concat strings
+				var ret = [];
+				e.forEach(function(v){
+					if(v.string && ret[ret.length - 1] && ret[ret.length - 1].string) ret[ret.length - 1].value += v.value;
+					else ret.push(v);
+				});
+				return ret;
+			})();
 			if(e.length && e[0].string && (e[0].value = Polyfill.trimStart.call(e[0].value)).length == 0) e.shift();
 			if(e.length && e[e.length - 1].string && (e[e.length - 1].value = Polyfill.trimEnd.call(e[e.length - 1].value)).length == 0) e.pop();
 			if(e.length) {
@@ -296,6 +305,10 @@ CSSBParser.prototype.parse = function(handle, eof){
 		var search = ['<', '$', '{', '}', ';', ':'];
 		var expr = {key: [], value: []};
 		var curr = expr.key;
+		if(this.parser.peek() == '@') {
+			search.pop();
+			this.parser.options.inlineComments = false;
+		}
 		do {
 			var loop = false;
 			var result = this.parser.find(search, false, true);
@@ -312,6 +325,7 @@ CSSBParser.prototype.parse = function(handle, eof){
 					search.pop();
 					curr = expr.value;
 					loop = true;
+					this.parser.options.inlineComments = false;
 					break;
 				case '{':
 					if(expr.value.length) {
@@ -329,12 +343,13 @@ CSSBParser.prototype.parse = function(handle, eof){
 					}
 					break;
 				case ';':
-					this.add(this.scopes[this.scopes.length - 1] + "[" + value(expr.key) + "]=" + (expr.value.length && value(expr.value, true) || null) + ";");
+					this.add(this.scopes[this.scopes.length - 1] + ".push({k:" + value(expr.key) + (expr.value.length && ",v:" + value(expr.value, true) || "") + "});");
 					break;
 				default:
 					eof();
 			}
 		} while(loop);
+		this.parser.options.inlineComments = true; // restore
 	}
 };
 
@@ -354,7 +369,10 @@ CSSBParser.createExprImpl = function(expr, info){
 	}
 	function readSign() {
 		var result = parser.readImpl(/^((\+\+?)|(\-\-?))/, false);
-		if(result) info.computed += result;
+		if(result) {
+			info.computed += result;
+			info.op++;
+		}
 	}
 	function readOp() {
 		var result = parser.readImpl(/^(\+|\-|\*|\/|\%)/, false);
@@ -400,7 +418,16 @@ CSSBParser.createExpr = function(expr, namespace){
 		is: false,
 		op: 0
 	};
-	return CSSBParser.createExprImpl(expr, info) && info.is && info.op && (info.computed + ")})({})") || expr;
+	var ret = "";
+	var parser = new Parser(CSSBParser.createExprImpl(expr, info) && info.is && info.op && (info.computed + ")})({})") || expr);
+	parser.options = {comments: true, strings: true};
+	while(true) {
+		var result = parser.find(['#'], false, true);
+		ret += result.pre;
+		if(result.match) ret += "Factory.css.";
+		else break;
+	}
+	return ret;
 };
 
 Factory.registerMode("Javascript", ["javascript", "js", "code"], JavascriptParser, {isDefault: true, code: true});
@@ -635,8 +662,9 @@ Factory.convertSource = function(input, options){
 					if(newMode !== undefined) {
 						startMode(newMode, iattributes);
 					}
-					if(tagName == ":bind") {
-						source.push("Factory.bind(this, " + parent + ", " + iattributes.to + ", " + iattributes.change + ", function(" + element + (iattributes.as ? ", " + iattributes.as : "") + "){");
+					var bindIf = tagName == ":bind-if";
+					if(bindIf || tagName == ":bind") {
+						source.push("Factory.bind" + (bindIf ? "If" : "") + "(this, " + parent + ", " + iattributes.to + ", " + iattributes.change + (bindIf ? ", " + iattributes.condition : "") + ", function(" + element + (iattributes.as ? ", " + iattributes.as : "") + "){");
 					} else if(create) {
 						if(append) {
 							var e = "Factory.append(" + parent + ", Factory.call(this, " + expr + ", function(" + element + "){";

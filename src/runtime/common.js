@@ -1,6 +1,11 @@
 var Polyfill = require("../polyfill");
+var Util = require("../util");
 
 var Factory = {};
+
+Factory.options = {
+	minify: true
+};
 
 var NAMESPACES = {
 	"xhtml": "http://www.w3.org/1999/xhtml",
@@ -231,7 +236,7 @@ Factory.query = function(context, doc, selector, fun){
  * @since 0.11.0
  */
 Factory.bind = function(context, element, target, change, fun){
-	var recordId = nextId();
+	var recordId = Util.nextId();
 	var oldValue;
 	function record(value) {
 		element.__builder.startRecording(recordId);
@@ -258,6 +263,24 @@ Factory.bind = function(context, element, target, change, fun){
 };
 
 /**
+ * @since 0.40.0
+ */
+Factory.bindIf = function(context, element, target, change, condition, fun){
+	Factory.bind(context, element, target, change, function(element, value){
+		if(condition()) fun.call(this, element, value);
+	});
+};
+
+/**
+ * @since 0.39.0
+ */
+Factory.select = function(array, selector){
+	var value = [];
+	array.push({s: selector, v: value});
+	return value;
+};
+
+/**
  * Converts a css unit to a number and update the {@code unit} object that stores
  * the unit type.
  * @param {Object} unit - Storage for the unit. The same expression should use the same storage.
@@ -277,7 +300,8 @@ Factory.unit = function(unit, value){
 			}
 		}
 		check("cm") || check("mm") || check("in") || check("px") || check("pt") || check("pc") ||
-		check("rem") || check("em") || check("ex") || check("ch") || check("vw") || check("vh") || check("vmin") || check("vmax") || check("%");
+		check("rem") || check("em") || check("ex") || check("ch") || check("vw") || check("vh") || check("vmin") || check("vmax") || check("%") ||
+		check("s");
 	}
 	return value;
 };
@@ -285,13 +309,13 @@ Factory.unit = function(unit, value){
 /**
  * Computes the result of an expression that uses {@link unit}.
  * @param {Object} unit - Storage for the unit populated by {@link unit}.
- * @param {number|*} result - The result of the expression. If a number it is checked for unit concatenation.
+ * @param {number|*} result - The result of the expression. If a number it is checked for unit concatenation and rounded to 3 decimal places.
  * @returns the number concatenated with the unit if present, the unmodified value otherwise.
  * @since 0.37.0
  */
 Factory.compute = function(unit, result){
 	if(typeof result == "number" && unit.unit) {
-		return result + unit.unit;
+		return Math.round(result * 1000) / 1000 + unit.unit;
 	} else {
 		return result;
 	}
@@ -306,14 +330,14 @@ Factory.compilecss = function(root){
 	function compile(obj) {
 		for(var selector in obj) {
 			var value = obj[selector];
-			if(typeof value == "object") {
+			if(value === null) {
+				ret += selector + ';';
+			} else if(typeof value == "object") {
 				if(Object.keys(value).length) {
 					ret += selector + "{";
 					compile(value);
 					ret += "}";
 				}
-			} else if(value === null) {
-				ret += selector + ';';
 			} else {
 				if(selector == "content" && (value.charAt(0) != '"' || value.charAt(value.length - 1) != '"') && (value.charAt(0) != '\'' || value.charAt(value.length - 1) != '\'')) value = JSON.stringify(value);
 				ret += selector + ":" + value + ";";
@@ -331,19 +355,16 @@ Factory.compilecss = function(root){
 Factory.compilecssb = function(root){
 	var ret = {};
 	function compile(selectors, curr, obj) {
-		for(var selector in obj) {
-			var value = obj[selector];
-			if(typeof value == "object") {
+		obj.forEach(function(value){
+			if(value.s) {
+				var selector = value.s;
 				if(selector.charAt(0) == '@') {
-					if(selector.substring(1, 6) == "media") {
-						var oret = ret;
-						ret = {};
-						compile(selectors, ret[selectors.join(',')] = {}, value);
-						oret[selector] = ret;
-						ret = oret;
-					} else {
-						ret[selector] = value;
-					}
+					var oret = ret;
+					ret = {};
+					if(selector.substring(1, 6) == "media") compile(selectors, ret[selectors.join(',')] = {}, value.v);
+					else compile([], {}, value.v);
+					oret[selector] = ret;
+					ret = oret;
 				} else {
 					var ns = [];
 					if(selectors.length) {
@@ -359,15 +380,140 @@ Factory.compilecssb = function(root){
 							return s.trim();
 						});
 					}
-					compile(ns, ret[ns.join(',')] = {}, value);
+					compile(ns, ret[ns.join(',')] = {}, value.v);
 				}
 			} else {
-				curr[selector] = value;
+				curr[value.k] = value.v || null;
 			}
-		}
+		});
 	}
 	compile([], ret, root);
 	return Factory.compilecss(ret);
+};
+
+// css functions
+
+Factory.css = {};
+
+function Color(r, g, b, a) {
+	this.r = r;
+	this.g = g;
+	this.b = b;
+	this.a = typeof a == "number" && a || 1;
+}
+
+Color.prototype.update = function(fun){
+	this.r = fun(this.r, 'r');
+	this.g = fun(this.g, 'g');
+	this.b = fun(this.b, 'b');
+};
+
+Color.prototype.toString = function(){
+	if(this.a == 1) return '#' + [this.r, this.g, this.b].map(function(a){ return Polyfill.padStart.call(a.toString(16), 2, '0'); }).join("");
+	else return "rgba(" + [this.r, this.g, this.b, this.a].join(", ") + ")";
+};
+
+Color.from = function(r, g, b, a){
+	return new Color(r, g, b, a);
+};
+
+var converter;
+
+Color.parse = function(color){
+	if(!converter) converter = document.createElement("div");
+	converter.style.color = "";
+	converter.style.color = color;
+	var conv = converter.style.color; // let the DOM handle the conversion to rgb/rgba
+	if(Polyfill.startsWith.call(conv, "rgb")) {
+		var a = conv.charAt(3) == 'a';
+		return Color.from.apply(null, conv.substring(4 + a, conv.length - 1).split(',').map(function(a){
+			return parseFloat(a);
+		}));
+	} else {
+		throw new Error("Invalid color '" + color + "'.");
+	}
+};
+
+Color.update = function(color, fun){
+	color = Color.parse(color);
+	color.update(fun);
+	return color.toString();
+};
+
+/**
+ * Converts a color of any type to RGB, removing the alpha channel if present.
+ * @since 0.38.0
+ */
+Factory.css.rgb = function(color){
+	color = Color.parse(color);
+	color.a = 1;
+	return color.toString();
+};
+
+/**
+ * Converts a color of any type to RGBA, optionally updating the value of the alpha channel. 
+ * @since 0.38.0
+ */
+Factory.css.rgba = function(color, alpha){
+	color = Color.parse(color);
+	if(arguments.length > 1) color.a = alpha;
+	return color.toString();
+};
+
+/**
+ * @since 0.38.0
+ */
+Factory.css.lighten = function(color, amount){
+	if(amount > 0) amount /= 100;
+	return Color.update(color, function(v){
+		return v + Math.round((255 - v) * amount);
+	});
+};
+
+/**
+ * @since 0.38.0
+ */
+Factory.css.darken = function(color, amount){
+	if(amount > 1) amount /= 100;
+	return Color.update(color, function(v){
+		return v - Math.round(v * amount);
+	});
+};
+
+/**
+ * @since 0.38.0
+ */
+Factory.css.grayscale = function(color){
+	color = Color.parse(color);
+	color.r = color.g = color.b = Math.round(color.r * .2989 + color.g * .587 + color.b * .114);
+	return color.toString();
+};
+
+/**
+ * Inverts a color.
+ * @since 0.38.0
+ */
+Factory.css.invert = function(color){
+	return Color.update(color, function(v){
+		return 255 - v;
+	});
+};
+
+/**
+ * @since 0.38.0
+ */
+Factory.css.mix = function(){
+	var length = arguments.length;
+	var color = new Color(0, 0, 0);
+	Array.prototype.forEach.call(arguments, function(c){
+		Color.parse(c).update(function(v, i){
+			color[i] += v;
+		});
+	});
+	color.update(function(v){
+		return Math.round(v / length);
+	});
+	return color.toString();
 };
 
 module.exports = Factory;

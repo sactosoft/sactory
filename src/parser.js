@@ -95,7 +95,7 @@ Parser.prototype.skipImpl = function(options){
 			this.index++;
 		} else if(options.comments !== false && next == '/') {
 			var comment = this.input[this.index + 1];
-			if(comment == '/') {
+			if(comment == '/' && options.inlineComments !== false) {
 				this.index += 2;
 				this.findSequence("\n", false);
 				this.last = undefined;
