@@ -171,10 +171,12 @@ function HTMLParser(data, attributes) {
 
 HTMLParser.prototype = Object.create(TextParser.prototype);
 
+var converter;
+
 HTMLParser.prototype.replaceText = function(text){
-	var textarea = document.createElement("textarea");
-	textarea.innerHTML = text;
-	return textarea.value;
+	if(!converter) converter = document.createElement("textarea");
+	converter.innerHTML = text;
+	return converter.value;
 };
 
 /**
@@ -434,7 +436,7 @@ Factory.registerMode("Javascript", ["javascript", "js", "code"], JavascriptParse
 Factory.registerMode("HTML", ["html"], HTMLParser, {comments: false, strings: false});
 Factory.registerMode("Text", ["text"], HTMLParser, {comments: false, strings: false, children: false});
 Factory.registerMode("Script", ["script"], ScriptParser, {comments: false, strings: false, children: false, tags: {"script": []}});
-Factory.registerMode("CSS", ["css"], CSSParser, {children: false});
+Factory.registerMode("CSS", ["css"], CSSParser, {inlineComments: false, strings: false, children: false});
 Factory.registerMode("CSSB", ["cssb", "style", "fcss"], CSSBParser, {strings: false, children: false, tags: {"style": ["scoped"]}});
 
 Factory.convertSource = function(input, options){
@@ -523,7 +525,7 @@ Factory.convertSource = function(input, options){
 				parser.expect('-');
 				parser.expect('-');
 				var seq = parser.findSequence("-->", true);
-				source.push(element + ".appendChild(document.createComment(" + JSON.stringify(seq) + "));");
+				source.push("Factroy.comment(" + element + ", " + JSON.stringify(seq) + ");");
 				for(var i=0; i<seq.length; i++) {
 					if(seq.charAt(i) == '\n') source.push('\n');
 				}
@@ -637,6 +639,10 @@ Factory.convertSource = function(input, options){
 					return ret + "])";
 				}
 				parser.index++;
+				if(parent == "\"\"") {
+					// an empty string and null have the same behaviour but null is faster as it avoids the query selector controls when appending
+					parent = "null";
+				}
 				if(selector) {
 					source.push("Factory.query(this, " + selector + ", function(" + element + "){");
 					currentClosing += "})";
@@ -662,9 +668,12 @@ Factory.convertSource = function(input, options){
 					if(newMode !== undefined) {
 						startMode(newMode, iattributes);
 					}
-					var bindIf = tagName == ":bind-if";
-					if(bindIf || tagName == ":bind") {
-						source.push("Factory.bind" + (bindIf ? "If" : "") + "(this, " + parent + ", " + iattributes.to + ", " + iattributes.change + (bindIf ? ", " + iattributes.condition : "") + ", function(" + element + (iattributes.as ? ", " + iattributes.as : "") + "){");
+					var bind = "";
+					if(tagName == ":bind-if" || tagName == ":if") bind = "If";
+					else if(tagName == ":bind-each" || tagName == ":each") bind = "Each";
+					if(bind || tagName == ":bind") {
+						source.push("Factory.bind" + bind + "(this, " + parent + ", " + iattributes.to + ", " + iattributes.change + (bind == "If" ? ", " + iattributes.condition : "") +
+							", function(" + element + (iattributes.as ? ", " + iattributes.as : "__0") + (iattributes.index ? ", " + iattributes.index : "__1") + (iattributes.array ? ", " + iattributes.array : "__2") + "){");
 					} else if(create) {
 						if(append) {
 							var e = "Factory.append(" + parent + ", Factory.call(this, " + expr + ", function(" + element + "){";

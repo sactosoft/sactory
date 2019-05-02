@@ -35,6 +35,17 @@ gulp.task("dist:factory", function(){
 		"util",
 		"polyfill",
 		"runtime/common",
+		"runtime/common-cssb",
+		"runtime/builder",
+		"runtime/client"
+	]);
+});
+
+gulp.task("dist:factory-lite", function(){
+	return make("factory-lite", "Factory", [
+		"util",
+		"polyfill",
+		"runtime/common",
 		"runtime/builder",
 		"runtime/client"
 	]);
@@ -49,4 +60,4 @@ gulp.task("dist:transpiler", function(){
 	]);
 });
 
-gulp.task("dist", gulp.parallel("dist:factory", "dist:transpiler"));
+gulp.task("dist", gulp.parallel("dist:factory", "dist:factory-lite", "dist:transpiler"));
