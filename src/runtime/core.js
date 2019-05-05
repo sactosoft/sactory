@@ -12,22 +12,6 @@ var NAMESPACES = {
 	"xbl": "http://www.mozilla.org/xbl"
 };
 
-// utils
-
-/**
- * @since 0.40.0
- */
-Factory.isObservable = function(value){
-	return typeof value == "function" && value.subscribe;
-};
-
-/**
- * @since 0.40.0
- */
-Factory.observe = function(value, callback){
-	return value.subscribe(callback);
-};
-
 // templates
 
 var definedTemplates = {};
@@ -263,7 +247,8 @@ Factory.bind = function(context, element, target, change, fun){
 		fun.call(context, element, oldValue = value);
 		element.__builder.stopRecording(recordId);
 	}
-	if(typeof target.forEach == "function") {
+	if(target.observe) target = target.observe;
+	if(target.forEach) {
 		target.forEach(function(ob){
 			ob.subscribe(function(){
 				element.__builder.rollback(recordId);
@@ -271,14 +256,18 @@ Factory.bind = function(context, element, target, change, fun){
 			});
 		});
 		record();
-	} else if(typeof target == "function" && target.subscribe) {
+	} else if(Factory.isObservable(target)) {
 		target.subscribe(function(value){
 			if(!change || change(oldValue, value)) {
 				element.__builder.rollback(recordId);
 				record(value);
 			}
 		});
-		record(target());
+		if(Factory.isOwnObservable(target)) {
+			record(target.value);
+		} else {
+			record(target());
+		}
 	} else {
 		throw new Error("Cannot bind to the given value: not an observable or an array of observables.");
 	}
@@ -288,6 +277,8 @@ Factory.bind = function(context, element, target, change, fun){
  * @since 0.40.0
  */
 Factory.bindIf = function(context, element, target, change, condition, fun){
+	if(!target && Factory.isContainerObservable(condition)) target = condition.observe;
+	condition = Factory.unobserve(condition);
 	if(typeof condition != "function") throw new Error("The condition provided to :bind-if is not a function.");
 	Factory.bind(context, element, target, change, function(element, value){
 		if(condition()) fun.call(this, element, value);
@@ -299,12 +290,16 @@ Factory.bindIf = function(context, element, target, change, condition, fun){
  */
 Factory.bindEach = function(context, element, target, change, fun){
 	Factory.bind(context, element, target, change, function(element, value){
-		value.forEach(function(){
-			fun.apply(context, arguments);
+		value.forEach(function(currentValue, index, array){
+			fun.call(context, element, currentValue, index, array);
 		});
 	});
 };
 
-
+if(!Factory.compilecssb) {
+	Factory.compilecssb = function(){
+		throw new Error("CSSB runtime is not loaded. Either load it by using the full version of the runtime or use normal css by using the '#css' attribute.");
+	};
+}
 
 module.exports = Factory;

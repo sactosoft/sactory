@@ -64,7 +64,7 @@ SourceParser.prototype.end = function(){};
 
 SourceParser.prototype.finalize = function(){};
 
-SourceParser.prototype.parse = function(handle, eof){};
+SourceParser.prototype.parse = function(handle, eof, parseCode){};
 
 /**
  * @class
@@ -79,11 +79,11 @@ BreakpointParser.prototype = Object.create(SourceParser.prototype);
 
 BreakpointParser.prototype.next = function(match){};
 
-BreakpointParser.prototype.parse = function(handle, eof){
+BreakpointParser.prototype.parse = function(handle, eof, parseCode){
 	var result = this.parser.find(this.breakpoints, false, true);
 	if(result.pre) this.add(result.pre);
 	if(result.match == '<') {
-		if(this.info.options.code && [undefined, '(', '[', '{', '}', ';', ':', ',', '=', '/', '?', '&', '|', '>'].indexOf(this.parser.last) == -1) {
+		if(this.info.options.code && [undefined, '(', '[', '{', '}', ';', ':', ',', '=', '/', '?', '&', '|', '>'].indexOf(this.parser.last) == -1 || this.parser.lastKeyword("return")) {
 			// just a comparison
 			this.add("<");
 		} else {
@@ -115,14 +115,14 @@ TextParser.prototype.handle = function(){
 	return true;
 };
 
-TextParser.prototype.parse = function(handle, eof){
+TextParser.prototype.parse = function(handle, eof, parseCode){
 	var result = this.parser.find(['<', '$']);
 	if(result.pre) {
 		this.add(this.element + ".__builder.text=" + JSON.stringify(this.replaceText(result.pre)).replace(/\\n/gm, "\\n\" +\n\"") + ";");
 	}
 	switch(result.match) {
 		case '$':
-			this.add(this.element + ".__builder.text=" + this.parser.readVar(true) + ";");
+			this.add(this.element + ".__builder.text=" + parseCode(this.parser.readVar(true)).toValue() + ";");
 			break;
 		case '<':
 			if(this.handle()) handle();
@@ -138,26 +138,59 @@ TextParser.prototype.parse = function(handle, eof){
  * @since 0.15.0
  */
 function JavascriptParser(data, attributes) {
-	BreakpointParser.call(this, data, attributes, ['@']);
+	BreakpointParser.call(this, data, attributes, ['@', '*']);
+	this.observables = [];
 }
 
 JavascriptParser.prototype = Object.create(BreakpointParser.prototype);
 
 JavascriptParser.prototype.next = function(match){
-	if(this.parser.peek() == '@') {
-		this.add('@');
-		this.parser.index++;
-	} else {
-		var skip = this.parser.skip();
-		if(this.parser.peek() == '=') {
-			this.add("var " + this.element);
-			if(skip) this.add(skip);
-		} else {
-			this.add(this.element);
-			if(skip) this.add(skip);
-			if(this.parser.input.substr(this.parser.index).search(/^text[\s]*=/) === 0) this.add(".__builder.");
-			else if(this.parser.peek().search(/[a-zA-Z0-9_]/) === 0) this.add(".");
-		}
+	switch(match) {
+		case '@':
+			if(this.parser.peek() == '@') {
+				this.add('@');
+				this.parser.index++;
+			} else {
+				var skip = this.parser.skip();
+				if(this.parser.peek() == '=') {
+					this.add("var " + this.element);
+					if(skip) this.add(skip);
+				} else {
+					this.add(this.element);
+					if(skip) this.add(skip);
+					if(this.parser.input.substr(this.parser.index).search(/^text[\s]*=/) === 0) this.add(".__builder.");
+					else if(this.parser.peek() && this.parser.peek().search(/[a-zA-Z0-9_]/) === 0) this.add(".");
+				}
+			}
+			break;
+		case '*':
+			if(this.parser.last === undefined || !this.parser.last.match(/^[a-zA-Z0-9_$\)\]]$/) || this.parser.lastKeyword("return")) {
+				if(this.parser.peek() == '*') {
+					// new observable
+					this.parser.index++;
+					this.add("Factory.observable(" + this.parser.readExpr() + ")");
+					this.parser.last = ')';
+				} else {
+					// get/set observable
+					var name;
+					//TODO skip
+					if(this.parser.peek() == '(') {
+						var start = this.parser.index;
+						this.parser.skipExpr();
+						name = this.parser.input.substring(start, this.parser.index);
+					} else {
+						name = this.parser.readVarName(true);
+					}
+					this.add(name + ".value");
+					this.observables.push(name);
+					this.parser.last = 'e';
+				}
+				this.parser.lastIndex = this.parser.index;
+			} else {
+				// just a multiplication
+				this.add('*');
+			}
+			break;
 	}
 };
 
@@ -238,7 +271,7 @@ CSSBParser.prototype.start = function(){
 	}
 };
 
-CSSBParser.prototype.parse = function(handle, eof){
+CSSBParser.prototype.parse = function(handle, eof, parseCode){
 	this.skip();
 	var input = this.parser.input.substr(this.parser.index);
 	var length;
@@ -260,7 +293,7 @@ CSSBParser.prototype.parse = function(handle, eof){
 		if(this.parser.peek() != '(') throw new Error("Expected '(' after statement (if/else if/for/while).");
 		var start = this.parser.index;
 		this.parser.skipExpr();
-		this.add(this.parser.input.substring(start, this.parser.index));
+		this.add(parseCode(this.parser.input.substring(start, this.parser.index)).source);
 		this.skip();
 		if(this.parser.peek() == '{') {
 			this.add(this.parser.read());
@@ -279,7 +312,7 @@ CSSBParser.prototype.parse = function(handle, eof){
 		this.parser.expect('=');
 		this.add('=');
 		this.skip();
-		this.add(CSSBParser.createExpr(this.parser.find([';'], true, true).pre, this.namespace) + ';');
+		this.add(CSSBParser.createExpr(parseCode(this.parser.find([';'], true, true).pre).source, this.namespace) + ';');
 	} else {
 		var namespace = this.namespace;
 		function value(e, computable) {
@@ -297,7 +330,7 @@ CSSBParser.prototype.parse = function(handle, eof){
 			if(e.length) {
 				var ret = [];
 				e.forEach(function(v){
-					ret.push(v.string && JSON.stringify(v.value) || (!computable && v.value || CSSBParser.createExpr(v.value, namespace)));
+					ret.push(v.string && JSON.stringify(v.value) || (!computable && v.value || CSSBParser.createExpr(parseCode(v.value).source, namespace)));
 				});
 				return ret.join('+');
 			} else {
@@ -435,15 +468,19 @@ CSSBParser.createExpr = function(expr, namespace){
 Factory.registerMode("Javascript", ["javascript", "js", "code"], JavascriptParser, {isDefault: true, code: true});
 Factory.registerMode("HTML", ["html"], HTMLParser, {comments: false, strings: false});
 Factory.registerMode("Text", ["text"], HTMLParser, {comments: false, strings: false, children: false});
-Factory.registerMode("Script", ["script"], ScriptParser, {comments: false, strings: false, children: false, tags: {"script": []}});
+Factory.registerMode("Script", ["script"], ScriptParser, {comments: false, strings: false, children: false, tags: ["script"]});
 Factory.registerMode("CSS", ["css"], CSSParser, {inlineComments: false, strings: false, children: false});
-Factory.registerMode("CSSB", ["cssb", "style", "fcss"], CSSBParser, {strings: false, children: false, tags: {"style": ["scoped"]}});
+Factory.registerMode("CSSB", ["cssb", "style", "fcss"], CSSBParser, {strings: false, children: false, tags: ["style"]});
 
 Factory.convertSource = function(input, options){
+
+	function nextId() {
+		return Util.nextId(options.namespace);
+	}
 	
 	var parser = new Parser(input);
 	
-	var element = "__el" + Util.nextId(options.namespace);
+	var element = "__el" + nextId();
 	
 	var source = ["(function(Factory, " + element + "){"];
 	
@@ -514,6 +551,34 @@ Factory.convertSource = function(input, options){
 			addSemicolon();
 		}
 	}
+
+	function parseCode(input) {
+		var parser = new Parser(input);
+		var source = [];
+		var mode = Factory.startMode(defaultMode, options.namespace, parser, element, source);
+		mode.start();
+		while(parser.index < input.length) {
+			mode.parse(function(){}, function(){}, parseCode);
+		}
+		mode.end();
+		mode.finalize();
+		source = source.join("");
+		return {
+			source: source,
+			toValue: function(){
+				if(mode.observables && mode.observables.length) {
+					if(input.charAt(0) == '*' && source == input.substr(1) + ".value") {
+						// single observable, pass it raw so it can be used in two-way binding
+						return input.substr(1);
+					} else {
+						return "{observe:[" + mode.observables.join(',') + "],compute:function(){return " + source + "}}";
+					}
+				} else {
+					return source;
+				}
+			}
+		};
+	}
 	
 	while(parser.index < input.length) {
 		currentMode.parser.parse(function(){
@@ -544,7 +609,8 @@ Factory.convertSource = function(input, options){
 				var iattributes = {};
 				var rattributes = [];
 				var selector, tagName;
-				if(selector = parser.readComputedExpr()) {
+				if(selector = parser.readComputedTagName()) {
+					selector = parseCode(selector).source;
 					tagName = parser.peek() == '$' && parser.readTagName(true) || "";
 					append = false;
 				} else {
@@ -553,29 +619,40 @@ Factory.convertSource = function(input, options){
 				skip();
 				var next = false;
 				while(!parser.eof() && (next = parser.peek()) != '>' && next != '/') {
+					var attr, computed = false;
+					var value, add = false;
 					skip();
-					var attr = parser.readComputedExpr() || parser.readAttributeName(true);
-					var value;
+					if(attr = parser.readComputedAttributeName()) {
+						attr = parseCode(attr).source;
+						computed = add = true;
+					} else {
+						attr = parser.readAttributeName(true);	
+					}
 					skip();
 					if(parser.peek() == '=') {
 						parser.index++;
 						skip();
-						value = parser.readAttributeValue();
+						value = parseCode(parser.readAttributeValue()).toValue();
 					} else {
 						value = "\"\"";
 					}
-					if(attr == "@") {
-						parent = value;
-					} else if(attr == "*unique") {
-						unique = true;
-					} else if(attr == "*head" || attr == "*body") {
-						parent = "document." + attr.substr(1);
-					} else if(attr.charAt(0) == '#') {
-						newMode = modeNames[attr.substr(1)];
-					} else if(attr.charAt(0) == ':') {
-						iattributes[attr.substr(1)] = value;
-					} else {
-						rattributes.push({attr: attr, value: value});
+					if(!computed) {
+						if(attr == "@") {
+							parent = value;
+						} else if(attr == "*unique") {
+							unique = true;
+						} else if(attr == "*head" || attr == "*body") {
+							parent = "document." + attr.substr(1);
+						} else if(attr.charAt(0) == '#') {
+							newMode = modeNames[attr.substr(1)];
+						} else if(attr.charAt(0) == ':') {
+							iattributes[attr.substr(1)] = value;
+						} else {
+							add = true;
+						}
+					}
+					if(add) {
+						rattributes.push({attr: attr, value: value, computed: computed});
 					}
 					skip();
 					next = false;
@@ -591,7 +668,7 @@ Factory.convertSource = function(input, options){
 				} else if(tagName.charAt(0) == '#') {
 					newMode = modeNames[tagName.substr(1)];
 					if(newMode !== undefined) create = false; // behave as a scope
-				} else if(tagName.charAt(0) == '&') {
+				} else if(tagName.charAt(0) == '@') {
 					append = false;
 					tagName = tagName.substr(1);
 				} else if(tagName == "*head" || tagName == "*body") {
@@ -601,16 +678,8 @@ Factory.convertSource = function(input, options){
 				if(newMode === undefined) {
 					for(var i=0; i<modeRegistry.length; i++) {
 						var info = modeRegistry[i];
-						var attr = info.options.tags && info.options.tags[tagName];
-						if(attr) {
+						if(info.options.tags && info.options.tags.indexOf(tagName) != -1) {
 							newMode = i;
-							// transfer runtime attributes to interpreter attributes
-							rattributes.forEach(function(a, i){
-								if(attr.indexOf(a.attr) != -1) {
-									iattributes[a.attr] = a.value;
-									rattributes.splice(i, 1);
-								}
-							});
 							break;
 						}
 					}
@@ -622,18 +691,13 @@ Factory.convertSource = function(input, options){
 					if(!append) ret += "updateElement(" + element + ", ";
 					else ret += "createElement(";
 					ret += "\"" + tagName + "\", [" + inheritance.join("");
-					function stringifyKey(key) {
-						if(key.charAt(0) == '[' && key.charAt(key.length - 1) == ']') return key.substring(1, key.length - 1);
-						else return '"' + key + '"';
-					}
 					rattributes.forEach(function(attribute){
-						if(attribute.attr.charAt(0) == '~') {
-							var nkey = attribute.attr.substr(1);
-							var expr = "{key:" + stringifyKey(nkey) + ",value:" + attribute.value + "},";
+						if(!attribute.computed && attribute.attr.charAt(0) == '~') {
+							var expr = "{key:\"" + attribute.attr.substr(1) + "\",value:" + attribute.value + "},";
 							currentInheritance += expr;
 							ret += expr;
 						} else {
-							ret += "{key:" + stringifyKey(attribute.attr) + ",value:" + attribute.value + "},";
+							ret += "{key:" + (attribute.computed ? attribute.attr : '"' + attribute.attr + '"') + ",value:" + attribute.value + "},";
 						}
 					});
 					return ret + "])";
@@ -652,7 +716,7 @@ Factory.convertSource = function(input, options){
 					if(create) {
 						if(append) {
 							var e = "Factory.appendElement(" + parent + ", " + createExpr() + ")";
-							if(unique) e = "Factory.unique(this, " + Util.nextId(options.namespace) + ", function(){return " + e + "})";
+							if(unique) e = "Factory.unique(this, " + nextId() + ", function(){return " + e + "})";
 							source.push(e);
 						} else {
 							source.push(createExpr());
@@ -673,13 +737,13 @@ Factory.convertSource = function(input, options){
 					else if(tagName == ":bind-each" || tagName == ":each") bind = "Each";
 					if(bind || tagName == ":bind") {
 						source.push("Factory.bind" + bind + "(this, " + parent + ", " + iattributes.to + ", " + iattributes.change + (bind == "If" ? ", " + iattributes.condition : "") +
-							", function(" + element + (iattributes.as ? ", " + iattributes.as : "__0") + (iattributes.index ? ", " + iattributes.index : "__1") + (iattributes.array ? ", " + iattributes.array : "__2") + "){");
+							", function(" + [element, iattributes.as || "__v" + nextId(), iattributes.index || "__i" + nextId(), iattributes.array || "__a" + nextId()].join(", ") + "){");
 					} else if(create) {
 						if(append) {
 							var e = "Factory.append(" + parent + ", Factory.call(this, " + expr + ", function(" + element + "){";
 							currentClosing += ")";
 							if(unique) {
-								e = "Factory.unique(this, " + Util.nextId(options.namespace) + ", function(){return " + e;
+								e = "Factory.unique(this, " + nextId() + ", function(){return " + e;
 								currentClosing += "})";
 							}
 							source.push(e);
@@ -697,7 +761,7 @@ Factory.convertSource = function(input, options){
 				}
 			}
 			parser.last = undefined;
-		}, close);
+		}, close, parseCode);
 	}
 	
 	endMode().finalize();

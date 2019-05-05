@@ -34,8 +34,9 @@ gulp.task("dist:factory", function(){
 	return make("factory", "Factory", [
 		"util",
 		"polyfill",
-		"runtime/common",
-		"runtime/common-cssb",
+		"runtime/core",
+		"runtime/cssb",
+		"runtime/observable",
 		"runtime/builder",
 		"runtime/client"
 	]);
@@ -45,7 +46,8 @@ gulp.task("dist:factory-lite", function(){
 	return make("factory-lite", "Factory", [
 		"util",
 		"polyfill",
-		"runtime/common",
+		"runtime/core",
+		"runtime/observable",
 		"runtime/builder",
 		"runtime/client"
 	]);

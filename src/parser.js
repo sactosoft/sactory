@@ -26,6 +26,7 @@ function Parser(input) {
 	this.index = 0;
 	this.input = input;
 	this.last = undefined;
+	this.lastIndex = undefined;
 	this.options = {};
 }
 
@@ -80,6 +81,14 @@ Parser.prototype.expect = function(c){
 };
 
 /**
+ * Indicates whether the last keyword is equal to the given value.
+ * @since 0.41.0
+ */
+Parser.prototype.lastKeyword = function(value){
+	return this.last === value.charAt(value.length - 1) && this.input.substring(this.lastIndex - value.length + 1, this.lastIndex + 1) == value;
+};
+
+/**
  * Skips whitespaces, comments (if options.comments !== false) and
  * strings (if options.strings !== false).
  * @returns The skipped data.
@@ -89,6 +98,7 @@ Parser.prototype.expect = function(c){
 Parser.prototype.skipImpl = function(options){
 	var start = this.index;
 	var prelast = this.last;
+	var prelastIndex = this.lastIndex;
 	while(!this.eof()) {
 		var next = this.input[this.index];
 		if([' ', '\t', '\n', '\r'].indexOf(next) != -1) {
@@ -105,15 +115,20 @@ Parser.prototype.skipImpl = function(options){
 				this.last = undefined;
 			} else {
 				this.last = prelast;
+				this.lastIndex = prelastIndex;
 				prelast = next;
+				prelastIndex = this.index;
 				break;
 			}
 		} else if(options.strings !== false && (next == '"' || next == '\'' || next == '`')) {
 			this.skipString();
 			this.last = prelast = next;
+			this.lastIndex = prelastIndex = this.index;
 		} else {
 			this.last = prelast;
+			this.lastIndex = prelastIndex;
 			prelast = next;
+			prelastIndex = this.index;
 			break;
 		}
 	}
@@ -185,8 +200,12 @@ Parser.prototype.find = function(search, force, skip){
 	while(!this.eof()) {
 		if(skip) this.skip();
 		var next = this.input[this.index++];
-		if(search.indexOf(next) != -1) return {pre: this.input.substring(start, this.index - 1), match: next};
-		else this.last = next;
+		if(search.indexOf(next) != -1) {
+			return {pre: this.input.substring(start, this.index - 1), match: next};
+		} else {
+			this.last = next;
+			this.lastIndex = this.index - 1;
+		}
 	}
 	if(force && this.eof()) this.error("Expected [" + search.join(", ") + "] but none found.");
 	return {pre: this.input.substr(start)};
@@ -249,7 +268,7 @@ Parser.prototype.readVarName = function(force){
  * @since 0.13.0
  */
 Parser.prototype.readTagName = function(force){
-	return this.readImpl(/^((\*(head|body))|([\#\&]?[a-zA-Z0-9_\-\.\:\$]*))/, force, function(){ return "Could not find a valid tag name."; });
+	return this.readImpl(/^((\*(head|body))|([\#\@]?[a-zA-Z0-9_\-\.\:\$]*))/, force, function(){ return "Could not find a valid tag name."; });
 };
 
 /**
@@ -263,11 +282,11 @@ Parser.prototype.readAttributeName = function(force){
 };
 
 /**
- * Reads an expression wrapped in square brackets and removes them or a string.
+ * Reads an expression wrapped in square brackets (and removes them) or a string.
  * @returns A string if found, false otherwise.
- * @since 0.32.0
+ * @since 0.42.0
  */
-Parser.prototype.readComputedExpr = function(){
+Parser.prototype.readComputedTagName = function(){
 	var peek = this.peek();
 	if(peek == '[') {
 		var start = this.index;
@@ -277,6 +296,22 @@ Parser.prototype.readComputedExpr = function(){
 		var start = this.index;
 		this.skipString();
 		return this.input.substring(start, this.index);
+	} else {
+		return false;
+	}
+};
+
+/**
+ * Reads an expression wrapped in square brackets (and removes them).
+ * @returns A string if found, false otherwise.
+ * @since 0.42.0
+ */
+Parser.prototype.readComputedAttributeName = function(){
+	var peek = this.peek();
+	if(peek == '[') {
+		var start = this.index;
+		this.skipExpr();
+		return this.input.substring(start + 1, this.index - 1);
 	} else {
 		return false;
 	}
@@ -309,9 +344,10 @@ Parser.prototype.readExpr = function(){
  * @since 0.37.0
  */
 Parser.prototype.readAttributeValue = function(){
+	var prefix = (this.peek() == '*' || this.peek() == '@') && this.read() || "";
 	var value = this.readExpr();
 	if(!value) this.error("Could not find a valid expression for the attribute value.");
-	return value;
+	return prefix + value;
 };
 
 /**

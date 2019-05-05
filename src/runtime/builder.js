@@ -1,7 +1,11 @@
 var Polyfill = require("../polyfill");
+var Factory = require("./observable");
 
 var INPUT = ["value", "checked"];
 
+/**
+ * @class
+ */
 function Builder(element) {
 	
 	this.element = element;
@@ -22,7 +26,14 @@ function Builder(element) {
 	});
 	
 }
-	
+
+/**
+ * @since 0.42.0
+ */
+Builder.prototype.subscribe = function(subscriptions){
+	Array.prototype.push.apply(this.subscriptions, subscriptions);
+};
+
 Builder.prototype.propImpl = function(name, value){
 	var o = this.element;
 	if(name.charAt(0) == '@') {
@@ -38,16 +49,15 @@ Builder.prototype.propImpl = function(name, value){
 	
 Builder.prototype.prop = function(name, value){
 	var propImpl = this.propImpl.bind(this);
-	if(typeof value == "function" && value.subscribe) {
-		if(INPUT.indexOf(name) != -1) {
+	if(Factory.isObservable(value)) {
+		if(INPUT.indexOf(name) != -1 && Factory.isOwnObservable(value)) {
 			this.element.addEventListener("input", function(){
-				value(this[name]);
+				value.value = this[name];
 			});
 		}
-		this.subscriptions.push(value.subscribe(function(value){
+		this.subscribe(Factory.observe(value, function(value){
 			propImpl(name, value);
 		}));
-		propImpl(name, value());
 	} else {
 		propImpl(name, value);
 	}
@@ -63,14 +73,13 @@ Builder.prototype.attrImpl = function(name, value){
 	
 Builder.prototype.attr = function(name, value){
 	var attrImpl = this.attrImpl.bind(this);
-	if(typeof value == "function" && value.subscribe) {
+	if(Factory.isObservable(value)) {
 		if(INPUT.indexOf(name) != -1) {
 			console.warn("Observable value for '" + name + "' should be assigned to a property, not to an attribute.");
 		}
-		this.subscriptions.push(value.subscribe(function(value){
+		this.subscribe(Factory.observe(value, function(value){
 			attrImpl(name, value);
 		}));
-		attrImpl(name, value());
 	} else {
 		attrImpl(name, value);
 	}
@@ -78,11 +87,11 @@ Builder.prototype.attr = function(name, value){
 	
 Builder.prototype.textImpl = function(value){
 	var textNode;
-	if(typeof value == "function" && value.subscribe) {
-		this.subscriptions.push(value.subscribe(function(value){
+	if(Factory.isObservable(value)) {
+		textNode = document.createTextNode("");
+		this.subscribe(Factory.observe(value, function(value){
 			textNode.textContent = value;
 		}));
-		textNode = document.createTextNode(value());
 	} else {
 		textNode = document.createTextNode(value);
 	}
@@ -94,7 +103,10 @@ Object.defineProperty(Builder.prototype, "text", {
 		this.textImpl(value);
 	}
 });
-	
+
+/**
+ * @since
+ */
 Builder.prototype.event = function(name, value){
 	var split = name.split(".");
 	var event = split.shift();
@@ -151,7 +163,7 @@ Builder.prototype.setImpl = function(name, value){
 			} else if(name == "text") {
 				this.textImpl(value);
 			} else {
-				this.event(name, value);
+				this.event(name, Factory.unobserve(value));
 			}
 			break;
 		default:
@@ -169,11 +181,10 @@ Builder.prototype.set = function(name, value){
 	}
 	return this.element;
 };
-	
-Builder.prototype.addSubscription = function(subscription){
-	this.subscriptions.push(subscription);
-};
-	
+
+/**
+ * @since 0.11.0
+ */
 Builder.prototype.startRecording = function(id){
 	if(!this.after[id]) this.after[id] = {sibling: this.element.lastChild};
 	this.appendChild = this.element.appendChild;;
@@ -186,18 +197,24 @@ Builder.prototype.startRecording = function(id){
 		sibling = child.nextSibling;
 	};
 };
-	
+
+/**
+ * @since 0.11.0
+ */
 Builder.prototype.stopRecording = function(id){
 	this.element.appendChild = this.appendChild;
 };
-	
+
+/**
+ * @since 0.11.0
+ */
 Builder.prototype.rollback = function(id){
 	function unsubscribe(el) {
 		if(el.__builderInstance) {
 			el.__builder.unsubscribe();
 			if(el.__builder.beforeremove) el.__builder.beforeremove.call(el);
-			Array.prototype.forEach.call(el.children, unsubscribe);
 		}
+		Array.prototype.forEach.call(el.children, unsubscribe);
 	}
 	var $this = this;
 	this.recordings[id].forEach(function(child){
@@ -205,7 +222,10 @@ Builder.prototype.rollback = function(id){
 		$this.element.removeChild(child);
 	});
 };
-	
+
+/**
+ * @since 0.13.0
+ */
 Builder.prototype.unsubscribe = function(){
 	this.subscriptions.forEach(function(subscription){
 		subscription.dispose();
