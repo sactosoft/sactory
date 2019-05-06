@@ -1,6 +1,6 @@
 {
-	"name": "factory",
-	"version": "0.43.0",
+	"name": "sactory",
+	"version": "0.44.0",
 	"description": "HTML-spiced javascript for DOM creation and manipulation",
 	"main": "index.js",
 	"scripts": {

@@ -1,6 +1,6 @@
 var Util = require("./util");
 var Polyfill = require("./polyfill");
-var Factory = require("./transpiler");
+var Sactory = require("./transpiler");
 
 var version = require("../version");
 
@@ -34,7 +34,7 @@ var Watcher = {
 						var namespace = folder + filename;
 						var conv;
 						try {
-							conv = Factory.convertSource(data.toString(), {namespace: namespace});
+							conv = Sactory.convertSource(data.toString(), {namespace: namespace});
 						} catch(e) {
 							console.error(e);
 						}
@@ -43,7 +43,7 @@ var Watcher = {
 							var destFilename = dest + filename.substring(0, filename.length - 1);
 							var destFolder = destFilename.substring(0, destFilename.lastIndexOf('/'));
 							function save() {
-								fs.writeFile(destFilename, "/*! This file was automatically generated using Factory v" + version.version + " from '" + source + "'. Do not edit manually! */" + conv, function(error){
+								fs.writeFile(destFilename, "/*! This file was automatically generated using Sactory v" + version.version + " from '" + source + "'. Do not edit manually! */" + conv, function(error){
 									if(error) {
 										console.error(error);
 									} else {
@@ -98,7 +98,7 @@ var Watcher = {
 				update(filename);
 			});
 			
-			console.log("Watching " + folder + "**/*.jsb using Factory v" + Factory.VERSION);
+			console.log("Watching " + folder + "**/*.jsb using Sactory v" + Sactory.VERSION);
 			
 		}
 		

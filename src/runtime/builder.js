@@ -1,5 +1,5 @@
 var Polyfill = require("../polyfill");
-var Factory = require("./observable");
+var Sactory = require("./observable");
 
 var INPUT = ["value", "checked"];
 
@@ -49,13 +49,13 @@ Builder.prototype.propImpl = function(name, value){
 	
 Builder.prototype.prop = function(name, value){
 	var propImpl = this.propImpl.bind(this);
-	if(Factory.isObservable(value)) {
-		if(INPUT.indexOf(name) != -1 && Factory.isOwnObservable(value)) {
+	if(Sactory.isObservable(value)) {
+		if(INPUT.indexOf(name) != -1 && Sactory.isOwnObservable(value)) {
 			this.element.addEventListener("input", function(){
 				value.value = this[name];
 			});
 		}
-		this.subscribe(Factory.observe(value, function(value){
+		this.subscribe(Sactory.observe(value, function(value){
 			propImpl(name, value);
 		}));
 	} else {
@@ -73,11 +73,11 @@ Builder.prototype.attrImpl = function(name, value){
 	
 Builder.prototype.attr = function(name, value){
 	var attrImpl = this.attrImpl.bind(this);
-	if(Factory.isObservable(value)) {
+	if(Sactory.isObservable(value)) {
 		if(INPUT.indexOf(name) != -1) {
 			console.warn("Observable value for '" + name + "' should be assigned to a property, not to an attribute.");
 		}
-		this.subscribe(Factory.observe(value, function(value){
+		this.subscribe(Sactory.observe(value, function(value){
 			attrImpl(name, value);
 		}));
 	} else {
@@ -87,9 +87,9 @@ Builder.prototype.attr = function(name, value){
 	
 Builder.prototype.textImpl = function(value){
 	var textNode;
-	if(Factory.isObservable(value)) {
+	if(Sactory.isObservable(value)) {
 		textNode = document.createTextNode("");
-		this.subscribe(Factory.observe(value, function(value){
+		this.subscribe(Sactory.observe(value, function(value){
 			textNode.textContent = value;
 		}));
 	} else {
@@ -163,7 +163,7 @@ Builder.prototype.setImpl = function(name, value){
 			} else if(name == "text") {
 				this.textImpl(value);
 			} else {
-				this.event(name, Factory.unobserve(value));
+				this.event(name, Sactory.unobserve(value));
 			}
 			break;
 		default:

@@ -4,7 +4,7 @@ var Parser = require("./parser");
 
 require("./document"); // init global variables
 
-var Factory = {};
+var Sactory = {};
 
 var modeRegistry = [];
 var modeNames = {};
@@ -13,7 +13,7 @@ var defaultMode;
 /**
  * @since 0.15.0
  */
-Factory.registerMode = function(displayName, names, parser, options){
+Sactory.registerMode = function(displayName, names, parser, options){
 	var id = modeRegistry.length;
 	modeRegistry.push({
 		name: displayName,
@@ -30,7 +30,7 @@ Factory.registerMode = function(displayName, names, parser, options){
 /**
  * @since 0.35.0
  */
-Factory.startMode = function(mode, namespace, parser, element, source, attributes){
+Sactory.startMode = function(mode, namespace, parser, element, source, attributes){
 	var m = modeRegistry[mode];
 	return m && new m.parser({info: m.info, namespace: namespace || "", parser: parser, element: element || "", source: source || []}, attributes || {});
 };
@@ -38,8 +38,8 @@ Factory.startMode = function(mode, namespace, parser, element, source, attribute
 /**
  * @since 0.35.0
  */
-Factory.startModeByName = function(mode, namespace, parser, element, source, attributes){
-	return Factory.startMode(modeNames[mode], namespace, parser, element, source, attributes);
+Sactory.startModeByName = function(mode, namespace, parser, element, source, attributes){
+	return Sactory.startMode(modeNames[mode], namespace, parser, element, source, attributes);
 };
 
 /**
@@ -122,7 +122,7 @@ TextParser.prototype.parse = function(handle, eof, parseCode){
 	}
 	switch(result.match) {
 		case '$':
-			this.add(this.element + ".__builder.text=" + parseCode(this.parser.readVar(true)).toValue() + ";");
+			this.add(this.element + ".__builder.text=" + parseCode(this.parser.readVar(true), this.parser).toValue() + ";");
 			break;
 		case '<':
 			if(this.handle()) handle();
@@ -168,7 +168,7 @@ JavascriptParser.prototype.next = function(match){
 				if(this.parser.peek() == '*') {
 					// new observable
 					this.parser.index++;
-					this.add("Factory.observable(" + this.parser.readExpr() + ")");
+					this.add("Sactory.observable(" + this.parser.readExpr() + ")");
 					this.parser.last = ')';
 				} else {
 					// get/set observable
@@ -251,7 +251,7 @@ CSSBParser.prototype = Object.create(SourceParser.prototype);
 
 CSSBParser.prototype.addScope = function(selector){
 	var scope = "__s" + Util.nextId(this.namespace);
-	this.add("var " + scope + "=Factory.select(" + this.scopes[this.scopes.length - 1] + "," + selector + ");");
+	this.add("var " + scope + "=Sactory.select(" + this.scopes[this.scopes.length - 1] + "," + selector + ");");
 	this.scopes.push(scope);
 };
 
@@ -290,10 +290,10 @@ CSSBParser.prototype.parse = function(handle, eof, parseCode){
 	}
 	if(start( "if") || start("else if") || start("for") || start("while")) {
 		skipStatement.call(this);
-		if(this.parser.peek() != '(') throw new Error("Expected '(' after statement (if/else if/for/while).");
+		if(this.parser.peek() != '(') this.parser.error("Expected '(' after statement (if/else if/for/while).");
 		var start = this.parser.index;
 		this.parser.skipExpr();
-		this.add(parseCode(this.parser.input.substring(start, this.parser.index)).source);
+		this.add(parseCode(this.parser.input.substring(start, this.parser.index), this.parser).source);
 		this.skip();
 		if(this.parser.peek() == '{') {
 			this.add(this.parser.read());
@@ -312,8 +312,9 @@ CSSBParser.prototype.parse = function(handle, eof, parseCode){
 		this.parser.expect('=');
 		this.add('=');
 		this.skip();
-		this.add(CSSBParser.createExpr(parseCode(this.parser.find([';'], true, true).pre).source, this.namespace) + ';');
+		this.add(CSSBParser.createExpr(parseCode(this.parser.find([';'], true, true).pre, this.parser).source, this.namespace) + ';');
 	} else {
+		var parser = this.parser;
 		var namespace = this.namespace;
 		function value(e, computable) {
 			e = (function(){
@@ -330,7 +331,7 @@ CSSBParser.prototype.parse = function(handle, eof, parseCode){
 			if(e.length) {
 				var ret = [];
 				e.forEach(function(v){
-					ret.push(v.string && JSON.stringify(v.value) || (!computable && v.value || CSSBParser.createExpr(parseCode(v.value).source, namespace)));
+					ret.push(v.string && JSON.stringify(v.value) || (!computable && v.value || CSSBParser.createExpr(parseCode(v.value, parser).source, namespace)));
 				});
 				return ret.join('+');
 			} else {
@@ -389,7 +390,7 @@ CSSBParser.prototype.parse = function(handle, eof, parseCode){
 };
 
 CSSBParser.prototype.end = function(){
-	this.add(this.element + ".textContent=Factory.compilecssb(" + this.scopes[0] + ");");
+	this.add(this.element + ".textContent=Sactory.compilecssb(" + this.scopes[0] + ");");
 };
 
 CSSBParser.prototype.finalize = function(){
@@ -431,7 +432,7 @@ CSSBParser.createExprImpl = function(expr, info){
 			if(/^[a-zA-Z_\$]/.exec(v)) {
 				// it's a variable
 				info.is = true;
-				info.computed += "Factory.unit(" + info.param + "," + v + ")";
+				info.computed += "Sactory.unit(" + info.param + "," + v + ")";
 			} else {
 				info.computed += v;
 			}
@@ -449,7 +450,7 @@ CSSBParser.createExpr = function(expr, namespace){
 	var param = "__u" + Util.nextId(namespace);
 	var info = {
 		param: param,
-		computed: "(function(" + param + "){return Factory.compute(" + param + ",",
+		computed: "(function(" + param + "){return Sactory.compute(" + param + ",",
 		is: false,
 		op: 0
 	};
@@ -459,20 +460,36 @@ CSSBParser.createExpr = function(expr, namespace){
 	while(true) {
 		var result = parser.find(['#'], false, true);
 		ret += result.pre;
-		if(result.match) ret += "Factory.css.";
+		if(result.match) ret += "Sactory.css.";
 		else break;
 	}
 	return ret;
 };
 
-Factory.registerMode("Javascript", ["javascript", "js", "code"], JavascriptParser, {isDefault: true, code: true});
-Factory.registerMode("HTML", ["html"], HTMLParser, {comments: false, strings: false});
-Factory.registerMode("Text", ["text"], HTMLParser, {comments: false, strings: false, children: false});
-Factory.registerMode("Script", ["script"], ScriptParser, {comments: false, strings: false, children: false, tags: ["script"]});
-Factory.registerMode("CSS", ["css"], CSSParser, {inlineComments: false, strings: false, children: false});
-Factory.registerMode("CSSB", ["cssb", "style", "fcss"], CSSBParser, {strings: false, children: false, tags: ["style"]});
+// export parsers
 
-Factory.convertSource = function(input, options){
+Sactory.Internal = {
+	Parser: Parser,
+	SourceParser: SourceParser,
+	BreakpointParser: BreakpointParser,
+	TextParser: TextParser,
+	JavascriptParser: JavascriptParser,
+	HTMLParser: HTMLParser,
+	SourceParser: SourceParser,
+	CSSParser: CSSParser,
+	CSSBParser: CSSBParser
+};
+
+// register default modes
+
+Sactory.registerMode("Javascript", ["javascript", "js", "code"], JavascriptParser, {isDefault: true, code: true});
+Sactory.registerMode("HTML", ["html"], HTMLParser, {comments: false, strings: false});
+Sactory.registerMode("Text", ["text"], HTMLParser, {comments: false, strings: false, children: false});
+Sactory.registerMode("Script", ["script"], ScriptParser, {comments: false, strings: false, children: false, tags: ["script"]});
+Sactory.registerMode("CSS", ["css"], CSSParser, {inlineComments: false, strings: false, children: false});
+Sactory.registerMode("CSSB", ["cssb", "style", "fcss"], CSSBParser, {strings: false, children: false, tags: ["style"]});
+
+Sactory.convertSource = function(input, options){
 
 	function nextId() {
 		return Util.nextId(options.namespace);
@@ -482,14 +499,14 @@ Factory.convertSource = function(input, options){
 	
 	var element = "__el" + nextId();
 	
-	var source = ["(function(Factory, " + element + "){"];
+	var source = ["(function(Sactory, " + element + "){"];
 	
 	var tags = [];
 	var inheritance = [];
 	var closing = [];
 	var modes = [];
 	var currentMode;
-	var valueParser = Factory.startMode(defaultMode, options.namespace, null, element);
+	var valueParser = Sactory.startMode(defaultMode, options.namespace, null, element);
 	
 	function parseValue(value) {
 		valueParser.parser = new Parser(value);
@@ -552,13 +569,13 @@ Factory.convertSource = function(input, options){
 		}
 	}
 
-	function parseCode(input) {
-		var cparser = new Parser(input, parser.position);
+	function parseCode(input, parentParser) {
+		var cparser = new Parser(input, (parentParser || parser).position);
 		var source = [];
-		var mode = Factory.startMode(defaultMode, options.namespace, cparser, element, source);
+		var mode = Sactory.startMode(defaultMode, options.namespace, cparser, element, source);
 		mode.start();
 		while(cparser.index < input.length) {
-			mode.parse(function(){}, function(){}, parseCode);
+			mode.parse(function(){ source.push('<'); }, function(){}, parseCode);
 		}
 		mode.end();
 		mode.finalize();
@@ -590,7 +607,7 @@ Factory.convertSource = function(input, options){
 				parser.expect('-');
 				parser.expect('-');
 				var seq = parser.findSequence("-->", true);
-				source.push("Factroy.comment(" + element + ", " + JSON.stringify(seq) + ");");
+				source.push("Sactory.comment(" + element + ", " + JSON.stringify(seq) + ");");
 				for(var i=0; i<seq.length; i++) {
 					if(seq.charAt(i) == '\n') source.push('\n');
 				}
@@ -608,20 +625,18 @@ Factory.convertSource = function(input, options){
 				var parent = element; // element that the new element will be appended to, if not null
 				var iattributes = {}; // attributes used to give instructions to the transpiler, not used at runtime
 				var rattributes = []; // attributes used at runtime to modify the element
-				var sattributes; // variable name of the attributes passed using the spread syntax
+				var sattributes = ""; // variable name of the attributes passed using the spread syntax
 				var computed = false;
 				var selector, tagName;
 				if(selector = parser.readQueryExpr()) {
 					selector = parseCode(selector).source;
 					tagName = parser.peek() == '$' && parser.readTagName(true) || "";
 					append = false;
+				} else if(tagName = parser.readComputedExpr()) {
+					tagName = parseCode(tagName).source;
+					computed = true;
 				} else {
-					if(tagName = parser.readComputedExpr()) {
-						tagName = parseCode(tagName).source;
-						computed = true;
-					} else {
-						tagName = parser.readTagName(true);
-					}
+					tagName = parser.readTagName(true);
 				}
 				skip();
 				var next = false;
@@ -640,7 +655,7 @@ Factory.convertSource = function(input, options){
 						var add = false;
 						//skip();
 						if(attr.attr = parser.readComputedExpr()) {
-							attr.attr = parseCode(attr).source;
+							attr.attr = parseCode(attr.attr).source;
 							attr.computed = add = true;
 						} else {
 							attr.attr = parser.readAttributeName(true);	
@@ -654,10 +669,6 @@ Factory.convertSource = function(input, options){
 						if(!attr.computed) {
 							if(attr.attr == "@") {
 								parent = attr.value;
-							} else if(attr.attr == "*unique") {
-								unique = true;
-							} else if(attr.attr == "*head" || attr.attr == "*body") {
-								parent = "document." + attr.attr.substr(1);
 							} else if(attr.attr.charAt(0) == '#') {
 								newMode = modeNames[attr.attr.substr(1)];
 							} else if(attr.attr.charAt(0) == ':') {
@@ -681,6 +692,11 @@ Factory.convertSource = function(input, options){
 							case "scope":
 								create = false;
 								break;
+							case "head":
+							case "body":
+								create = false;
+								parent = "document." + tagName.substr(1);
+								break;
 						}
 					} else if(tagName.charAt(0) == '#') {
 						newMode = modeNames[tagName.substr(1)];
@@ -688,9 +704,6 @@ Factory.convertSource = function(input, options){
 					} else if(tagName.charAt(0) == '@') {
 						append = false;
 						tagName = tagName.substr(1);
-					} else if(tagName == "*head" || tagName == "*body") {
-						create = false;
-						parent = "document." + tagName.substr(1);
 					}
 				}
 				if(newMode === undefined) {
@@ -702,10 +715,12 @@ Factory.convertSource = function(input, options){
 						}
 					}
 				}
+				if(iattributes.head) parent = "document.head";
+				if(iattributes.body) parent = "document.body";
 				var currentInheritance = "";
 				var currentClosing = "";
 				function createExpr() {
-					var ret = "Factory.";
+					var ret = "Sactory.";
 					if(!append) ret += "updateElement(" + element + ", ";
 					else ret += "createElement(";
 					ret += (computed ? tagName : '"' + tagName + '"') + ", [" + inheritance.join("");
@@ -718,7 +733,7 @@ Factory.convertSource = function(input, options){
 							ret += "{key:" + (attribute.computed ? attribute.attr : '"' + attribute.attr + '"') + ",value:" + attribute.value + "},";
 						}
 					});
-					return ret + "], " + sattributes + ")";
+					return ret + "]" + (sattributes && ", " + sattributes) + ")";
 				}
 				parser.index++;
 				if(parent == "\"\"") {
@@ -726,15 +741,15 @@ Factory.convertSource = function(input, options){
 					parent = "null";
 				}
 				if(selector) {
-					source.push("Factory.query(this, " + selector + ", function(" + element + "){");
+					source.push("Sactory.query(this, " + selector + ", function(" + element + "){");
 					currentClosing += "})";
 				}
 				if(next == '/') {
 					parser.expect('>');
 					if(create) {
 						if(append) {
-							var e = "Factory.appendElement(" + parent + ", " + createExpr() + ")";
-							if(unique) e = "Factory.unique(this, " + nextId() + ", function(){return " + e + "})";
+							var e = "Sactory.appendElement(" + parent + ", " + createExpr() + ")";
+							if(iattributes.unique) e = "Sactory.unique(this, " + nextId() + ", function(){return " + e + "})";
 							source.push(e);
 						} else {
 							source.push(createExpr());
@@ -754,22 +769,22 @@ Factory.convertSource = function(input, options){
 					if(tagName == ":bind-if" || tagName == ":if") bind = "If";
 					else if(tagName == ":bind-each" || tagName == ":each") bind = "Each";
 					if(!computed && (bind || tagName == ":bind")) {
-						source.push("Factory.bind" + bind + "(this, " + parent + ", " + iattributes.to + ", " + iattributes.change + (bind == "If" ? ", " + iattributes.condition : "") +
+						source.push("Sactory.bind" + bind + "(this, " + parent + ", " + iattributes.to + ", " + iattributes.change + (bind == "If" ? ", " + iattributes.condition : "") +
 							", function(" + [element, iattributes.as || "__v" + nextId(), iattributes.index || "__i" + nextId(), iattributes.array || "__a" + nextId()].join(", ") + "){");
 					} else if(create) {
 						if(append) {
-							var e = "Factory.append(" + parent + ", Factory.call(this, " + expr + ", function(" + element + "){";
+							var e = "Sactory.append(" + parent + ", Sactory.call(this, " + expr + ", function(" + element + "){";
 							currentClosing += ")";
-							if(unique) {
-								e = "Factory.unique(this, " + nextId() + ", function(){return " + e;
+							if(iattributes.unique) {
+								e = "Sactory.unique(this, " + nextId() + ", function(){return " + e;
 								currentClosing += "})";
 							}
 							source.push(e);
 						} else {
-							source.push("Factory.call(this, " + expr + ", function(" + element + "){");
+							source.push("Sactory.call(this, " + expr + ", function(" + element + "){");
 						}
 					} else {
-						source.push("Factory.callElement(this, " + parent + ", function(" + element + "){");
+						source.push("Sactory.callElement(this, " + parent + ", function(" + element + "){");
 					}
 					inheritance.push(currentInheritance);
 					closing.push(currentClosing);
@@ -784,7 +799,7 @@ Factory.convertSource = function(input, options){
 	
 	endMode().finalize();
 	
-	source.push("})(typeof global=='object'&&global.Factory||typeof window=='object'&&window.Factory||require('factory'), " + (options.scope || null) + ");");
+	source.push("})(typeof global=='object'&&global.Sactory||typeof window=='object'&&window.Sactory||require('sactory'), " + (options.scope || null) + ");");
 	
 	//console.log(source.join(""));
 	
@@ -796,13 +811,20 @@ if(typeof window == "object") {
 
 	function evalScripts() {
 		Array.prototype.forEach.call(document.querySelectorAll("script[type='text/x-builder'], style[type='text/x-builder']"), function(builder){
+			var id = Util.nextId();
 			var content;
 			if(builder.tagName == "STYLE") {
 				builder.removeAttribute("type");
 				content = builder.outerHTML;
 				builder.setAttribute("type", "text/x-builder");
 			}
-			eval.call(window, Factory.convertSource(content || builder.textContent, {}));
+			builder.dataset.sactoryFrom = id;
+			builder.dataset.to = "[data-sactory-to='" + id + "']";
+			var script = document.createElement("script");
+			script.dataset.sactoryTo = id;
+			script.dataset.from = "[data-sactory-from='" + id + "']";
+			script.textContent = Sactory.convertSource(content || builder.textContent, {});
+			document.head.appendChild(script);
 		});
 	}
 	
@@ -814,5 +836,5 @@ if(typeof window == "object") {
 	
 }
 
-module.exports = Factory;
+module.exports = Sactory;
 	

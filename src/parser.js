@@ -42,6 +42,7 @@ Object.defineProperty(Parser.prototype, "position", {
 			}
 		}
 		return {
+			absolute: this.index + (this.from.absolute || 0),
 			line: line,
 			column: this.index - last
 		};
@@ -55,6 +56,15 @@ Object.defineProperty(Parser.prototype, "position", {
  */
 Parser.prototype.error = function(message){
 	var position = this.position;
+	var start = this.input.substring(0, this.index).lastIndexOf('\n') + 1;
+	var end = this.index + this.input.substr(this.index).indexOf('\n');
+	var snippet = this.input.substring(start, end);
+	while(snippet.length && /\s/.test(snippet.charAt(0))) {
+		start++;
+		snippet = snippet.substr(1);
+	}
+	message += '\n' + snippet + '\n';
+	for(var i=start; i<end; i++) message += i == this.index ? '^' : (this.input.charAt(i) == '\t' ? '\t' : ' ');
 	throw new ParserError("Line " + (position.line + 1) + ", Column " + position.column + ": " + message);
 };
 
@@ -283,7 +293,7 @@ Parser.prototype.readVarName = function(force){
  * @since 0.13.0
  */
 Parser.prototype.readTagName = function(force){
-	return this.readImpl(/^((\*(head|body))|([\#\@]?[a-zA-Z0-9_\-\.\:\$]+))/, force, function(){ return "Could not find a valid tag name."; });
+	return this.readImpl(/^(([\#\@]?[a-zA-Z0-9_\-\.\:\$]+)|@)/, force, function(){ return "Could not find a valid tag name."; });
 };
 
 /**
@@ -293,7 +303,7 @@ Parser.prototype.readTagName = function(force){
  * @since 0.22.0
  */
 Parser.prototype.readAttributeName = function(force){
-	return this.readImpl(/^((~?(\@\@?|\#|\*|\$|\+)?[a-zA-Z0-9_\-\.\:]+)|@)/, force, function(){ return "Could not find a valid attribute name."; });
+	return this.readImpl(/^((~?(\@\@?|\:|\#|\$|\+)?[a-zA-Z_][a-zA-Z0-9_\$\-\.\:]*)|@)/, force, function(){ return "Could not find a valid attribute name."; });
 };
 
 /**

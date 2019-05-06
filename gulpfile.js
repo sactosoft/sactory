@@ -13,25 +13,25 @@ function make(filename, className, sources) {
 		return "src/" + s + ".js";
 	}))
 	.pipe(concat(filename + ".js"))
-	.pipe(replace(/var Factory = {};/gm, ""))
+	.pipe(replace(/var Sactory = {};/gm, ""))
 	.pipe(replace(/(var [a-zA-Z0-9_]+ = )?require\(\"[a-zA-Z0-9_\-\.\/]*\"\);/gm, ""))
 	.pipe(replace(/module\.exports = [a-zA-Z0-9_\.]*;/gm, ""))
-	.pipe(replace(/Util/gm, "Factory"))
+	.pipe(replace(/Util/gm, "Sactory"))
 	.pipe(header(
 		"!function(a){\n\tif(typeof define == 'function' && define.amd) {\n\t\tdefine(a);\n\t} else {\n\t\twindow." + className + " = a();\n\t}\n" +
-		"}(function(){\n\nfunction Factory(){};\nFactory.toString = function(){return Object.toString().replace(/Object/, '" +  className + "').replace(/native/, 'factory');};\n" +
-		"function get(prop, value){ Object.defineProperty(Factory, prop, {get: function(){ return value; }}); }\nget('VERSION_MAJOR', " + version.major + ");\nget('VERSION_MINOR', " + version.minor + ");\nget('VERSION_PATCH', " + version.patch + ");\n" +
+		"}(function(){\n\nfunction Sactory(){};\nSactory.toString = function(){return Object.toString().replace(/Object/, '" +  className + "').replace(/native/, 'sactory');};\n" +
+		"function get(prop, value){ Object.defineProperty(Sactory, prop, {get: function(){ return value; }}); }\nget('VERSION_MAJOR', " + version.major + ");\nget('VERSION_MINOR', " + version.minor + ");\nget('VERSION_PATCH', " + version.patch + ");\n" +
 		"get('VERSION', '" + version.version + "');\n\n"
 	))
-	.pipe(footer("\nreturn Factory;\n\n});"))
+	.pipe(footer("\nreturn Sactory;\n\n});"))
 	.pipe(gulp.dest("dist"))
 	.pipe(uglify({mangle: false}))
 	.pipe(rename(filename + ".min.js"))
 	.pipe(gulp.dest("dist"));
 }
 
-gulp.task("dist:factory", function(){
-	return make("factory", "Factory", [
+gulp.task("dist:sactory", function(){
+	return make("sactory", "Sactory", [
 		"util",
 		"polyfill",
 		"runtime/core",
@@ -42,8 +42,8 @@ gulp.task("dist:factory", function(){
 	]);
 });
 
-gulp.task("dist:factory-lite", function(){
-	return make("factory-lite", "Factory", [
+gulp.task("dist:sactory-lite", function(){
+	return make("sactory-lite", "Sactory", [
 		"util",
 		"polyfill",
 		"runtime/core",
@@ -54,7 +54,7 @@ gulp.task("dist:factory-lite", function(){
 });
 
 gulp.task("dist:transpiler", function(){
-	return make("transpiler", "FactoryTranspiler", [
+	return make("transpiler", "SactoryTranspiler", [
 		"util",
 		"polyfill",
 		"parser",
@@ -62,4 +62,4 @@ gulp.task("dist:transpiler", function(){
 	]);
 });
 
-gulp.task("dist", gulp.parallel("dist:factory", "dist:factory-lite", "dist:transpiler"));
+gulp.task("dist", gulp.parallel("dist:sactory", "dist:sactory-lite", "dist:transpiler"));

@@ -1,6 +1,6 @@
-var Factory = {};
+var Sactory = {};
 
-function hash(str) {
+Sactory.hash = function(str) {
 	var hash = 0;
 	for(var i=0; i<str.length; i++) {
 		hash = (hash << 5) - hash + str.charCodeAt(i);
@@ -11,13 +11,13 @@ function hash(str) {
 
 var counts = {};
 
-Factory.nextId = function(namespace){
+Sactory.nextId = function(namespace){
 	if(!counts[namespace]) counts[namespace] = 0;
-	return Math.abs(hash(namespace || "")) % 777777 + counts[namespace]++;
+	return Math.abs(Sactory.hash(namespace || "")) % 777777 + counts[namespace]++;
 };
 
-Factory.reset = function(namespace){
+Sactory.reset = function(namespace){
 	counts[namespace] = 0;
 };
 
-module.exports = Factory;
+module.exports = Sactory;

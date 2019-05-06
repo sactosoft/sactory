@@ -9,12 +9,12 @@ Object.defineProperty(window.Element.prototype, "__builder", {
 	}
 });
 
-var Factory = {};
+var Sactory = {};
 
 /**
  * @since 0.36.0
  */
-Factory.createDocument = function(){
+Sactory.createDocument = function(){
 	var dom = new jsdom.JSDOM("");
 	global.window = dom.window;
 	var ret = global.document = dom.window.document;
@@ -24,4 +24,4 @@ Factory.createDocument = function(){
 	return ret;
 };
 
-module.exports = Factory;
+module.exports = Sactory;

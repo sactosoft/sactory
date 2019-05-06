@@ -1,4 +1,4 @@
-var Factory = {};
+var Sactory = {};
 
 /**
  * @class
@@ -60,35 +60,35 @@ Object.defineProperty(Observable.prototype, "value", {
 /**
  * @since 0.40.0
  */
-Factory.isObservable = function(value){
-	return Factory.isOwnObservable(value) || Factory.isContainerObservable(value) || Factory.isFunctionObservable(value);
+Sactory.isObservable = function(value){
+	return Sactory.isOwnObservable(value) || Sactory.isContainerObservable(value) || Sactory.isFunctionObservable(value);
 };
 
 /**
  * @since 0.42.0
  */
-Factory.isOwnObservable = function(value){
+Sactory.isOwnObservable = function(value){
 	return value instanceof Observable;
 };
 
 /**
  * @since 0.42.0
  */
-Factory.isContainerObservable = function(value){
+Sactory.isContainerObservable = function(value){
 	return value && value.observe && value.compute;
 };
 
 /**
  * @since 0.42.0
  */
-Factory.isFunctionObservable = function(value){
+Sactory.isFunctionObservable = function(value){
 	return typeof value == "function" && value.subscribe;
 };
 
 /**
  * @since 0.40.0
  */
-Factory.observe = function(value, callback){
+Sactory.observe = function(value, callback){
 	var subscriptions = [];
 	if(value instanceof Observable) {
 		subscriptions.push(value.subscribe(callback));
@@ -111,7 +111,7 @@ Factory.observe = function(value, callback){
 /**
  * @since 0.42.0
  */
-Factory.unobserve = function(value){
+Sactory.unobserve = function(value){
 	if(value && value.observe && value.compute) {
 		return value.compute();
 	} else {
@@ -122,8 +122,8 @@ Factory.unobserve = function(value){
 /**
  * @since 0.41.0
  */
-Factory.observable = function(value){
+Sactory.observable = function(value){
 	return new Observable(value);
 };
 
-module.exports = Factory;
+module.exports = Sactory;

@@ -1,6 +1,6 @@
 var Util = require("../util");
 
-var Factory = {};
+var Sactory = {};
 
 // constants
 
@@ -18,7 +18,7 @@ var definedTemplates = {};
 
 /**
  */
-Factory.defineTemplate = function(name, tagName, args, handler){
+Sactory.defineTemplate = function(name, tagName, args, handler){
 	if(typeof tagName == "function" || Array.isArray(tagName)) {
 		handler = args;
 		args = tagName;
@@ -45,7 +45,7 @@ var definedComponents = {};
 /**
  * @since 0.31.0
  */
-Factory.defineComponent = function(name, tagName, component){
+Sactory.defineComponent = function(name, tagName, component){
 	definedComponents[name] = {
 		name: name,
 		tagName: tagName,
@@ -58,22 +58,22 @@ Factory.defineComponent = function(name, tagName, component){
 /**
  * @since 0.32.0
  */
-Factory.check = function(major, minor, patch){
-	if(major != Factory.VERSION_MAJOR || minor != Factory.VERSION_MINOR) {
-		throw new Error("Code transpiled using version " + major + "." + minor + "." + patch + " cannot be run in the current environment using version " + Factory.VERSION + ".");
+Sactory.check = function(major, minor, patch){
+	if(major != Sactory.VERSION_MAJOR || minor != Sactory.VERSION_MINOR) {
+		throw new Error("Code transpiled using version " + major + "." + minor + "." + patch + " cannot be run in the current environment using version " + Sactory.VERSION + ".");
 	}
 };
 
 /**
  */
-Factory.createElement = function(str, args, spread){
-	return Factory.updateElement(null, str, args, spread);
+Sactory.createElement = function(str, args, spread){
+	return Sactory.updateElement(null, str, args, spread);
 };
 
 /**
  * @since 0.29.0
  */
-Factory.updateElement = function(element, str, args, spread){
+Sactory.updateElement = function(element, str, args, spread){
 	
 	var split = str.split('$');
 	
@@ -88,7 +88,7 @@ Factory.updateElement = function(element, str, args, spread){
 		if(template) {
 			templates.push(template);
 			if(!tagName) tagName = template.tagName;
-			else if(template.forced && tagName) throw new Error("Template '" + templateName + "' forces the tag name but it's already defined.");
+			else if(template.forced && tagName) throw new Error("Template '" + templateName + "' forces the tag name but the tag name it's already set.");
 		} else if(!optional) {
 			throw new Error("Template '" + templateName + "' could not be found.")
 		}
@@ -110,7 +110,12 @@ Factory.updateElement = function(element, str, args, spread){
 		if(arg.key == "namespace") {
 			namespace = arg.value;
 		} else if(arg.key.charAt(0) == '$') {
-			templateArgs[arg.key.substr(1)] = arg.value;
+			var key = arg.key.substr(1);
+			if(key == "arguments") {
+				templateArgs = Object.assign(templateArgs, arg.value);
+			} else {
+				templateArgs[key] = arg.value;
+			}
 		} else {
 			return;
 		}
@@ -165,29 +170,29 @@ Factory.updateElement = function(element, str, args, spread){
 /**
  * @since 0.36.0
  */
-Factory.callImpl = function(context, element, container, fun){
+Sactory.callImpl = function(context, element, container, fun){
 	fun.call(context, container);
 	return element;
 };
 
 /**
  */
-Factory.call = function(context, element, fun){
-	return Factory.callImpl(context, element.element, element.container, fun);
+Sactory.call = function(context, element, fun){
+	return Sactory.callImpl(context, element.element, element.container, fun);
 };
 
 /**
  * @since 0.36.0
  */
-Factory.callElement = function(context, element, fun){
-	return Factory.callImpl(context, element, element, fun);
+Sactory.callElement = function(context, element, fun){
+	return Sactory.callImpl(context, element, element, fun);
 };
 
 /**
  * @since 0.32.0
  */
-Factory.unique = function(context, id, fun){
-	var className = "__factory" + id;
+Sactory.unique = function(context, id, fun){
+	var className = "__sactory" + id;
 	if(!document.querySelector("." + className)) {
 		var element = fun.call(context);
 		element.classList.add(className);
@@ -198,7 +203,7 @@ Factory.unique = function(context, id, fun){
 /**
  * @since 0.17.0
  */
-Factory.append = function(element, child, afterappend, beforeremove){
+Sactory.append = function(element, child, afterappend, beforeremove){
 	if(element || typeof element == "string" && element.length && (element = document.querySelector(element))) {
 		element.appendChild(child);
 		if(afterappend) afterappend.call(child);
@@ -210,21 +215,21 @@ Factory.append = function(element, child, afterappend, beforeremove){
 /**
  * @since 0.36.0
  */
-Factory.appendElement = function(element, child, afterappend, beforeremove){
-	return Factory.append(element, child.element, afterappend, beforeremove);
+Sactory.appendElement = function(element, child, afterappend, beforeremove){
+	return Sactory.append(element, child.element, afterappend, beforeremove);
 };
 
 /**
  * @since 0.40.0
  */
-Factory.comment = function(element, comment){
-	return Factory.append(element, document.createComment(comment));
+Sactory.comment = function(element, comment){
+	return Sactory.append(element, document.createComment(comment));
 };
 
 /**
  * @since 0.32.0
  */
-Factory.query = function(context, doc, selector, fun){
+Sactory.query = function(context, doc, selector, fun){
 	if(!fun) {
 		fun = selector;
 		selector = doc;
@@ -248,8 +253,8 @@ Factory.query = function(context, doc, selector, fun){
 /**
  * @since 0.11.0
  */
-Factory.bind = function(context, element, target, change, fun){
-	change = Factory.unobserve(change);
+Sactory.bind = function(context, element, target, change, fun){
+	change = Sactory.unobserve(change);
 	var recordId = Util.nextId();
 	var oldValue;
 	function record(value) {
@@ -266,14 +271,14 @@ Factory.bind = function(context, element, target, change, fun){
 			});
 		});
 		record();
-	} else if(Factory.isObservable(target)) {
+	} else if(Sactory.isObservable(target)) {
 		target.subscribe(function(value){
 			if(!change || change(oldValue, value)) {
 				element.__builder.rollback(recordId);
 				record(value);
 			}
 		});
-		if(Factory.isOwnObservable(target)) {
+		if(Sactory.isOwnObservable(target)) {
 			record(target.value);
 		} else {
 			record(target());
@@ -286,11 +291,11 @@ Factory.bind = function(context, element, target, change, fun){
 /**
  * @since 0.40.0
  */
-Factory.bindIf = function(context, element, target, change, condition, fun){
-	if(!target && Factory.isContainerObservable(condition)) target = condition.observe;
-	condition = Factory.unobserve(condition);
+Sactory.bindIf = function(context, element, target, change, condition, fun){
+	if(!target && Sactory.isContainerObservable(condition)) target = condition.observe;
+	condition = Sactory.unobserve(condition);
 	if(typeof condition != "function") throw new Error("The condition provided to :bind-if is not a function.");
-	Factory.bind(context, element, target, change, function(element, value){
+	Sactory.bind(context, element, target, change, function(element, value){
 		if(condition()) fun.call(this, element, value);
 	});
 };
@@ -298,18 +303,18 @@ Factory.bindIf = function(context, element, target, change, condition, fun){
 /**
  * @since 0.40.0
  */
-Factory.bindEach = function(context, element, target, change, fun){
-	Factory.bind(context, element, target, change, function(element, value){
+Sactory.bindEach = function(context, element, target, change, fun){
+	Sactory.bind(context, element, target, change, function(element, value){
 		value.forEach(function(currentValue, index, array){
 			fun.call(context, element, currentValue, index, array);
 		});
 	});
 };
 
-if(!Factory.compilecssb) {
-	Factory.compilecssb = function(){
+if(!Sactory.compilecssb) {
+	Sactory.compilecssb = function(){
 		throw new Error("CSSB runtime is not loaded. Either load it by using the full version of the runtime or use normal css by using the '#css' attribute.");
 	};
 }
 
-module.exports = Factory;
+module.exports = Sactory;

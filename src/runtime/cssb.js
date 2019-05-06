@@ -1,11 +1,11 @@
 var Polyfill = require("../polyfill");
 
-var Factory = {};
+var Sactory = {};
 
 /**
  * @since 0.39.0
  */
-Factory.select = function(array, selector){
+Sactory.select = function(array, selector){
 	var value = [];
 	array.push({s: selector, v: value});
 	return value;
@@ -20,7 +20,7 @@ Factory.select = function(array, selector){
  * @throws If a unit has already been used in the same expression and it's different from the current one.
  * @since 0.37.0
  */
-Factory.unit = function(unit, value){
+Sactory.unit = function(unit, value){
 	if(typeof value == "string") {
 		function check(u) {
 			if(Polyfill.endsWith.call(value, u)) {
@@ -44,7 +44,7 @@ Factory.unit = function(unit, value){
  * @returns the number concatenated with the unit if present, the unmodified value otherwise.
  * @since 0.37.0
  */
-Factory.compute = function(unit, result){
+Sactory.compute = function(unit, result){
 	if(typeof result == "number" && unit.unit) {
 		return Math.round(result * 1000) / 1000 + unit.unit;
 	} else {
@@ -56,7 +56,7 @@ Factory.compute = function(unit, result){
  * Converts an object to minified CSS.
  * @since 0.19.0
  */
-Factory.compilecss = function(root){
+Sactory.compilecss = function(root){
 	var ret = "";
 	function compile(obj) {
 		for(var selector in obj) {
@@ -83,7 +83,7 @@ Factory.compilecss = function(root){
  * Converts an object in CSSB format to minified CSS.
  * @since 0.19.0
  */
-Factory.compilecssb = function(root){
+Sactory.compilecssb = function(root){
 	var ret = {};
 	function compile(selectors, curr, obj) {
 		obj.forEach(function(value){
@@ -119,12 +119,12 @@ Factory.compilecssb = function(root){
 		});
 	}
 	compile([], ret, root);
-	return Factory.compilecss(ret);
+	return Sactory.compilecss(ret);
 };
 
 // css functions
 
-Factory.css = {};
+Sactory.css = {};
 
 function Color(r, g, b, a) {
 	this.r = r;
@@ -187,7 +187,7 @@ Color.update = function(color, fun){
  * Converts a color of any type to RGB, removing the alpha channel if present.
  * @since 0.38.0
  */
-Factory.css.rgb = function(color){
+Sactory.css.rgb = function(color){
 	color = Color.parse(color);
 	color.a = 1;
 	return color.toString();
@@ -197,7 +197,7 @@ Factory.css.rgb = function(color){
  * Converts a color of any type to RGBA, optionally updating the value of the alpha channel. 
  * @since 0.38.0
  */
-Factory.css.rgba = function(color, alpha){
+Sactory.css.rgba = function(color, alpha){
 	color = Color.parse(color);
 	if(arguments.length > 1) color.a = alpha;
 	return color.toString();
@@ -206,7 +206,7 @@ Factory.css.rgba = function(color, alpha){
 /**
  * @since 0.38.0
  */
-Factory.css.lighten = function(color, amount){
+Sactory.css.lighten = function(color, amount){
 	if(amount > 0) amount /= 100;
 	return Color.update(color, function(v){
 		return v + Math.round((255 - v) * amount);
@@ -216,7 +216,7 @@ Factory.css.lighten = function(color, amount){
 /**
  * @since 0.38.0
  */
-Factory.css.darken = function(color, amount){
+Sactory.css.darken = function(color, amount){
 	if(amount > 1) amount /= 100;
 	return Color.update(color, function(v){
 		return v - Math.round(v * amount);
@@ -226,7 +226,7 @@ Factory.css.darken = function(color, amount){
 /**
  * @since 0.38.0
  */
-Factory.css.grayscale = function(color){
+Sactory.css.grayscale = function(color){
 	color = Color.parse(color);
 	color.r = color.g = color.b = Math.round(color.r * .2989 + color.g * .587 + color.b * .114);
 	return color.toString();
@@ -236,7 +236,7 @@ Factory.css.grayscale = function(color){
  * Inverts a color.
  * @since 0.38.0
  */
-Factory.css.invert = function(color){
+Sactory.css.invert = function(color){
 	return Color.update(color, function(v){
 		return 255 - v;
 	});
@@ -245,7 +245,7 @@ Factory.css.invert = function(color){
 /**
  * @since 0.38.0
  */
-Factory.css.mix = function(){
+Sactory.css.mix = function(){
 	var length = arguments.length;
 	var color = new Color(0, 0, 0);
 	Array.prototype.forEach.call(arguments, function(c){
@@ -259,4 +259,4 @@ Factory.css.mix = function(){
 	return color.toString();
 };
 
-module.exports = Factory;
+module.exports = Sactory;
