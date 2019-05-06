@@ -1,4 +1,4 @@
 node_modules
 /dist
-/test/src
+/test/dist
 /package-lock.json

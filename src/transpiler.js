@@ -83,7 +83,7 @@ BreakpointParser.prototype.parse = function(handle, eof, parseCode){
 	var result = this.parser.find(this.breakpoints, false, true);
 	if(result.pre) this.add(result.pre);
 	if(result.match == '<') {
-		if(this.info.options.code && [undefined, '(', '[', '{', '}', ';', ':', ',', '=', '/', '?', '&', '|', '>'].indexOf(this.parser.last) == -1 || this.parser.lastKeyword("return")) {
+		if(this.info.options.code && [undefined, '(', '[', '{', '}', ';', ':', ',', '=', '/', '?', '&', '|', '>'].indexOf(this.parser.last) == -1 && !this.parser.lastKeyword("return")) {
 			// just a comparison
 			this.add("<");
 		} else {
@@ -553,11 +553,11 @@ Factory.convertSource = function(input, options){
 	}
 
 	function parseCode(input) {
-		var parser = new Parser(input);
+		var cparser = new Parser(input, parser.position);
 		var source = [];
-		var mode = Factory.startMode(defaultMode, options.namespace, parser, element, source);
+		var mode = Factory.startMode(defaultMode, options.namespace, cparser, element, source);
 		mode.start();
-		while(parser.index < input.length) {
+		while(cparser.index < input.length) {
 			mode.parse(function(){}, function(){}, parseCode);
 		}
 		mode.end();
@@ -606,74 +606,92 @@ Factory.convertSource = function(input, options){
 				var append = true; // whether the new element should be appended to the current element after its creation
 				var unique = false; // whether the new element should be appended always or only when its not already on the DOM
 				var parent = element; // element that the new element will be appended to, if not null
-				var iattributes = {};
-				var rattributes = [];
+				var iattributes = {}; // attributes used to give instructions to the transpiler, not used at runtime
+				var rattributes = []; // attributes used at runtime to modify the element
+				var sattributes; // variable name of the attributes passed using the spread syntax
+				var computed = false;
 				var selector, tagName;
-				if(selector = parser.readComputedTagName()) {
+				if(selector = parser.readQueryExpr()) {
 					selector = parseCode(selector).source;
 					tagName = parser.peek() == '$' && parser.readTagName(true) || "";
 					append = false;
 				} else {
-					tagName = parser.readTagName(true);
+					if(tagName = parser.readComputedExpr()) {
+						tagName = parseCode(tagName).source;
+						computed = true;
+					} else {
+						tagName = parser.readTagName(true);
+					}
 				}
 				skip();
 				var next = false;
 				while(!parser.eof() && (next = parser.peek()) != '>' && next != '/') {
-					var attr, computed = false;
-					var value, add = false;
-					skip();
-					if(attr = parser.readComputedAttributeName()) {
-						attr = parseCode(attr).source;
-						computed = add = true;
-					} else {
-						attr = parser.readAttributeName(true);	
-					}
-					skip();
-					if(parser.peek() == '=') {
+					if(next == '.') {
 						parser.index++;
-						skip();
-						value = parseCode(parser.readAttributeValue()).toValue();
+						parser.expect('.');
+						parser.expect('.');
+						sattributes = parser.readExpr();
 					} else {
-						value = "\"\"";
-					}
-					if(!computed) {
-						if(attr == "@") {
-							parent = value;
-						} else if(attr == "*unique") {
-							unique = true;
-						} else if(attr == "*head" || attr == "*body") {
-							parent = "document." + attr.substr(1);
-						} else if(attr.charAt(0) == '#') {
-							newMode = modeNames[attr.substr(1)];
-						} else if(attr.charAt(0) == ':') {
-							iattributes[attr.substr(1)] = value;
+						var attr = {
+							attr: undefined,
+							computed: false,
+							value: "\"\""
+						};
+						var add = false;
+						//skip();
+						if(attr.attr = parser.readComputedExpr()) {
+							attr.attr = parseCode(attr).source;
+							attr.computed = add = true;
 						} else {
-							add = true;
+							attr.attr = parser.readAttributeName(true);	
 						}
-					}
-					if(add) {
-						rattributes.push({attr: attr, value: value, computed: computed});
+						skip();
+						if(parser.peek() == '=') {
+							parser.index++;
+							skip();
+							attr.value = parseCode(parser.readAttributeValue()).toValue();
+						}
+						if(!attr.computed) {
+							if(attr.attr == "@") {
+								parent = attr.value;
+							} else if(attr.attr == "*unique") {
+								unique = true;
+							} else if(attr.attr == "*head" || attr.attr == "*body") {
+								parent = "document." + attr.attr.substr(1);
+							} else if(attr.attr.charAt(0) == '#') {
+								newMode = modeNames[attr.attr.substr(1)];
+							} else if(attr.attr.charAt(0) == ':') {
+								iattributes[attr.attr.substr(1)] = attr.value;
+							} else {
+								add = true;
+							}
+						}
+						if(add) {
+							rattributes.push(attr);
+						}
 					}
 					skip();
 					next = false;
 				}
 				if(!next) throw new Error("Tag was not closed");
-				if(tagName.charAt(0) == ':') {
-					switch(tagName.substr(1)) {
-						case "":
-						case "scope":
-							create = false;
-							break;
+				if(!computed) {
+					if(tagName.charAt(0) == ':') {
+						switch(tagName.substr(1)) {
+							case "":
+							case "scope":
+								create = false;
+								break;
+						}
+					} else if(tagName.charAt(0) == '#') {
+						newMode = modeNames[tagName.substr(1)];
+						if(newMode !== undefined) create = false; // behave as a scope
+					} else if(tagName.charAt(0) == '@') {
+						append = false;
+						tagName = tagName.substr(1);
+					} else if(tagName == "*head" || tagName == "*body") {
+						create = false;
+						parent = "document." + tagName.substr(1);
 					}
-				} else if(tagName.charAt(0) == '#') {
-					newMode = modeNames[tagName.substr(1)];
-					if(newMode !== undefined) create = false; // behave as a scope
-				} else if(tagName.charAt(0) == '@') {
-					append = false;
-					tagName = tagName.substr(1);
-				} else if(tagName == "*head" || tagName == "*body") {
-					create = false;
-					parent = "document." + tagName.substr(1);
 				}
 				if(newMode === undefined) {
 					for(var i=0; i<modeRegistry.length; i++) {
@@ -690,7 +708,7 @@ Factory.convertSource = function(input, options){
 					var ret = "Factory.";
 					if(!append) ret += "updateElement(" + element + ", ";
 					else ret += "createElement(";
-					ret += "\"" + tagName + "\", [" + inheritance.join("");
+					ret += (computed ? tagName : '"' + tagName + '"') + ", [" + inheritance.join("");
 					rattributes.forEach(function(attribute){
 						if(!attribute.computed && attribute.attr.charAt(0) == '~') {
 							var expr = "{key:\"" + attribute.attr.substr(1) + "\",value:" + attribute.value + "},";
@@ -700,7 +718,7 @@ Factory.convertSource = function(input, options){
 							ret += "{key:" + (attribute.computed ? attribute.attr : '"' + attribute.attr + '"') + ",value:" + attribute.value + "},";
 						}
 					});
-					return ret + "])";
+					return ret + "], " + sattributes + ")";
 				}
 				parser.index++;
 				if(parent == "\"\"") {
@@ -735,7 +753,7 @@ Factory.convertSource = function(input, options){
 					var bind = "";
 					if(tagName == ":bind-if" || tagName == ":if") bind = "If";
 					else if(tagName == ":bind-each" || tagName == ":each") bind = "Each";
-					if(bind || tagName == ":bind") {
+					if(!computed && (bind || tagName == ":bind")) {
 						source.push("Factory.bind" + bind + "(this, " + parent + ", " + iattributes.to + ", " + iattributes.change + (bind == "If" ? ", " + iattributes.condition : "") +
 							", function(" + [element, iattributes.as || "__v" + nextId(), iattributes.index || "__i" + nextId(), iattributes.array || "__a" + nextId()].join(", ") + "){");
 					} else if(create) {
@@ -768,7 +786,7 @@ Factory.convertSource = function(input, options){
 	
 	source.push("})(typeof global=='object'&&global.Factory||typeof window=='object'&&window.Factory||require('factory'), " + (options.scope || null) + ");");
 	
-	console.log(source.join(""));
+	//console.log(source.join(""));
 	
 	return source.join("");
 	

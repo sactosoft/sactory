@@ -22,25 +22,40 @@ ParserError.prototype.name = "ParserError";
  * Parses an input without consuming it.
  * @class
  */
-function Parser(input) {
+function Parser(input, from) {
 	this.index = 0;
 	this.input = input;
 	this.last = undefined;
 	this.lastIndex = undefined;
 	this.options = {};
+	this.from = from || {};
 }
 
+Object.defineProperty(Parser.prototype, "position", {
+	get: function(){
+		var line = this.from.line || 0;
+		var last = this.from.column || 0;
+		for(var i=0; i<=this.index; i++) {
+			if(this.input.charAt(i) == '\n') {
+				line++;
+				last = i;
+			}
+		}
+		return {
+			line: line,
+			column: this.index - last
+		};
+	}
+});
+
 /**
- * Throws an error showing the given message and the current line number.
+ * Throws an error showing the given message and the current reading index.
  * @throws {ParserError}
  * @since 0.33.0
  */
 Parser.prototype.error = function(message){
-	var line = 0;
-	for(var i=0; i<=this.index; i++) {
-		if(this.input.charAt(i) == '\n') line++;
-	}
-	throw new ParserError("Line " + line + ": " + message);
+	var position = this.position;
+	throw new ParserError("Line " + (position.line + 1) + ", Column " + position.column + ": " + message);
 };
 
 /**
@@ -268,7 +283,7 @@ Parser.prototype.readVarName = function(force){
  * @since 0.13.0
  */
 Parser.prototype.readTagName = function(force){
-	return this.readImpl(/^((\*(head|body))|([\#\@]?[a-zA-Z0-9_\-\.\:\$]*))/, force, function(){ return "Could not find a valid tag name."; });
+	return this.readImpl(/^((\*(head|body))|([\#\@]?[a-zA-Z0-9_\-\.\:\$]+))/, force, function(){ return "Could not find a valid tag name."; });
 };
 
 /**
@@ -278,27 +293,7 @@ Parser.prototype.readTagName = function(force){
  * @since 0.22.0
  */
 Parser.prototype.readAttributeName = function(force){
-	return this.readImpl(/^~?(\@\@?|\#|\*|\$|\+)?[a-zA-Z0-9_\-\.\:]*/, force, function(){ return "Could not find a valid attribute name."; });
-};
-
-/**
- * Reads an expression wrapped in square brackets (and removes them) or a string.
- * @returns A string if found, false otherwise.
- * @since 0.42.0
- */
-Parser.prototype.readComputedTagName = function(){
-	var peek = this.peek();
-	if(peek == '[') {
-		var start = this.index;
-		this.skipExpr();
-		return this.input.substring(start + 1, this.index - 1);
-	} else if(peek == '"' || peek == '\'' || peek == '`') {
-		var start = this.index;
-		this.skipString();
-		return this.input.substring(start, this.index);
-	} else {
-		return false;
-	}
+	return this.readImpl(/^((~?(\@\@?|\#|\*|\$|\+)?[a-zA-Z0-9_\-\.\:]+)|@)/, force, function(){ return "Could not find a valid attribute name."; });
 };
 
 /**
@@ -306,12 +301,31 @@ Parser.prototype.readComputedTagName = function(){
  * @returns A string if found, false otherwise.
  * @since 0.42.0
  */
-Parser.prototype.readComputedAttributeName = function(){
-	var peek = this.peek();
-	if(peek == '[') {
+Parser.prototype.readComputedExpr = function(){
+	if(this.peek() == '[') {
 		var start = this.index;
 		this.skipExpr();
 		return this.input.substring(start + 1, this.index - 1);
+	} else {
+		return false;
+	}
+};
+
+/**
+ * Reads an expression wrapped in curly brackets (and removes them) or a string.
+ * @returns A string if found, false otherwise.
+ * @since 0.43.0
+ */
+Parser.prototype.readQueryExpr = function(){
+	var peek = this.peek();
+	if(peek == '{') {
+		var start = this.index;
+		this.skipExpr();
+		return this.input.substring(start + 1, this.index - 1);
+	} else if(peek == '"' || peek == '\'' || peek == '`') {
+		var start = this.index;
+		this.skipString();
+		return this.input.substring(start, this.index);
 	} else {
 		return false;
 	}

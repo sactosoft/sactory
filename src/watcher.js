@@ -38,47 +38,59 @@ var Watcher = {
 						} catch(e) {
 							console.error(e);
 						}
+						Util.reset(namespace);
 						if(conv) {
-							filename = filename.substring(0, filename.length - 1);
-							/*fs.writeFile(dest + filename + ".map", JSON.stringify({
-								version: 3,
-								sources: [source],
-								names: [],
-								file: filename
-							}), function(error){});*/
-							fs.writeFile(dest + filename,
-								"/*! This file was automatically generated using Factory v" + version.version + " from '" + source + "'. Do not edit manually! */" +
-								/*"Factory.check(" + Util.VERSION_MAJOR + "," + Util.VERSION_MINOR + "," + Util.VERSION_PATCH + ");" +*/ conv,
-								function(error){
-									
+							var destFilename = dest + filename.substring(0, filename.length - 1);
+							var destFolder = destFilename.substring(0, destFilename.lastIndexOf('/'));
+							function save() {
+								fs.writeFile(destFilename, "/*! This file was automatically generated using Factory v" + version.version + " from '" + source + "'. Do not edit manually! */" + conv, function(error){
+									if(error) {
+										console.error(error);
+									} else {
+										console.log("Converted to " + dest + filename);
+									}
+								});
+							}
+							fs.access(destFolder, fs.constants.F_OK, function(error){
 								if(error) {
-									console.error(error);
+									fs.mkdir(destFolder, {recursive: true}, function(error){
+										if(error) {
+											console.error(error);
+										} else {
+											save();
+										}
+									});
 								} else {
-									console.log("Converted to " + dest + filename);
+									save();
 								}
 							});
-							Util.reset(namespace);
 						}
 					}
 				});
 			}
 		}
 		
-		fs.readdir(folder, function(error, files){
-			if(error) {
-				console.error(error);
-			} else {
-				files.forEach(function(file){
-					fs.stat(folder + file, function(error, stat){
-						if(error) {
-							console.error(error);
-						} else if(stat.isFile()) {
-							update(file);
-						}
+		function read(currFolder) {
+			fs.readdir(folder + currFolder, function(error, files){
+				if(error) {
+					console.error(error);
+				} else {
+					files.forEach(function(file){
+						var currFile = (currFolder && currFolder + '/') + file;
+						fs.stat(folder + currFile, function(error, stat){
+							if(error) {
+								console.error(error);
+							} else if(stat.isFile()) {
+								update(currFile);
+							} else if(stat.isDirectory()) {
+								read(currFile);
+							}
+						});
 					});
-				});
-			}
-		});
+				}
+			});
+		}
+		read("");
 		
 		if(watch) {
 			

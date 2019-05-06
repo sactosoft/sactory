@@ -1,13 +1,15 @@
 {
 	"name": "factory",
-	"version": "0.42.0",
+	"version": "0.43.0",
 	"description": "HTML-spiced javascript for DOM creation and manipulation",
 	"main": "index.js",
 	"scripts": {
 		"dist": "gulp dist",
 		"compile": "node ./src/watcher.js compile",
 		"watch": "node ./src/watcher.js watch",
-		"test": "npm run compile -- ./test/builder ./test/src && node ./test/index.js"
+		"test:compile": "npm run compile -- ./test/ ./test/dist/",
+		"test:run": "node ./test/index.js",
+		"test": "npm run test:compile && npm run test:run"
 	},
 	"repository": {
 		"type": "git",

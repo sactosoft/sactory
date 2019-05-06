@@ -66,14 +66,14 @@ Factory.check = function(major, minor, patch){
 
 /**
  */
-Factory.createElement = function(str, args){
-	return Factory.updateElement(null, str, args);
+Factory.createElement = function(str, args, spread){
+	return Factory.updateElement(null, str, args, spread);
 };
 
 /**
  * @since 0.29.0
  */
-Factory.updateElement = function(element, str, args){
+Factory.updateElement = function(element, str, args, spread){
 	
 	var split = str.split('$');
 	
@@ -93,6 +93,15 @@ Factory.updateElement = function(element, str, args){
 			throw new Error("Template '" + templateName + "' could not be found.")
 		}
 	});
+
+	if(spread) {
+		for(var key in spread) {
+			args.push({
+				key: key,
+				value: spread[key]
+			});
+		}
+	}
 	
 	var namespace;
 	var templateArgs = {};
@@ -240,6 +249,7 @@ Factory.query = function(context, doc, selector, fun){
  * @since 0.11.0
  */
 Factory.bind = function(context, element, target, change, fun){
+	change = Factory.unobserve(change);
 	var recordId = Util.nextId();
 	var oldValue;
 	function record(value) {
