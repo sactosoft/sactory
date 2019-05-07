@@ -11,9 +11,19 @@ Sactory.hash = function(str) {
 
 var counts = {};
 
-Sactory.nextId = function(namespace){
+Sactory.nextId = function(namespace, alpha){
 	if(!counts[namespace]) counts[namespace] = 0;
-	return counts[namespace]++;
+	var ret = counts[namespace]++;
+	if(alpha) {
+		var str = "";
+		while(ret >= 0) {
+			str += String.fromCharCode(97 + ret % 26);
+			ret = Math.floor((ret - 26) / 26);
+		}
+		return str;
+	} else {
+		return ret;
+	}
 };
 
 Sactory.reset = function(namespace){

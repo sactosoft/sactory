@@ -26,9 +26,7 @@ function Builder(element) {
  * @since 0.42.0
  */
 Builder.prototype.subscribe = function(subscriptions){
-	if(this.bind) {
-		Array.prototype.push.apply(this.bind.subscriptions, subscriptions);
-	}
+	Array.prototype.push.apply(this.bind.subscriptions, subscriptions);
 };
 
 Builder.prototype.propImpl = function(name, value){
@@ -93,7 +91,7 @@ Builder.prototype.textImpl = function(value){
 		textNode = document.createTextNode(value);
 	}
 	this.element.appendChild(textNode);
-	if(this.bind) this.bind.appendChild(textNode);
+	this.bind.appendChild(textNode);
 };
 
 Object.defineProperty(Builder.prototype, "text", {

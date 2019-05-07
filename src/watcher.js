@@ -28,9 +28,17 @@ var Watcher = {
 					if(error) {
 						console.error(error);
 					} else {
-						var source = path.relative(dest, folder).replace('\\', '/');
+						var rfolder, rname, i = filename.lastIndexOf('/');
+						if(i == -1) {
+							rfolder = "";
+							rname = filename;
+						} else {
+							rfolder = filename.substring(0, i);
+							rname = filename.substr(i + 1);
+						}
+						var source = path.relative(dest + rfolder, folder + rfolder).replace(/\\/g, '/');
 						if(source) source += "/";
-						source += filename;
+						source += rname;
 						var namespace = folder + filename;
 						var conv;
 						try {

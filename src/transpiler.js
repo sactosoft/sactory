@@ -243,14 +243,14 @@ CSSParser.prototype = Object.create(TextParser.prototype);
 function CSSBParser(data, attributes) {
 	SourceParser.call(this, data, attributes);
 	this.expr = [];
-	this.scopes = ["__" + Util.nextId(this.namespace)];
+	this.scopes = ["__" + Util.nextId(this.namespace, true)];
 	this.scope = attributes.scoped && ("__sactory" + Util.nextId(this.namespace));
 }
 
 CSSBParser.prototype = Object.create(SourceParser.prototype);
 
 CSSBParser.prototype.addScope = function(selector){
-	var scope = "__" + Util.nextId(this.namespace);
+	var scope = "__" + Util.nextId(this.namespace, true);
 	this.add("var " + scope + "=Sactory.select(" + this.scopes[this.scopes.length - 1] + "," + selector + ");");
 	this.scopes.push(scope);
 };
@@ -447,7 +447,7 @@ CSSBParser.createExprImpl = function(expr, info){
 };
 
 CSSBParser.createExpr = function(expr, namespace){
-	var param = "__u" + Util.nextId(namespace);
+	var param = "__" + Util.nextId(namespace, true);
 	var info = {
 		param: param,
 		computed: "(function(" + param + "){return Sactory.compute(" + param + ",",
@@ -491,8 +491,8 @@ Sactory.registerMode("CSSB", ["cssb", "style", "fcss"], CSSBParser, {strings: fa
 
 Sactory.convertSource = function(input, options){
 
-	function nextId() {
-		return Util.nextId(options.namespace);
+	function nextId(numeric) {
+		return Util.nextId(options.namespace, !numeric);
 	}
 	
 	var parser = new Parser(input);
@@ -751,7 +751,7 @@ Sactory.convertSource = function(input, options){
 					if(create) {
 						if(append) {
 							var e = "Sactory.appendElement(" + parent + ", " + bind + ", " + anchor + ", " + createExpr() + ")";
-							if(iattributes.unique) e = "Sactory.unique(this, " + nextId() + ", function(){return " + e + "})";
+							if(iattributes.unique) e = "Sactory.unique(this, " + nextId(true) + ", function(){return " + e + "})";
 							source.push(e);
 						} else {
 							source.push(createExpr());
@@ -771,14 +771,14 @@ Sactory.convertSource = function(input, options){
 					if(tagName == ":bind-if" || tagName == ":if") bindType = "If";
 					else if(tagName == ":bind-each" || tagName == ":each") bindType = "Each";
 					if(!computed && (bindType || tagName == ":bind")) {
-						source.push("Sactory.bind" + bindType + "(" + ["\"" + tagName + " #" + nextId() + "\"", "this", parent, bind, anchor, iattributes.to || "!1", iattributes.change || "!1"].join(", ") + (bindType == "If" ? ", " + iattributes.condition : "") +
+						source.push("Sactory.bind" + bindType + "(" + ["\"" + tagName + " #" + nextId(true) + "\"", "this", parent, bind, anchor, iattributes.to || "0", iattributes.change || "0", iattributes.cleanup || "0"].join(", ") + (bindType == "If" ? ", " + iattributes.condition : "") +
 							", function(" + [element, bind, anchor, iattributes.as || "__" + nextId(), iattributes.index || "__" + nextId(), iattributes.array || "__" + nextId()].join(", ") + "){");
 					} else if(create) {
 						if(append) {
 							var e = "Sactory.append(" + parent + ", " + bind + ", " + anchor + ", Sactory.call(this, " + expr + ", function(" + element + ", " + anchor + "){";
 							currentClosing += ")";
 							if(iattributes.unique) {
-								e = "Sactory.unique(this, " + nextId() + ", function(){return " + e;
+								e = "Sactory.unique(this, " + nextId(true) + ", function(){return " + e;
 								currentClosing += "})";
 							}
 							source.push(e);
@@ -801,7 +801,7 @@ Sactory.convertSource = function(input, options){
 	
 	endMode().finalize();
 	
-	source.push("})(typeof global=='object'&&global.Sactory||typeof window=='object'&&window.Sactory||require('sactory'), " + (options.scope || "!1") + ", !1, !1);");
+	source.push("})(typeof global=='object'&&global.Sactory||typeof window=='object'&&window.Sactory||require('sactory'), " + (options.scope || 0) + ", 0, 0);");
 	
 	//console.log(source.join(""));
 	

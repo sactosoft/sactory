@@ -19,7 +19,7 @@ function make(filename, className, sources) {
 	.pipe(replace(/Util/gm, "Sactory"))
 	.pipe(header(
 		"!function(a){\n\tif(typeof define == 'function' && define.amd) {\n\t\tdefine(a);\n\t} else {\n\t\twindow." + className + " = a();\n\t}\n" +
-		"}(function(){\n\nfunction Sactory(){};\nSactory.toString = function(){return Object.toString().replace(/Object/, '" +  className + "').replace(/native/, 'sactory');};\n" +
+		"}(function(){\n\nfunction Sactory(){};\nvar toString = function(){return Object.toString().replace(/Object/, '" +  className + "').replace(/native/, 'sactory');};\nSactory.toString = toString.toString = toString;\n" +
 		"function get(prop, value){ Object.defineProperty(Sactory, prop, {get: function(){ return value; }}); }\nget('VERSION_MAJOR', " + version.major + ");\nget('VERSION_MINOR', " + version.minor + ");\nget('VERSION_PATCH', " + version.patch + ");\n" +
 		"get('VERSION', '" + version.version + "');\n\n"
 	))
@@ -48,7 +48,6 @@ gulp.task("dist:sactory-lite", function(){
 		"util",
 		"polyfill",
 		"runtime/core",
-		"runtime/bind",
 		"runtime/observable",
 		"runtime/builder",
 		"runtime/client"

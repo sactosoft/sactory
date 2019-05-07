@@ -58,12 +58,7 @@ Parser.prototype.error = function(message){
 	var position = this.position;
 	var start = this.input.substring(0, this.index).lastIndexOf('\n') + 1;
 	var end = this.index + this.input.substr(this.index).indexOf('\n');
-	var snippet = this.input.substring(start, end);
-	while(snippet.length && /\s/.test(snippet.charAt(0))) {
-		start++;
-		snippet = snippet.substr(1);
-	}
-	message += '\n' + snippet + '\n';
+	message += '\n' + this.input.substring(start, end) + '\n';
 	for(var i=start; i<end; i++) message += i == this.index ? '^' : (this.input.charAt(i) == '\t' ? '\t' : ' ');
 	throw new ParserError("Line " + (position.line + 1) + ", Column " + position.column + ": " + message);
 };
