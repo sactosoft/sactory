@@ -14,6 +14,7 @@ module.exports = merge(
 	require("./src/runtime/server"),
 	require("./src/runtime/core"),
 	require("./src/runtime/cssb"),
+	require("./src/runtime/bind"),
 	require("./src/runtime/observable"),
 	require("./src/transpiler"),
 	require("./src/watcher")

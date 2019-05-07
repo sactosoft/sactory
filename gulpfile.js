@@ -36,6 +36,7 @@ gulp.task("dist:sactory", function(){
 		"polyfill",
 		"runtime/core",
 		"runtime/cssb",
+		"runtime/bind",
 		"runtime/observable",
 		"runtime/builder",
 		"runtime/client"
@@ -47,6 +48,7 @@ gulp.task("dist:sactory-lite", function(){
 		"util",
 		"polyfill",
 		"runtime/core",
+		"runtime/bind",
 		"runtime/observable",
 		"runtime/builder",
 		"runtime/client"

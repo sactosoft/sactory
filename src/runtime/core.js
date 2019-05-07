@@ -203,11 +203,17 @@ Sactory.unique = function(context, id, fun){
 /**
  * @since 0.17.0
  */
-Sactory.append = function(element, child, afterappend, beforeremove){
+Sactory.append = function(element, bind, anchor, child, afterappend, beforeremove){
 	if(element || typeof element == "string" && element.length && (element = document.querySelector(element))) {
-		element.appendChild(child);
+		if(anchor && anchor.parentNode === element) element.insertBefore(child, anchor);
+		else element.appendChild(child);
 		if(afterappend) afterappend.call(child);
 		if(beforeremove) child.__builder.beforeremove = beforeremove;
+		if(bind) {
+			bind.appendChild(child);
+			bind.merge(child.__builder.bind);
+			child.__builder.bind = bind;
+		}
 	}
 	return child;
 };
@@ -215,15 +221,15 @@ Sactory.append = function(element, child, afterappend, beforeremove){
 /**
  * @since 0.36.0
  */
-Sactory.appendElement = function(element, child, afterappend, beforeremove){
-	return Sactory.append(element, child.element, afterappend, beforeremove);
+Sactory.appendElement = function(element, bind, anchor, child, afterappend, beforeremove){
+	return Sactory.append(element, bind, anchor, child.element, afterappend, beforeremove);
 };
 
 /**
  * @since 0.40.0
  */
-Sactory.comment = function(element, comment){
-	return Sactory.append(element, document.createComment(comment));
+Sactory.comment = function(element, bind, anchor, comment){
+	return Sactory.append(element, bind, anchor, document.createComment(comment));
 };
 
 /**
@@ -253,31 +259,48 @@ Sactory.query = function(context, doc, selector, fun){
 /**
  * @since 0.11.0
  */
-Sactory.bind = function(context, element, target, change, fun){
-	change = Sactory.unobserve(change);
-	var recordId = Util.nextId();
+Sactory.bind = function(type, context, element, bind, anchor, target, change, fun){
+	var currentBind = (bind || Sactory.bindFactory).fork();
+	var currentAnchor = null;
 	var oldValue;
-	function record(value) {
-		element.__builder.startRecording(recordId);
-		fun.call(context, element, oldValue = value);
-		element.__builder.stopRecording(recordId);
+	function subscribe(subscriptions) {
+		if(bind) bind.subscribe(subscriptions);
 	}
+	function record(value) {
+		fun.call(context, element, currentBind, currentAnchor, oldValue = value);
+	}
+	function rollback(value) {
+		currentBind.rollback();
+		record(value);
+	}
+	if(element) {
+		var start = document.createComment(" start " + type + " ");
+		currentAnchor = document.createComment(" end " + type + " ");
+		if(anchor) {
+			element.insertBefore(start, anchor);
+			element.insertBefore(currentAnchor, anchor);
+		} else {
+			element.appendChild(start);
+			element.appendChild(currentAnchor);
+		}
+		if(bind) {
+			bind.appendChild(start);
+			bind.appendChild(currentAnchor);
+		}
+	}
+	change = Sactory.unobserve(change);
 	if(target.observe) target = target.observe;
 	if(target.forEach) {
 		target.forEach(function(ob){
-			ob.subscribe(function(){
-				element.__builder.rollback(recordId);
-				record();
-			});
+			subscribe(ob.subscribe(rollback));
 		});
 		record();
 	} else if(Sactory.isObservable(target)) {
-		target.subscribe(function(value){
+		subscribe(target.subscribe(function(value){
 			if(!change || change(oldValue, value)) {
-				element.__builder.rollback(recordId);
-				record(value);
+				rollback(value);
 			}
-		});
+		}));
 		if(Sactory.isOwnObservable(target)) {
 			record(target.value);
 		} else {
@@ -291,22 +314,22 @@ Sactory.bind = function(context, element, target, change, fun){
 /**
  * @since 0.40.0
  */
-Sactory.bindIf = function(context, element, target, change, condition, fun){
+Sactory.bindIf = function(type, context, element, bind, anchor, target, change, condition, fun){
 	if(!target && Sactory.isContainerObservable(condition)) target = condition.observe;
 	condition = Sactory.unobserve(condition);
 	if(typeof condition != "function") throw new Error("The condition provided to :bind-if is not a function.");
-	Sactory.bind(context, element, target, change, function(element, value){
-		if(condition()) fun.call(this, element, value);
+	Sactory.bind(type, context, element, bind, anchor, target, change, function(element, bind, anchor, value){
+		if(condition()) fun.call(this, element, bind, anchor, value);
 	});
 };
 
 /**
  * @since 0.40.0
  */
-Sactory.bindEach = function(context, element, target, change, fun){
-	Sactory.bind(context, element, target, change, function(element, value){
+Sactory.bindEach = function(type, context, element, bind, anchor, target, change, fun){
+	Sactory.bind(type, context, element, bind, anchor, target, change, function(element, bind, anchor, value){
 		value.forEach(function(currentValue, index, array){
-			fun.call(context, element, currentValue, index, array);
+			fun.call(context, element, bind, anchor, currentValue, index, array);
 		});
 	});
 };

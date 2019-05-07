@@ -26,17 +26,17 @@ module.exports = function(app){
 			
 			@ = Factory.createDocument();
 			
-			<*head>
+			<:head>
 				<title @text="Users" />
-			</>
-			<*body>
+			</:head>
+			<:body>
 				data.data.forEach(user => {
 					<div class="user">
 						<img class="avatar" src=user.avatar />
 						<a href=("/user/" + user.id) @text=(user.first_name + ' ' + user.last_name) />
 					</div>
 				});
-			</>
+			</:body>
 			
 			res.send(@toString());
 			
@@ -52,7 +52,7 @@ module.exports = function(app){
 	
 			@ = Factory.createDocument();
 			
-			<*head>
+			<:head>
 				<title @text=(user.first_name + ' ' + user.last_name) />
 				<script>
 					var user = ${JSON.stringify(user)};
@@ -95,8 +95,8 @@ module.exports = function(app){
 						}
 					}
 				</style>
-			</>
-			<*body #html>
+			</:head>
+			<:body #html>
 				<img src=user.avatar alt="Avatar" />
 				<h3 class="name" style="color:#333" @style.font-size="44px">
 					&lt;${user.first_name} ${user.last_name}&gt;
@@ -115,7 +115,7 @@ module.exports = function(app){
 						<button class=("button " + type) @text=type />
 					}
 				</#code>
-			</>
+			</:body>
 			
 			res.send(@toString());
 			

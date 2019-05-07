@@ -243,14 +243,14 @@ CSSParser.prototype = Object.create(TextParser.prototype);
 function CSSBParser(data, attributes) {
 	SourceParser.call(this, data, attributes);
 	this.expr = [];
-	this.scopes = ["__s" + Util.nextId(this.namespace)];
-	this.scope = attributes.scoped && "__style" + Util.nextId(this.namespace);
+	this.scopes = ["__" + Util.nextId(this.namespace)];
+	this.scope = attributes.scoped && ("__sactory" + Util.nextId(this.namespace));
 }
 
 CSSBParser.prototype = Object.create(SourceParser.prototype);
 
 CSSBParser.prototype.addScope = function(selector){
-	var scope = "__s" + Util.nextId(this.namespace);
+	var scope = "__" + Util.nextId(this.namespace);
 	this.add("var " + scope + "=Sactory.select(" + this.scopes[this.scopes.length - 1] + "," + selector + ");");
 	this.scopes.push(scope);
 };
@@ -267,7 +267,7 @@ CSSBParser.prototype.skip = function(){
 CSSBParser.prototype.start = function(){
 	this.add("var " + this.scopes[0] + "=[];");
 	if(this.scope) {
-		this.addScope("\".__style\"+" + this.element + ".__builder.id");
+		this.addScope("\"." + this.scope + "\"");
 	}
 };
 
@@ -331,7 +331,7 @@ CSSBParser.prototype.parse = function(handle, eof, parseCode){
 			if(e.length) {
 				var ret = [];
 				e.forEach(function(v){
-					ret.push(v.string && JSON.stringify(v.value) || (!computable && v.value || CSSBParser.createExpr(parseCode(v.value, parser).source, namespace)));
+					ret.push(v.string && JSON.stringify(v.value) || (!computable && parseCode(v.value, parser).source || CSSBParser.createExpr(parseCode(v.value, parser).source, namespace)));
 				});
 				return ret.join('+');
 			} else {
@@ -394,7 +394,7 @@ CSSBParser.prototype.end = function(){
 };
 
 CSSBParser.prototype.finalize = function(){
-	if(this.scope) this.add(", function(){ this.parentNode.classList.add(\"__style\" + this.__builder.id); }, function(){ this.parentNode.classList.remove(\"__style\" + this.__builder.id); }");
+	if(this.scope) this.add(", function(){ this.parentNode.classList.add(\"" + this.scope + "\"); }, function(){ this.parentNode.classList.remove(\"" + this.scope + "\"); }");
 };
 
 CSSBParser.createExprImpl = function(expr, info){
@@ -497,9 +497,11 @@ Sactory.convertSource = function(input, options){
 	
 	var parser = new Parser(input);
 	
-	var element = "__el" + nextId();
+	var element = "__" + nextId();
+	var bind = "__" + nextId();
+	var anchor = "__" + nextId();
 	
-	var source = ["(function(Sactory, " + element + "){"];
+	var source = ["(function(Sactory, " + element + ", " + bind + ", " + anchor + "){"];
 	
 	var tags = [];
 	var inheritance = [];
@@ -607,7 +609,7 @@ Sactory.convertSource = function(input, options){
 				parser.expect('-');
 				parser.expect('-');
 				var seq = parser.findSequence("-->", true);
-				source.push("Sactory.comment(" + element + ", " + JSON.stringify(seq) + ");");
+				source.push("Sactory.comment(" + element + ", " + bind + ", " + anchor + ", " + JSON.stringify(seq) + ");");
 				for(var i=0; i<seq.length; i++) {
 					if(seq.charAt(i) == '\n') source.push('\n');
 				}
@@ -748,7 +750,7 @@ Sactory.convertSource = function(input, options){
 					parser.expect('>');
 					if(create) {
 						if(append) {
-							var e = "Sactory.appendElement(" + parent + ", " + createExpr() + ")";
+							var e = "Sactory.appendElement(" + parent + ", " + bind + ", " + anchor + ", " + createExpr() + ")";
 							if(iattributes.unique) e = "Sactory.unique(this, " + nextId() + ", function(){return " + e + "})";
 							source.push(e);
 						} else {
@@ -765,15 +767,15 @@ Sactory.convertSource = function(input, options){
 					if(newMode !== undefined) {
 						startMode(newMode, iattributes);
 					}
-					var bind = "";
-					if(tagName == ":bind-if" || tagName == ":if") bind = "If";
-					else if(tagName == ":bind-each" || tagName == ":each") bind = "Each";
-					if(!computed && (bind || tagName == ":bind")) {
-						source.push("Sactory.bind" + bind + "(this, " + parent + ", " + iattributes.to + ", " + iattributes.change + (bind == "If" ? ", " + iattributes.condition : "") +
-							", function(" + [element, iattributes.as || "__v" + nextId(), iattributes.index || "__i" + nextId(), iattributes.array || "__a" + nextId()].join(", ") + "){");
+					var bindType = "";
+					if(tagName == ":bind-if" || tagName == ":if") bindType = "If";
+					else if(tagName == ":bind-each" || tagName == ":each") bindType = "Each";
+					if(!computed && (bindType || tagName == ":bind")) {
+						source.push("Sactory.bind" + bindType + "(" + ["\"" + tagName + " #" + nextId() + "\"", "this", parent, bind, anchor, iattributes.to || "!1", iattributes.change || "!1"].join(", ") + (bindType == "If" ? ", " + iattributes.condition : "") +
+							", function(" + [element, bind, anchor, iattributes.as || "__" + nextId(), iattributes.index || "__" + nextId(), iattributes.array || "__" + nextId()].join(", ") + "){");
 					} else if(create) {
 						if(append) {
-							var e = "Sactory.append(" + parent + ", Sactory.call(this, " + expr + ", function(" + element + "){";
+							var e = "Sactory.append(" + parent + ", " + bind + ", " + anchor + ", Sactory.call(this, " + expr + ", function(" + element + ", " + anchor + "){";
 							currentClosing += ")";
 							if(iattributes.unique) {
 								e = "Sactory.unique(this, " + nextId() + ", function(){return " + e;
@@ -799,11 +801,15 @@ Sactory.convertSource = function(input, options){
 	
 	endMode().finalize();
 	
-	source.push("})(typeof global=='object'&&global.Sactory||typeof window=='object'&&window.Sactory||require('sactory'), " + (options.scope || null) + ");");
+	source.push("})(typeof global=='object'&&global.Sactory||typeof window=='object'&&window.Sactory||require('sactory'), " + (options.scope || "!1") + ", !1, !1);");
 	
 	//console.log(source.join(""));
 	
-	return source.join("");
+	return {
+		element: element,
+		bind: bind,
+		source: source.join("")
+	};
 	
 };
 
@@ -823,7 +829,7 @@ if(typeof window == "object") {
 			var script = document.createElement("script");
 			script.dataset.sactoryTo = id;
 			script.dataset.from = "[data-sactory-from='" + id + "']";
-			script.textContent = Sactory.convertSource(content || builder.textContent, {});
+			script.textContent = Sactory.convertSource(content || builder.textContent, {}).source;
 			document.head.appendChild(script);
 		});
 	}

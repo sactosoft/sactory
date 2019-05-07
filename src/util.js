@@ -13,7 +13,7 @@ var counts = {};
 
 Sactory.nextId = function(namespace){
 	if(!counts[namespace]) counts[namespace] = 0;
-	return Math.abs(Sactory.hash(namespace || "")) % 777777 + counts[namespace]++;
+	return counts[namespace]++;
 };
 
 Sactory.reset = function(namespace){

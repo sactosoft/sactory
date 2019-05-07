@@ -9,12 +9,7 @@ var INPUT = ["value", "checked"];
 function Builder(element) {
 	
 	this.element = element;
-	
-	this.appendChild;
-	this.after = {};
-	this.recordings = {};
-	
-	this.subscriptions = [];
+	this.bind = Sactory.bindFactory.create();
 	
 	var id;
 	
@@ -31,7 +26,9 @@ function Builder(element) {
  * @since 0.42.0
  */
 Builder.prototype.subscribe = function(subscriptions){
-	Array.prototype.push.apply(this.subscriptions, subscriptions);
+	if(this.bind) {
+		Array.prototype.push.apply(this.bind.subscriptions, subscriptions);
+	}
 };
 
 Builder.prototype.propImpl = function(name, value){
@@ -96,6 +93,7 @@ Builder.prototype.textImpl = function(value){
 		textNode = document.createTextNode(value);
 	}
 	this.element.appendChild(textNode);
+	if(this.bind) this.bind.appendChild(textNode);
 };
 
 Object.defineProperty(Builder.prototype, "text", {
@@ -180,56 +178,6 @@ Builder.prototype.set = function(name, value){
 		this.setImpl(name, value);
 	}
 	return this.element;
-};
-
-/**
- * @since 0.11.0
- */
-Builder.prototype.startRecording = function(id){
-	if(!this.after[id]) this.after[id] = {sibling: this.element.lastChild};
-	this.appendChild = this.element.appendChild;;
-	var sibling = this.after[id].sibling ? this.after[id].sibling.nextSibling : this.element.firstChild;
-	this.recordings[id] = [];
-	var $this = this;
-	this.element.appendChild = function(child){
-		$this.recordings[id].push(child);
-		this.insertBefore(child, sibling);
-		sibling = child.nextSibling;
-	};
-};
-
-/**
- * @since 0.11.0
- */
-Builder.prototype.stopRecording = function(id){
-	this.element.appendChild = this.appendChild;
-};
-
-/**
- * @since 0.11.0
- */
-Builder.prototype.rollback = function(id){
-	function unsubscribe(el) {
-		if(el.__builderInstance) {
-			el.__builder.unsubscribe();
-			if(el.__builder.beforeremove) el.__builder.beforeremove.call(el);
-		}
-		Array.prototype.forEach.call(el.children, unsubscribe);
-	}
-	var $this = this;
-	this.recordings[id].forEach(function(child){
-		if(child.nodeType == Node.ELEMENT_NODE) unsubscribe(child);
-		$this.element.removeChild(child);
-	});
-};
-
-/**
- * @since 0.13.0
- */
-Builder.prototype.unsubscribe = function(){
-	this.subscriptions.forEach(function(subscription){
-		subscription.dispose();
-	});
 };
 
 module.exports = Builder;

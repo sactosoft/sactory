@@ -34,7 +34,7 @@ var Watcher = {
 						var namespace = folder + filename;
 						var conv;
 						try {
-							conv = Sactory.convertSource(data.toString(), {namespace: namespace});
+							conv = Sactory.convertSource(data.toString(), {namespace: namespace}).source;
 						} catch(e) {
 							console.error(e);
 						}
