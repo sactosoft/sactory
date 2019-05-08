@@ -394,7 +394,7 @@ CSSBParser.prototype.end = function(){
 };
 
 CSSBParser.prototype.finalize = function(){
-	if(this.scope) this.add(", function(){ this.parentNode.classList.add(\"" + this.scope + "\"); }, function(){ this.parentNode.classList.remove(\"" + this.scope + "\"); }");
+	if(this.scope) this.add(", function(){ this.parentNode.__builder.addClass(\"" + this.scope + "\"); }, function(){ this.parentNode.__builder.removeClass(\"" + this.scope + "\"); }");
 };
 
 CSSBParser.createExprImpl = function(expr, info){

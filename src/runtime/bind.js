@@ -120,6 +120,8 @@ Sactory.bind = function(type, context, element, bind, anchor, target, change, cl
 	}
 	change = Sactory.unobserve(change);
 	cleanup = Sactory.unobserve(cleanup);
+	if(change && typeof change != "function") throw new Error("The change condition provided to :bind is not a function.");
+	if(cleanup && typeof cleanup != "function") throw new Error("The cleanup provided to :bind is not a function.");
 	if(target.observe) target = target.observe;
 	if(target.forEach) {
 		target.forEach(function(ob){
@@ -159,9 +161,9 @@ Sactory.bindIf = function(type, context, element, bind, anchor, target, change, 
  */
 Sactory.bindEach = function(type, context, element, bind, anchor, target, change, cleanup, fun){
 	Sactory.bind(type, context, element, bind, anchor, target, change, cleanup, function(element, bind, anchor, value){
-		value.forEach(function(currentValue, index, array){
-			fun.call(context, element, bind, anchor, currentValue, index, array);
-		});
+		for(var i=0; i<value.length; i++) {
+			fun.call(this, element, bind, anchor, value[i], i, value);
+		}
 	});
 };
 

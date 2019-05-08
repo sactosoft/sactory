@@ -143,9 +143,9 @@ Builder.prototype.setImpl = function(name, value){
 		case '+':
 			name = name.substr(1);
 			if(name == "class") {
-				var element = this.element;
+				var builder = this;
 				value.split(' ').forEach(function(className){
-					element.classList.add(className);
+					builder.addClass(className);
 				});
 			} else if(name == "style") {
 				var style = this.element.getAttribute("style");
@@ -177,5 +177,33 @@ Builder.prototype.set = function(name, value){
 	}
 	return this.element;
 };
+
+// polyfill
+
+if(Object.getOwnPropertyDescriptor(Element.prototype, "classList")) {
+
+	Builder.prototype.addClass = function(className){
+		this.element.classList.add(className);
+	};
+
+	Builder.prototype.removeClass = function(className){
+		this.element.classList.remove(className);
+	};
+
+} else {
+
+	Builder.prototype.addClass= function(className){
+		if(!this.element.className.split(' ').indexOf(className) != -1) {
+			this.element.className = (this.element.className + ' ' + className).trim();
+		}
+	};
+
+	Builder.prototype.removeClass = function(className){
+		this.element.className = this.element.className.split(' ').filter(function(a){
+			return a != className;
+		}).join(' ');
+	};
+
+}
 
 module.exports = Builder;

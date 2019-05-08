@@ -70,9 +70,9 @@ window.addEventListener("load", function(){
 				}
 			</style>
 		</:bind>
-		var cookies = **(parseInt(window.localStorage.getItem("cookies")) || 0);
+		var cookies = **(parseInt(localStorage && localStorage.getItem("cookies")) || 0);
 		function increment() {
-			window.localStorage.setItem("cookies", ++*cookies);
+			localStorage && localStorage.setItem("cookies", ++*cookies) || *cookies++;
 		}
 		<div class="cookie"><img src="http://icons.iconarchive.com/icons/oxygen-icons.org/oxygen/256/Apps-preferences-web-browser-cookies-icon.png" +click=increment /></div>
 		<p @text=("Clicked " + *cookies + " cookies!") />
