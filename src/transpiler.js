@@ -771,7 +771,7 @@ Sactory.convertSource = function(input, options){
 					if(tagName == ":bind-if" || tagName == ":if") bindType = "If";
 					else if(tagName == ":bind-each" || tagName == ":each") bindType = "Each";
 					if(!computed && (bindType || tagName == ":bind")) {
-						source.push("Sactory.bind" + bindType + "(" + ["\"" + tagName + " #" + nextId(true) + "\"", "this", parent, bind, anchor, iattributes.to || "0", iattributes.change || "0", iattributes.cleanup || "0"].join(", ") + (bindType == "If" ? ", " + iattributes.condition : "") +
+						source.push("Sactory.bind" + bindType + "(" + ["this", parent, bind, anchor, iattributes.to || "0", iattributes.change || "0", iattributes.cleanup || "0"].join(", ") + (bindType == "If" ? ", " + iattributes.condition : "") +
 							", function(" + [element, bind, anchor, iattributes.as || "__" + nextId(), iattributes.index || "__" + nextId(), iattributes.array || "__" + nextId()].join(", ") + "){");
 					} else if(create) {
 						if(append) {
@@ -808,6 +808,7 @@ Sactory.convertSource = function(input, options){
 	return {
 		element: element,
 		bind: bind,
+		anchor: anchor,
 		source: source.join("")
 	};
 	

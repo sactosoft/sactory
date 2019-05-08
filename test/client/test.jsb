@@ -1,6 +1,7 @@
 window.addEventListener("load", function(){
 	// query selector from variable
 	@ = document.body;
+	<!-- start -->
 	<{document.body} class="body">
 		// observable creation
 		var tagName = **"div";
@@ -31,6 +32,7 @@ window.addEventListener("load", function(){
 			</>
 			<:bind :to=*tagName>
 				<button @text="Button" />
+				<!-- a comment -->
 				timeout = setTimeout(function(){
 					<button @text="Another button" />
 				}, 5000);

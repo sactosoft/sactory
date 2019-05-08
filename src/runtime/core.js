@@ -211,8 +211,10 @@ Sactory.append = function(element, bind, anchor, child, afterappend, beforeremov
 		if(beforeremove) child.__builder.beforeremove = beforeremove;
 		if(bind) {
 			bind.appendChild(child);
-			bind.merge(child.__builder.bind);
-			child.__builder.bind = bind;
+			if(child.__builder) {
+				bind.merge(child.__builder.bind);
+				child.__builder.bind = bind;
+			}
 		}
 	}
 	return child;

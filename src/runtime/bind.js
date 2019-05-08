@@ -88,7 +88,7 @@ Object.defineProperty(Sactory, "bindFactory", {
 /**
  * @since 0.11.0
  */
-Sactory.bind = function(type, context, element, bind, anchor, target, change, cleanup, fun){
+Sactory.bind = function(context, element, bind, anchor, target, change, cleanup, fun){
 	var currentBind = (bind || Sactory.bindFactory).fork();
 	var currentAnchor = null;
 	var oldValue;
@@ -104,24 +104,16 @@ Sactory.bind = function(type, context, element, bind, anchor, target, change, cl
 		record(value);
 	}
 	if(element) {
-		var start = document.createComment(" start " + type + " ");
-		currentAnchor = document.createComment(" end " + type + " ");
-		if(anchor) {
-			element.insertBefore(start, anchor);
-			element.insertBefore(currentAnchor, anchor);
-		} else {
-			element.appendChild(start);
-			element.appendChild(currentAnchor);
-		}
-		if(bind) {
-			bind.appendChild(start);
-			bind.appendChild(currentAnchor);
-		}
+		currentAnchor = document.createComment("");
+		currentAnchor.__bind = currentBind;
+		if(anchor) element.insertBefore(currentAnchor, anchor);
+		else element.appendChild(currentAnchor);
+		if(bind) bind.appendChild(currentAnchor);
 	}
 	change = Sactory.unobserve(change);
 	cleanup = Sactory.unobserve(cleanup);
-	if(change && typeof change != "function") throw new Error("The change condition provided to :bind is not a function.");
-	if(cleanup && typeof cleanup != "function") throw new Error("The cleanup provided to :bind is not a function.");
+	if(change && typeof change != "function") throw new Error("The change argument provided to :bind is not a function.");
+	if(cleanup && typeof cleanup != "function") throw new Error("The cleanup argument provided to :bind is not a function.");
 	if(target.observe) target = target.observe;
 	if(target.forEach) {
 		target.forEach(function(ob){
@@ -147,11 +139,11 @@ Sactory.bind = function(type, context, element, bind, anchor, target, change, cl
 /**
  * @since 0.40.0
  */
-Sactory.bindIf = function(type, context, element, bind, anchor, target, change, cleanup, condition, fun){
+Sactory.bindIf = function(context, element, bind, anchor, target, change, cleanup, condition, fun){
 	if(!target && Sactory.isContainerObservable(condition)) target = condition.observe;
 	condition = Sactory.unobserve(condition);
 	if(typeof condition != "function") throw new Error("The condition provided to :bind-if is not a function.");
-	Sactory.bind(type, context, element, bind, anchor, target, change, cleanup, function(element, bind, anchor, value){
+	Sactory.bind(context, element, bind, anchor, target, change, cleanup, function(element, bind, anchor, value){
 		if(condition()) fun.call(this, element, bind, anchor, value);
 	});
 };
@@ -159,8 +151,8 @@ Sactory.bindIf = function(type, context, element, bind, anchor, target, change, 
 /**
  * @since 0.40.0
  */
-Sactory.bindEach = function(type, context, element, bind, anchor, target, change, cleanup, fun){
-	Sactory.bind(type, context, element, bind, anchor, target, change, cleanup, function(element, bind, anchor, value){
+Sactory.bindEach = function(context, element, bind, anchor, target, change, cleanup, fun){
+	Sactory.bind(context, element, bind, anchor, target, change, cleanup, function(element, bind, anchor, value){
 		for(var i=0; i<value.length; i++) {
 			fun.call(this, element, bind, anchor, value[i], i, value);
 		}
