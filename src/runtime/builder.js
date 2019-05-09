@@ -1,5 +1,6 @@
 var Polyfill = require("../polyfill");
-var Sactory = require("./observable");
+var SactoryObservable = require("./observable");
+var SactoryBind = require("./bind");
 
 var INPUT = ["value", "checked"];
 
@@ -9,7 +10,7 @@ var INPUT = ["value", "checked"];
 function Builder(element) {
 	
 	this.element = element;
-	this.bind = Sactory.bindFactory.create();
+	this.bind = SactoryBind.bindFactory.create();
 	
 	var id;
 	
@@ -44,18 +45,25 @@ Builder.prototype.propImpl = function(name, value){
 	
 Builder.prototype.prop = function(name, value){
 	var propImpl = this.propImpl.bind(this);
-	if(Sactory.isObservable(value)) {
-		if(INPUT.indexOf(name) != -1 && Sactory.isOwnObservable(value)) {
-			this.element.addEventListener("input", function(){
-				value.value = this[name];
-			});
-		}
-		this.subscribe(Sactory.observe(value, function(value){
+	if(SactoryObservable.isObservable(value)) {
+		this.subscribe(SactoryObservable.observe(value, function(value){
 			propImpl(name, value);
 		}));
 	} else {
 		propImpl(name, value);
 	}
+};
+
+/**
+ * @since 0.46.0
+ */
+Builder.prototype.twoway = function(name, value){
+	if(["value", "checked"].indexOf(name) == -1) throw new Error("Cannot two-way bind property '" + name + "'.");
+	if(!SactoryObservable.isOwnObservable(value)) throw new Error("Cannot two-way bind property '" + name + "': the given value is not an observable.");
+	this.element.addEventListener("input", function(){
+		value.value = this[name];
+	});
+	this.prop(name, value);
 };
 	
 Builder.prototype.attrImpl = function(name, value){
@@ -68,11 +76,11 @@ Builder.prototype.attrImpl = function(name, value){
 	
 Builder.prototype.attr = function(name, value){
 	var attrImpl = this.attrImpl.bind(this);
-	if(Sactory.isObservable(value)) {
+	if(SactoryObservable.isObservable(value)) {
 		if(INPUT.indexOf(name) != -1) {
 			console.warn("Observable value for '" + name + "' should be assigned to a property, not to an attribute.");
 		}
-		this.subscribe(Sactory.observe(value, function(value){
+		this.subscribe(SactoryObservable.observe(value, function(value){
 			attrImpl(name, value);
 		}));
 	} else {
@@ -82,9 +90,9 @@ Builder.prototype.attr = function(name, value){
 	
 Builder.prototype.textImpl = function(value){
 	var textNode;
-	if(Sactory.isObservable(value)) {
+	if(SactoryObservable.isObservable(value)) {
 		textNode = document.createTextNode("");
-		this.subscribe(Sactory.observe(value, function(value){
+		this.subscribe(SactoryObservable.observe(value, function(value){
 			textNode.textContent = value;
 		}));
 	} else {
@@ -101,7 +109,40 @@ Object.defineProperty(Builder.prototype, "text", {
 });
 
 /**
- * @since
+ * @since 0.46.0
+ */
+Builder.prototype.visibleImpl = function(value, reversed){
+	var element = this.element;
+	var display = "";
+	function update(value) {
+		if(!!value ^ reversed) {
+			element.style.display = display;
+		} else {
+			display = element.style.display;
+			element.style.display = "none";
+		}
+	}
+	if(SactoryObservable.isObservable(value)) {
+		this.subscribe(SactoryObservable.observe(value, update));
+	} else {
+		update(value);
+	}
+};
+
+Object.defineProperty(Builder.prototype, "visible", {
+	set: function(value){
+		this.visibleImpl(value, false);
+	}
+});
+
+Object.defineProperty(Builder.prototype, "hidden", {
+	set: function(value){
+		this.visibleImpl(value, true);
+	}
+});
+
+/**
+ * @since 0.22.0
  */
 Builder.prototype.event = function(name, value){
 	var split = name.split(".");
@@ -136,9 +177,14 @@ Builder.prototype.setImpl = function(name, value){
 			name = name.substr(1);
 			if(name == "text") {
 				this.textImpl(value);
+			} else if(name == "visible" || name == "hidden") {
+				this.visibleImpl(value, name == "hidden");
 			} else {
 				this.prop(name, value);
 			}
+			break;
+		case '*':
+			this.twoway(name.substr(1), value);
 			break;
 		case '+':
 			name = name.substr(1);
@@ -159,7 +205,7 @@ Builder.prototype.setImpl = function(name, value){
 			} else if(name == "text") {
 				this.textImpl(value);
 			} else {
-				this.event(name, Sactory.unobserve(value));
+				this.event(name, SactoryObservable.unobserve(value));
 			}
 			break;
 		default:

@@ -1,8 +1,9 @@
+// init global variables
+require("./dom");
+
 var Polyfill = require("./polyfill");
 var Util = require("./util");
 var Parser = require("./parser");
-
-require("./document"); // init global variables
 
 var Sactory = {};
 
@@ -158,7 +159,7 @@ JavascriptParser.prototype.next = function(match){
 				} else {
 					this.add(this.element);
 					if(skip) this.add(skip);
-					if(this.parser.input.substr(this.parser.index).search(/^text[\s]*=/) === 0) this.add(".__builder.");
+					if(this.parser.input.substr(this.parser.index).search(/^(text|visible|hidden)[\s]*=/) === 0) this.add(".__builder.");
 					else if(this.parser.peek() && this.parser.peek().search(/[a-zA-Z0-9_]/) === 0) this.add(".");
 				}
 			}
@@ -204,12 +205,17 @@ function HTMLParser(data, attributes) {
 
 HTMLParser.prototype = Object.create(TextParser.prototype);
 
-var converter;
+var replaceEntities = Text.replaceEntities || function(){
+	var converter;
+	return function(data){
+		if(!converter) converter = document.createElement("textarea");
+		converter.innerHTML = text;
+		return converter.value;
+	}
+}
 
 HTMLParser.prototype.replaceText = function(text){
-	if(!converter) converter = document.createElement("textarea");
-	converter.innerHTML = text;
-	return converter.value;
+	return replaceEntities(text);
 };
 
 /**
@@ -508,13 +514,6 @@ Sactory.convertSource = function(input, options){
 	var closing = [];
 	var modes = [];
 	var currentMode;
-	var valueParser = Sactory.startMode(defaultMode, options.namespace, null, element);
-	
-	function parseValue(value) {
-		valueParser.parser = new Parser(value);
-		valueParser.source = [];
-		valueParser.parse();
-	}
 	
 	function startMode(mode, attributes) {
 		var info = modeRegistry[mode];
@@ -598,6 +597,14 @@ Sactory.convertSource = function(input, options){
 			}
 		};
 	}
+
+	function wrapFunction(value) {
+		if(value.charAt(0) == '{' && value.charAt(value.length - 1) == '}') {
+			return "function(" + Array.prototype.slice.call(arguments, 1).join(", ") + "){return " + value.substring(1, value.length - 1) + "}";
+		} else {
+			return value;
+		}
+	}
 	
 	while(parser.index < input.length) {
 		currentMode.parser.parse(function(){
@@ -666,7 +673,15 @@ Sactory.convertSource = function(input, options){
 						if(parser.peek() == '=') {
 							parser.index++;
 							skip();
-							attr.value = parseCode(parser.readAttributeValue()).toValue();
+							var value = parser.readAttributeValue();
+							if(attr.attr.charAt(0) == '@' || attr.attr.charAt(0) == '+') {
+								value = wrapFunction(value, "event");
+							} else if(attr.attr == ":change") {
+								value = wrapFunction(value, "oldValue", "value");
+							} else if(attr.attr == ":cleanup" || attr.attr == ":condition") {
+								value = wrapFunction(value);
+							}
+							attr.value = parseCode(value).toValue();
 						}
 						if(!attr.computed) {
 							if(attr.attr == "@") {
@@ -689,14 +704,10 @@ Sactory.convertSource = function(input, options){
 				if(!next) throw new Error("Tag was not closed");
 				if(!computed) {
 					if(tagName.charAt(0) == ':') {
+						create = false;
 						switch(tagName.substr(1)) {
-							case "":
-							case "scope":
-								create = false;
-								break;
 							case "head":
 							case "body":
-								create = false;
 								parent = "document." + tagName.substr(1);
 								break;
 						}

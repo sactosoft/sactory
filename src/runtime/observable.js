@@ -86,6 +86,8 @@ Sactory.isFunctionObservable = function(value){
 };
 
 /**
+ * Subscribes to the observables and calls the callback with the current value.
+ * @returns An array with the new subscriptions.
  * @since 0.40.0
  */
 Sactory.observe = function(value, callback){
@@ -109,6 +111,7 @@ Sactory.observe = function(value, callback){
 };
 
 /**
+ * @deprecated Use {@link computedOf} instead.
  * @since 0.42.0
  */
 Sactory.unobserve = function(value){
@@ -117,6 +120,16 @@ Sactory.unobserve = function(value){
 	} else {
 		return value;
 	}
+};
+
+/**
+ * @since 0.46.0
+ */
+Sactory.computedOf = function(value){
+	if(Sactory.isOwnObservable(value)) return value.value;
+	else if(Sactory.isFunctionObservable(value)) return value();
+	else if(Sactory.isContainerObservable(value)) return value.compute();
+	else return null;
 };
 
 /**

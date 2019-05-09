@@ -298,7 +298,7 @@ Parser.prototype.readTagName = function(force){
  * @since 0.22.0
  */
 Parser.prototype.readAttributeName = function(force){
-	return this.readImpl(/^((~?(\@\@?|\:|\#|\$|\+)?[a-zA-Z_][a-zA-Z0-9_\$\-\.\:]*)|@)/, force, function(){ return "Could not find a valid attribute name."; });
+	return this.readImpl(/^((~?(\@\@?|\:|\#|\$|\*|\+)?[a-zA-Z_][a-zA-Z0-9_\$\-\.\:]*)|@)/, force, function(){ return "Could not find a valid attribute name."; });
 };
 
 /**

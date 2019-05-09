@@ -29,13 +29,13 @@ window.addEventListener("load", function(){
 	<:body>
 		<:bind-each :to=*todos :as=todo :index=i>
 			<div>
-				<input type="checkbox" @checked=*(todo.checked) />
-				<input type="text" @value=*(todo.value) />
-				<button +click=function(){ remove(i); } #html>&times;</button>
+				<input type="checkbox" *checked=*(todo.checked) />
+				<input type="text" *value=*(todo.value) />
+				<button +click={ remove(i); } #html>&times;</button>
 			</div>
 		</:bind-each>
 		<form +submit.prevent=submit>
-			<input @value=*value />
+			<input *value=*value />
 			<button type="submit" @text="Add" />
 		</form>
 	</:body>

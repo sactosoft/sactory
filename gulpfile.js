@@ -16,7 +16,7 @@ function make(filename, className, sources) {
 	.pipe(replace(/var Sactory = {};/gm, ""))
 	.pipe(replace(/(var [a-zA-Z0-9_]+ = )?require\(\"[a-zA-Z0-9_\-\.\/]*\"\);/gm, ""))
 	.pipe(replace(/module\.exports = [a-zA-Z0-9_\.]*;/gm, ""))
-	.pipe(replace(/Util/gm, "Sactory"))
+	.pipe(replace(/(Util|SactoryObservable|SactoryBind)/gm, "Sactory"))
 	.pipe(header(
 		"!function(a){\n\tif(typeof define == 'function' && define.amd) {\n\t\tdefine(a);\n\t} else {\n\t\twindow." + className + " = a();\n\t}\n" +
 		"}(function(){\n\nfunction Sactory(){};\nvar toString = function(){return Object.toString().replace(/Object/, '" +  className + "').replace(/native/, 'sactory');};\nSactory.toString = toString.toString = toString;\n" +

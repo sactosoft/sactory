@@ -1,5 +1,5 @@
 var express = require("express");
-var Factory = global.Factory = require("..");
+var Sactory = global.Sactory = require("..");
 
 var app = express();
 var port = 3000;
@@ -21,6 +21,6 @@ app.get('/', function(req, res){
 	`);
 });
 
-require("./src/user")(app);
+require("./dist/server/user")(app);
 
 app.listen(port, console.log);

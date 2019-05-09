@@ -1,9 +1,9 @@
-var jsdom = require("jsdom");
+// init global variables
+require("../dom");
+
 var Builder = require("./builder");
 
-require("../document"); // init global variables
-
-Object.defineProperty(window.Element.prototype, "__builder", {
+Object.defineProperty(Element.prototype, "__builder", {
 	get: function(){
 		return this.__builderInstance || (this.__builderInstance = new Builder(this));
 	}
@@ -14,14 +14,24 @@ var Sactory = {};
 /**
  * @since 0.36.0
  */
-Sactory.createDocument = function(){
-	var dom = new jsdom.JSDOM("");
-	global.window = dom.window;
-	var ret = global.document = dom.window.document;
-	ret.toString = function(){
-		return dom.serialize();
-	};
-	return ret;
+Sactory.createDocument = function(charset){
+	var document = global.document = new Document();
+	function create(parent, tagName, prop) {
+		var element = parent.createElement(tagName);
+		Object.defineProperty(document, prop || tagName, {
+			get: function(){
+				return element;
+			}
+		});
+		return parent.appendChild(element);
+	}
+	var html = create(document, "html", "documentElement");
+	var head = create(html, "head");
+	var body = create(html, "body");
+	var meta = document.createElement("meta");
+	meta.setAttribute("charset", charset || "UTF-8");
+	head.appendChild(meta);
+	return document;
 };
 
 module.exports = Sactory;

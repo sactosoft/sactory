@@ -19,12 +19,39 @@ module.exports = function(app){
 			danger: ["lightred", "red", "darkred"]
 		}
 	};
+
+	app.get("/benchmark", function(req, res){
+
+		console.time();
+
+		@ = Sactory.createDocument();
+
+		var value = **"test";
+
+		<{document.documentElement} lang="en" #html>
+			<:body>
+				&#64;
+				<input type="password" *value=value />
+				&Delta;
+				&ouml;
+			</:body>
+		</:html>
+
+		*value = "changed";
+
+		res.send(@render());
+
+		console.timeEnd();
+
+	});
 	
 	app.get("/users", async function(req, res){
 		
 		fetch("https://reqres.in/api/users?page=1").then(data => data.json()).then(data => {
+
+			console.time();
 			
-			@ = Factory.createDocument();
+			@ = Sactory.createDocument();
 			
 			<:head>
 				<title @text="Users" />
@@ -38,7 +65,9 @@ module.exports = function(app){
 				});
 			</:body>
 			
-			res.send(@toString());
+			res.send(@render());
+
+			console.timeEnd();
 			
 		});
 		
@@ -50,7 +79,7 @@ module.exports = function(app){
 			
 			var user = data.data;
 	
-			@ = Factory.createDocument();
+			@ = Sactory.createDocument();
 			
 			<:head>
 				<title @text=(user.first_name + ' ' + user.last_name) />

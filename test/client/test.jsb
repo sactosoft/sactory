@@ -6,10 +6,10 @@ window.addEventListener("load", function(){
 		// observable creation
 		var tagName = **"div";
 		// two-way binding for observable
-		<input @value=*tagName />
+		<input *value=*tagName />
 		// bind omitting :to (it's taken from :condition)
 		var timeout;
-		<:bind-if :condition=function(){ return !!*tagName; } :cleanup=function(){ clearTimeout(timeout); }>
+		<:bind-if :condition={ !!*tagName; } :cleanup={ clearTimeout(timeout); }>
 			console.log("Tag name is now " + *tagName);
 			var spread = {
 				"@style.border": "3px dashed red",
@@ -19,7 +19,7 @@ window.addEventListener("load", function(){
 			var transparent = "background";
 			<[*tagName] ["@style." + transparent]="transparent" ...spread>
 				var type = **"text";
-				<input type="text" @value=*type />
+				<input type="text" *value=*type />
 				<input type=*type @value="placeholder text" />
 				<:bind :to=*type>
 					<style>
@@ -31,7 +31,12 @@ window.addEventListener("load", function(){
 				<p style="background:purple;color:white" @text=*tagName />
 			</>
 			<:bind :to=*tagName>
-				<button @text="Button" />
+				var visible = **true;
+				<label #html>
+					Show:
+					<input type="checkbox" *checked=visible />
+				</label>
+				<button +click={ console.log("Button clicked") } @text="Button" @hidden=*visible />
 				<!-- a comment -->
 				timeout = setTimeout(function(){
 					<button @text="Another button" />
@@ -46,7 +51,7 @@ window.addEventListener("load", function(){
 
 	<div>
 		var duration = **30;
-		<input type="number" step="1" @value=*duration />
+		<input type="number" step="1" *value=*duration />
 		<:bind :to=*duration>
 			<style :scoped>
 				.cookie {

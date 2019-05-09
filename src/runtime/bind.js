@@ -1,3 +1,5 @@
+var SactoryObservable = require("./observable");
+
 var Sactory = {};
 
 /**
@@ -110,8 +112,8 @@ Sactory.bind = function(context, element, bind, anchor, target, change, cleanup,
 		else element.appendChild(currentAnchor);
 		if(bind) bind.appendChild(currentAnchor);
 	}
-	change = Sactory.unobserve(change);
-	cleanup = Sactory.unobserve(cleanup);
+	change = SactoryObservable.unobserve(change);
+	cleanup = SactoryObservable.unobserve(cleanup);
 	if(change && typeof change != "function") throw new Error("The change argument provided to :bind is not a function.");
 	if(cleanup && typeof cleanup != "function") throw new Error("The cleanup argument provided to :bind is not a function.");
 	if(target.observe) target = target.observe;
@@ -120,13 +122,13 @@ Sactory.bind = function(context, element, bind, anchor, target, change, cleanup,
 			subscribe(ob.subscribe(rollback));
 		});
 		record();
-	} else if(Sactory.isObservable(target)) {
+	} else if(SactoryObservable.isObservable(target)) {
 		subscribe(target.subscribe(function(value){
 			if(!change || change(oldValue, value)) {
 				rollback(value);
 			}
 		}));
-		if(Sactory.isOwnObservable(target)) {
+		if(SactoryObservable.isOwnObservable(target)) {
 			record(target.value);
 		} else {
 			record(target());
@@ -140,8 +142,8 @@ Sactory.bind = function(context, element, bind, anchor, target, change, cleanup,
  * @since 0.40.0
  */
 Sactory.bindIf = function(context, element, bind, anchor, target, change, cleanup, condition, fun){
-	if(!target && Sactory.isContainerObservable(condition)) target = condition.observe;
-	condition = Sactory.unobserve(condition);
+	if(!target && SactoryObservable.isContainerObservable(condition)) target = condition.observe;
+	condition = SactoryObservable.unobserve(condition);
 	if(typeof condition != "function") throw new Error("The condition provided to :bind-if is not a function.");
 	Sactory.bind(context, element, bind, anchor, target, change, cleanup, function(element, bind, anchor, value){
 		if(condition()) fun.call(this, element, bind, anchor, value);
