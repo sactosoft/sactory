@@ -51,6 +51,7 @@ window.addEventListener("load", function(){
 
 	<div>
 		var duration = **30;
+		var durationInSeconds = **(*duration + 's');
 		<input type="number" step="1" *value=*duration />
 		<:bind :to=*duration>
 			<style :scoped>
@@ -58,7 +59,7 @@ window.addEventListener("load", function(){
 					display: inline-block;
 					transition: transform .25s;
 					img {
-						animation: rotate ${*duration}s linear infinite;
+						animation: rotate ${*durationInSeconds} linear infinite;
 					}
 					&:hover {
 						transform: scale(1.25);

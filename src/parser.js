@@ -33,18 +33,20 @@ function Parser(input, from) {
 
 Object.defineProperty(Parser.prototype, "position", {
 	get: function(){
-		var line = this.from.line || 0;
-		var last = this.from.column || 0;
+		var line = 0;
+		var column = 0;
 		for(var i=0; i<=this.index; i++) {
 			if(this.input.charAt(i) == '\n') {
 				line++;
-				last = i;
+				column = -1;
+			} else {
+				column++;
 			}
 		}
 		return {
-			absolute: this.index + (this.from.absolute || 0),
-			line: line,
-			column: this.index - last
+			absolute: this.index + (this.from && this.from.absolute - this.input.length || 0),
+			line: line + (this.from && this.from.line - (this.input.match(/\n/g) || []).length || 0),
+			column: column + (this.from && this.from.column - this.input.length || 0)
 		};
 	}
 });
@@ -56,8 +58,10 @@ Object.defineProperty(Parser.prototype, "position", {
  */
 Parser.prototype.error = function(message){
 	var position = this.position;
+	console.log(this.from, position);
+	var endIndex = this.input.substr(this.index).indexOf('\n');
 	var start = this.input.substring(0, this.index).lastIndexOf('\n') + 1;
-	var end = this.index + this.input.substr(this.index).indexOf('\n');
+	var end = endIndex == -1 ? this.input.length : this.index + endIndex;
 	message += '\n' + this.input.substring(start, end) + '\n';
 	for(var i=start; i<end; i++) message += i == this.index ? '^' : (this.input.charAt(i) == '\t' ? '\t' : ' ');
 	throw new ParserError("Line " + (position.line + 1) + ", Column " + position.column + ": " + message);
@@ -298,7 +302,7 @@ Parser.prototype.readTagName = function(force){
  * @since 0.22.0
  */
 Parser.prototype.readAttributeName = function(force){
-	return this.readImpl(/^((~?(\@\@?|\:|\#|\$|\*|\+)?[a-zA-Z_][a-zA-Z0-9_\$\-\.\:]*)|@)/, force, function(){ return "Could not find a valid attribute name."; });
+	return this.readImpl(/^((~?(\@\@?|\:|\#|\$|\*\*?\*?|\+)?[a-zA-Z_][a-zA-Z0-9_\$\-\.\:]*)|@)/, force, function(){ return "Could not find a valid attribute name."; });
 };
 
 /**

@@ -139,4 +139,17 @@ Sactory.observable = function(value){
 	return new Observable(value);
 };
 
+/**
+ * @since 0.48.0
+ */
+Sactory.computedObservable = function(value){
+	var ret = new Observable(value.compute());
+	value.observe.forEach(function(o){
+		o.subscribe(function(){
+			ret.value = value.compute();
+		});
+	});
+	return ret;
+};
+
 module.exports = Sactory;

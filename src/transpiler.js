@@ -78,7 +78,7 @@ function BreakpointParser(data, attributes, breakpoints) {
 
 BreakpointParser.prototype = Object.create(SourceParser.prototype);
 
-BreakpointParser.prototype.next = function(match){};
+BreakpointParser.prototype.next = function(match, parseCode){};
 
 BreakpointParser.prototype.parse = function(handle, eof, parseCode){
 	var result = this.parser.find(this.breakpoints, false, true);
@@ -91,7 +91,7 @@ BreakpointParser.prototype.parse = function(handle, eof, parseCode){
 			handle();
 		}
 	} else if(result.match) {
-		this.next(result.match);
+		this.next(result.match, parseCode);
 	} else {
 		eof();
 	}
@@ -145,7 +145,7 @@ function JavascriptParser(data, attributes) {
 
 JavascriptParser.prototype = Object.create(BreakpointParser.prototype);
 
-JavascriptParser.prototype.next = function(match){
+JavascriptParser.prototype.next = function(match, parseCode){
 	switch(match) {
 		case '@':
 			if(this.parser.peek() == '@') {
@@ -166,26 +166,40 @@ JavascriptParser.prototype.next = function(match){
 			break;
 		case '*':
 			if(this.parser.last === undefined || !this.parser.last.match(/^[a-zA-Z0-9_$\)\]]$/) || this.parser.lastKeyword("return")) {
-				if(this.parser.peek() == '*') {
-					// new observable
-					this.parser.index++;
-					this.add("Sactory.observable(" + this.parser.readExpr() + ")");
-					this.parser.last = ')';
-				} else {
-					// get/set observable
-					var name;
-					//TODO skip
+				function getName() {
+					var skipped = this.parser.skip();
+					if(skipped) this.add(skipped);
 					if(this.parser.peek() == '(') {
 						var start = this.parser.index;
 						this.parser.skipExpr();
-						name = this.parser.input.substring(start, this.parser.index);
+						return this.parser.input.substring(start, this.parser.index);
 					} else {
-						name = this.parser.readVarName(true);
+						return this.parser.readVarName(true);
 					}
+				}
+				if(this.parser.peek() == '*') {
+					this.parser.index++;
+					if(this.parser.peek() == '*') {
+						this.parser.index++;
+						// spreading an observable
+						this.add(getName.call(this) + ".value");
+					} else {
+						// new observable
+						var parsed = parseCode(this.parser.readExpr());
+						if(parsed.observables && parsed.observables.length) {
+							// computed
+							this.add("Sactory.computedObservable(" + parsed.toValue() + ")");
+						} else {
+							this.add("Sactory.observable(" + parsed.source + ")");
+						}
+					}
+				} else {
+					// get/set observable
+					var name = getName.call(this);
 					this.add(name + ".value");
 					this.observables.push(name);
-					this.parser.last = 'e';
 				}
+				this.parser.last = ')';
 				this.parser.lastIndex = this.parser.index;
 			} else {
 				// just a multiplication
@@ -583,6 +597,7 @@ Sactory.convertSource = function(input, options){
 		source = source.join("");
 		return {
 			source: source,
+			observables: mode.observables,
 			toValue: function(){
 				if(mode.observables && mode.observables.length) {
 					if(input.charAt(0) == '*' && source == input.substr(1) + ".value") {
