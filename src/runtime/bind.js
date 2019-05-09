@@ -76,6 +76,13 @@ Bind.prototype.appendChild = function(element){
 	this.elements.push(element);
 };
 
+/**
+ * @since 0.48.0
+ */
+Bind.createAnchor = function(){
+	return this.anchor = document.createComment("");
+};
+
 var factory = new Bind();
 
 /**
@@ -106,7 +113,7 @@ Sactory.bind = function(context, element, bind, anchor, target, change, cleanup,
 		record(value);
 	}
 	if(element) {
-		currentAnchor = document.createComment("");
+		currentAnchor = Bind.createAnchor();
 		currentAnchor.__bind = currentBind;
 		if(anchor) element.insertBefore(currentAnchor, anchor);
 		else element.appendChild(currentAnchor);

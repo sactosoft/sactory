@@ -205,14 +205,14 @@ function HTMLParser(data, attributes) {
 
 HTMLParser.prototype = Object.create(TextParser.prototype);
 
-var replaceEntities = Text.replaceEntities || function(){
+var replaceEntities = Text.replaceEntities || (function(){
 	var converter;
 	return function(data){
 		if(!converter) converter = document.createElement("textarea");
-		converter.innerHTML = text;
+		converter.innerHTML = data;
 		return converter.value;
 	}
-}
+})();
 
 HTMLParser.prototype.replaceText = function(text){
 	return replaceEntities(text);

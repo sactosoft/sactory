@@ -11,6 +11,7 @@ element.appendChild(comment);
 
 var input = document.createElement("input");
 input.id = "input";
+input.type = "password";
 input.value = "default value";
 element.appendChild(input);
 
@@ -31,5 +32,4 @@ element.appendChild(section);
 	section.appendChild(a);
 });
 
-console.log(document.querySelectorAll("section.container a, input[type='test\\'more']"));
-console.log(element.render());
+console.log(document.querySelectorAll("section.container a, input[type='password'][value]"));

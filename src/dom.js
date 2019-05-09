@@ -1,4 +1,3 @@
-var Parser = require("./parser");
 var entities = require("./json/entities.json");
 
 class Node {
@@ -15,6 +14,12 @@ class Node {
 		return 8;
 	}
 
+}
+
+function appendImpl(child) {
+	if(child.parentNode) child.parentNode.removeChild(child);
+	child.parentNode = this;
+	return child;
 }
 
 class Document extends Node {
@@ -45,10 +50,27 @@ class Document extends Node {
 		return this.childNodes.reverse().find(a => a.nodeType == Node.ELEMENT_NODE) || null;
 	}
 
+	get previousSibling() {
+		return this.parentNode && this.parentNode.childNodes[this.parentNode.childNodes.findIndex(a => a === this) - 1] || null;
+	}
+
+	get previousElementSibling() {
+		var children = this.parentNode && this.parentNode.children;
+		return children && children[children.findIndex(a => a === this) - 1] || null;
+	}
+
+	get nextSibling() {
+		return this.parentNode && this.parentNode.childNodes[this.parentNode.childNodes.findIndex(a => a === this) + 1] || null;
+	}
+
+	get nextElementSibling() {
+		var children = this.parentNode && this.parentNode.children;
+		return children && children[children.findIndex(a => a === this) + 1] || null;
+	}
+
 	appendChild(child) {
 		this.childNodes.push(child);
-		child.parentNode = this;
-		return child;
+		return appendImpl.call(this, child);
 	}
 
 	insertBefore(newNode, referenceNode) {
@@ -56,8 +78,7 @@ class Document extends Node {
 		for(var i=0; i<this.childNodes.length; i++) {
 			if(this.childNodes[i] === referenceNode) {
 				this.childNodes.splice(i, 0, newNode);
-				newNode.parentNode = this;
-				return newNode;
+				return appendImpl.call(this, newNode);
 			}
 		}
 		throw new Error("The node before which the new node is to be inserted is not a child of this node.");
@@ -72,6 +93,12 @@ class Document extends Node {
 
 	remove() {
 		this.parentNode.removeChild(this);
+	}
+
+	cloneNode(deep) {
+		var node = new Document();
+		if(deep) this.childNodes.forEach(a => node.appendChild(a.cloneNode(true)));
+		return node;
 	}
 
 	createElement(tagName) {
@@ -140,13 +167,9 @@ class Document extends Node {
 				else current.tagName = name;
 			}
 			if(inheritance) {
-				if(itype == ',') {
-					create()
-				} else if(itype == '>') {
-					create(true);
-				} else {
-					create(false);
-				}
+				if(itype == ',') create()
+				else if(itype == '>') create(true);
+				else create(false);
 			}
 		});
 		console.log(JSON.stringify(selectors, null, 2));
@@ -260,13 +283,21 @@ class Element extends Document {
 		return Node.ELEMENT_NODE;
 	}
 
+	cloneNode(deep) {
+		var node = new Element(this.tagName);
+		for(var key in this.attributes) node.attributes[key] = this.attributes[key];
+		if(deep) this.childNodes.forEach(a => node.appendChild(a.cloneNode(true)));
+		return node;
+	}
+
 	get textContent() {
 		return this.childNodes.filter(a => a.nodeType != Node.COMMENT_NODE).map(a => a.textContent).join("");
 	}
 
 	set textContent(data) {
+		this.childNodes.forEach(a => a.parentNode = null);
 		this.childNodes = [];
-		this.appendChild(this.createTextNode(data));
+		if(data) this.appendChild(this.createTextNode(data));
 	}
 
 	get innerText() {
@@ -385,6 +416,10 @@ class Text extends Document {
 		return Node.TEXT_NODE;
 	}
 
+	cloneNode(deep) {
+		return new Text(this.textContent);
+	}
+
 	render() {
 		return this.textContent.replace(/[<>]/g, m => ({"<": "&lt;", ">": "&gt;"}[m]));
 	}
@@ -404,6 +439,10 @@ class Comment extends Document {
 
 	get nodeType() {
 		return Node.COMMENT_NODE;
+	}
+
+	cloneNode(deep) {
+		return new Comment(this.textContent);
 	}
 
 	render() {

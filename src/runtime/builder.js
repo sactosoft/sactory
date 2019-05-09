@@ -2,25 +2,12 @@ var Polyfill = require("../polyfill");
 var SactoryObservable = require("./observable");
 var SactoryBind = require("./bind");
 
-var INPUT = ["value", "checked"];
-
 /**
  * @class
  */
 function Builder(element) {
-	
 	this.element = element;
 	this.bind = SactoryBind.bindFactory.create();
-	
-	var id;
-	
-	Object.defineProperty(this, "id", {
-		get: function(){
-			if(id === undefined) id = Math.floor(Math.random() * 1000000);
-			return id;
-		}
-	});
-	
 }
 
 /**
@@ -77,9 +64,6 @@ Builder.prototype.attrImpl = function(name, value){
 Builder.prototype.attr = function(name, value){
 	var attrImpl = this.attrImpl.bind(this);
 	if(SactoryObservable.isObservable(value)) {
-		if(INPUT.indexOf(name) != -1) {
-			console.warn("Observable value for '" + name + "' should be assigned to a property, not to an attribute.");
-		}
 		this.subscribe(SactoryObservable.observe(value, function(value){
 			attrImpl(name, value);
 		}));

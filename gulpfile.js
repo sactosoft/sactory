@@ -32,7 +32,6 @@ function make(filename, className, sources) {
 
 gulp.task("dist:sactory", function(){
 	return make("sactory", "Sactory", [
-		"util",
 		"polyfill",
 		"runtime/core",
 		"runtime/cssb",
