@@ -52,6 +52,8 @@ function SourceParser(data, attributes) {
 	this.namespace = data.namespace;
 	this.parser = data.parser;
 	this.element = data.element;
+	this.bind = data.bind;
+	this.anchor = data.anchor;
 	this.source = data.source;
 }
 
@@ -188,7 +190,7 @@ JavascriptParser.prototype.next = function(match, parseCode){
 						var parsed = parseCode(this.parser.readExpr());
 						if(parsed.observables && parsed.observables.length) {
 							// computed
-							this.add("Sactory.computedObservable(" + parsed.toValue() + ")");
+							this.add("Sactory.computedObservable(" + this.bind + ", " + parsed.toValue() + ")");
 						} else {
 							this.add("Sactory.observable(" + parsed.source + ")");
 						}
@@ -532,7 +534,15 @@ Sactory.convertSource = function(input, options){
 	function startMode(mode, attributes) {
 		var info = modeRegistry[mode];
 		if(!info) throw new Error("Mode '" + mode + "' could not be found.");
-		var currentParser = new info.parser({info: info, namespace: options.namespace, parser: parser, element: element, source: source}, attributes);
+		var currentParser = new info.parser({
+			info: info,
+			namespace: options.namespace,
+			parser: parser,
+			element:element,
+			bind: bind,
+			anchor: anchor,
+			source: source
+		}, attributes);
 		parser.options = info.options;
 		currentMode = {
 			name: info.name,
@@ -751,7 +761,7 @@ Sactory.convertSource = function(input, options){
 					var ret = "Sactory.";
 					if(!append) ret += "updateElement(" + element + ", ";
 					else ret += "createElement(";
-					ret += (computed ? tagName : '"' + tagName + '"') + ", [" + inheritance.join("");
+					ret += (computed ? tagName : '"' + tagName + '"') + ", " + bind + ", " + anchor + ", [" + inheritance.join("");
 					rattributes.forEach(function(attribute){
 						if(!attribute.computed && attribute.attr.charAt(0) == '~') {
 							var expr = "{key:\"" + attribute.attr.substr(1) + "\",value:" + attribute.value + "},";

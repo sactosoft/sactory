@@ -7,14 +7,13 @@ var SactoryBind = require("./bind");
  */
 function Builder(element) {
 	this.element = element;
-	this.bind = SactoryBind.bindFactory.create();
 }
 
 /**
  * @since 0.42.0
  */
-Builder.prototype.subscribe = function(subscriptions){
-	Array.prototype.push.apply(this.bind.subscriptions, subscriptions);
+Builder.prototype.subscribe = function(bind, subscriptions){
+	if(bind) Array.prototype.push.apply(bind.subscriptions, subscriptions);
 };
 
 Builder.prototype.propImpl = function(name, value){
@@ -30,10 +29,10 @@ Builder.prototype.propImpl = function(name, value){
 	o[s[0]] = value;
 };
 	
-Builder.prototype.prop = function(name, value){
+Builder.prototype.prop = function(name, value, bind){
 	var propImpl = this.propImpl.bind(this);
 	if(SactoryObservable.isObservable(value)) {
-		this.subscribe(SactoryObservable.observe(value, function(value){
+		this.subscribe(bind, SactoryObservable.observe(value, function(value){
 			propImpl(name, value);
 		}));
 	} else {
@@ -44,13 +43,13 @@ Builder.prototype.prop = function(name, value){
 /**
  * @since 0.46.0
  */
-Builder.prototype.twoway = function(name, value){
+Builder.prototype.twoway = function(name, value, bind){
 	if(["value", "checked"].indexOf(name) == -1) throw new Error("Cannot two-way bind property '" + name + "'.");
 	if(!SactoryObservable.isOwnObservable(value)) throw new Error("Cannot two-way bind property '" + name + "': the given value is not an observable.");
 	this.element.addEventListener("input", function(){
 		value.value = this[name];
 	});
-	this.prop(name, value);
+	this.prop(name, value, bind);
 };
 	
 Builder.prototype.attrImpl = function(name, value){
@@ -61,10 +60,10 @@ Builder.prototype.attrImpl = function(name, value){
 	}
 };
 	
-Builder.prototype.attr = function(name, value){
+Builder.prototype.attr = function(name, value, bind){
 	var attrImpl = this.attrImpl.bind(this);
 	if(SactoryObservable.isObservable(value)) {
-		this.subscribe(SactoryObservable.observe(value, function(value){
+		this.subscribe(bind, SactoryObservable.observe(value, function(value){
 			attrImpl(name, value);
 		}));
 	} else {
@@ -72,18 +71,19 @@ Builder.prototype.attr = function(name, value){
 	}
 };
 	
-Builder.prototype.textImpl = function(value){
+Builder.prototype.textImpl = function(value, bind, anchor){
 	var textNode;
 	if(SactoryObservable.isObservable(value)) {
 		textNode = document.createTextNode("");
-		this.subscribe(SactoryObservable.observe(value, function(value){
+		this.subscribe(bind, SactoryObservable.observe(value, function(value){
 			textNode.textContent = value;
 		}));
 	} else {
 		textNode = document.createTextNode(value);
 	}
-	this.element.appendChild(textNode);
-	this.bind.appendChild(textNode);
+	if(anchor && anchor.parentNode === this.element) this.element.insertBefore(textNode, anchor);
+	else this.element.appendChild(textNode);
+	if(bind) bind.appendChild(textNode);
 };
 
 Object.defineProperty(Builder.prototype, "text", {
@@ -95,7 +95,7 @@ Object.defineProperty(Builder.prototype, "text", {
 /**
  * @since 0.46.0
  */
-Builder.prototype.visibleImpl = function(value, reversed){
+Builder.prototype.visibleImpl = function(value, reversed, bind){
 	var element = this.element;
 	var display = "";
 	function update(value) {
@@ -107,7 +107,7 @@ Builder.prototype.visibleImpl = function(value, reversed){
 		}
 	}
 	if(SactoryObservable.isObservable(value)) {
-		this.subscribe(SactoryObservable.observe(value, update));
+		this.subscribe(bind, SactoryObservable.observe(value, update));
 	} else {
 		update(value);
 	}
@@ -155,20 +155,20 @@ Builder.prototype.event = function(name, value){
 	this.element.addEventListener(event, listener || value, options);
 };
 	
-Builder.prototype.setImpl = function(name, value){
+Builder.prototype.setImpl = function(name, value, bind, anchor){
 	switch(name.charAt(0)) {
 		case '@':
 			name = name.substr(1);
 			if(name == "text") {
-				this.textImpl(value);
+				this.textImpl(value, bind, anchor);
 			} else if(name == "visible" || name == "hidden") {
-				this.visibleImpl(value, name == "hidden");
+				this.visibleImpl(value, name == "hidden", bind);
 			} else {
-				this.prop(name, value);
+				this.prop(name, value, bind);
 			}
 			break;
 		case '*':
-			this.twoway(name.substr(1), value);
+			this.twoway(name.substr(1), value, bind);
 			break;
 		case '+':
 			name = name.substr(1);
@@ -186,24 +186,22 @@ Builder.prototype.setImpl = function(name, value){
 					style = value;
 				}
 				this.element.setAttribute("style", style);
-			} else if(name == "text") {
-				this.textImpl(value);
 			} else {
 				this.event(name, SactoryObservable.unobserve(value));
 			}
 			break;
 		default:
-			this.attr(name, value);
+			this.attr(name, value, bind);
 	}
 };
 	
-Builder.prototype.set = function(name, value){
+Builder.prototype.set = function(name, value, bind, anchor){
 	if(typeof name == "object") {
 		for(var key in name) {
-			this.setImpl(key, name[key]);
+			this.setImpl(key, name[key], bind, anchor);
 		}
 	} else {
-		this.setImpl(name, value);
+		this.setImpl(name, value, bind, anchor);
 	}
 	return this.element;
 };

@@ -142,13 +142,15 @@ Sactory.observable = function(value){
 /**
  * @since 0.48.0
  */
-Sactory.computedObservable = function(value){
+Sactory.computedObservable = function(bind, value){
 	var ret = new Observable(value.compute());
+	var subscriptions = [];
 	value.observe.forEach(function(o){
-		o.subscribe(function(){
+		subscriptions.push(o.subscribe(function(){
 			ret.value = value.compute();
-		});
+		}));
 	});
+	if(bind) subscriptions.forEach(bind.subscribe);
 	return ret;
 };
 

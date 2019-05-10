@@ -10,7 +10,7 @@ window.addEventListener("load", function(){
 		// bind omitting :to (it's taken from :condition)
 		var timeout;
 		<:bind-if :condition={ !!*tagName; } :cleanup={ clearTimeout(timeout); }>
-			console.log("Tag name is now " + *tagName);
+			<@ @text=("Tag name is now " + *tagName) />
 			var spread = {
 				"@style.border": "3px dashed red",
 				"@style.margin": "8px"
@@ -36,7 +36,7 @@ window.addEventListener("load", function(){
 					Show:
 					<input type="checkbox" *checked=visible />
 				</label>
-				<button +click={ console.log("Button clicked") } @text="Button" @hidden=*visible />
+				<button +click={ console.log("Button clicked") } @text="Button" @visible=*visible />
 				<!-- a comment -->
 				timeout = setTimeout(function(){
 					<button @text="Another button" />

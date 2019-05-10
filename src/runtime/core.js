@@ -66,14 +66,14 @@ Sactory.check = function(major, minor, patch){
 
 /**
  */
-Sactory.createElement = function(str, args, spread){
-	return Sactory.updateElement(null, str, args, spread);
+Sactory.createElement = function(str, bind, anchor, args, spread){
+	return Sactory.updateElement(null, str, bind, anchor, args, spread);
 };
 
 /**
  * @since 0.29.0
  */
-Sactory.updateElement = function(element, str, args, spread){
+Sactory.updateElement = function(element, str, bind, anchor, args, spread){
 	
 	var split = str.split('$');
 	
@@ -140,7 +140,7 @@ Sactory.updateElement = function(element, str, args, spread){
 	}
 	
 	args.forEach(function(arg){
-		if(!arg.removed) element.__builder.set(arg.key, arg.value);
+		if(!arg.removed) element.__builder.setImpl(arg.key, arg.value, bind, anchor);
 	});
 	
 	var container = element;
@@ -209,13 +209,7 @@ Sactory.append = function(element, bind, anchor, child, afterappend, beforeremov
 		else element.appendChild(child);
 		if(afterappend) afterappend.call(child);
 		if(beforeremove) child.__builder.beforeremove = beforeremove;
-		if(bind) {
-			bind.appendChild(child);
-			if(child.__builder) {
-				bind.merge(child.__builder.bind);
-				child.__builder.bind = bind;
-			}
-		}
+		if(bind) bind.appendChild(child);
 	}
 	return child;
 };
