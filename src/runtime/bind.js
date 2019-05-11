@@ -6,7 +6,8 @@ var Sactory = {};
  * @class
  * @since 0.45.0
  */
-function Bind() {
+function Bind(parent) {
+	this.parent = parent;
 	this.children = [];
 	this.subscriptions = [];
 	this.elements = [];
@@ -15,27 +16,11 @@ function Bind() {
 /**
  * @since 0.45.0
  */
-Bind.prototype.create = function(){
-	return new Bind();
-};
-
-/**
- * @since 0.45.0
- */
 Bind.prototype.fork = function(){
-	var child = this.create();
+	var child = new Bind(this);
 	this.children.push(child);
 	return child;
 }
-
-/**
- * @since 0.45.0
- */
-Bind.prototype.merge = function(bind){
-	Array.prototype.push.apply(this.children, bind.children);
-	Array.prototype.push.apply(this.subscriptions, bind.subscriptions);
-	Array.prototype.push.apply(this.elements, bind.elements);
-};
 
 /**
  * @since 0.45.0
@@ -83,7 +68,7 @@ Bind.createAnchor = function(){
 	return this.anchor = document.createComment("");
 };
 
-var factory = new Bind();
+var factory = new Bind(null);
 
 /**
  * @since 0.45.0

@@ -2,8 +2,25 @@
 require("./dom");
 
 var Polyfill = require("./polyfill");
-var Util = require("./util");
 var Parser = require("./parser");
+
+var version = require("../version");
+
+var performance = require("perf_hooks").performance;
+
+function hash(str) {
+	var hash = 0;
+	for(var i=0; i<str.length; i++) {
+		hash += str.charCodeAt(i) * 16777619;
+	}
+	return hash;
+}
+
+function uniq(array) {
+	return array.filter(function(value, i){
+		return array.indexOf(value) == i;
+	});
+}
 
 var Sactory = {};
 
@@ -31,16 +48,9 @@ Sactory.registerMode = function(displayName, names, parser, options){
 /**
  * @since 0.35.0
  */
-Sactory.startMode = function(mode, namespace, parser, element, source, attributes){
+Sactory.startMode = function(mode, parser, element, bind, anchor, nextId, parseCode, source, attributes){
 	var m = modeRegistry[mode];
-	return m && new m.parser({info: m.info, namespace: namespace || "", parser: parser, element: element || "", source: source || []}, attributes || {});
-};
-
-/**
- * @since 0.35.0
- */
-Sactory.startModeByName = function(mode, namespace, parser, element, source, attributes){
-	return Sactory.startMode(modeNames[mode], namespace, parser, element, source, attributes);
+	return m && new m.parser({info: m.info, parser: parser, element: element, bind: bind, anchor: anchor, nextId: nextId, parseCode: parseCode, source: source}, attributes || {});
 };
 
 /**
@@ -49,11 +59,12 @@ Sactory.startModeByName = function(mode, namespace, parser, element, source, att
  */
 function SourceParser(data, attributes) {
 	this.info = data.info;
-	this.namespace = data.namespace;
 	this.parser = data.parser;
 	this.element = data.element;
 	this.bind = data.bind;
 	this.anchor = data.anchor;
+	this.nextId = data.nextId;
+	this.parseCode = data.parseCode;
 	this.source = data.source;
 }
 
@@ -67,7 +78,7 @@ SourceParser.prototype.end = function(){};
 
 SourceParser.prototype.finalize = function(){};
 
-SourceParser.prototype.parse = function(handle, eof, parseCode){};
+SourceParser.prototype.parse = function(handle, eof){};
 
 /**
  * @class
@@ -80,9 +91,9 @@ function BreakpointParser(data, attributes, breakpoints) {
 
 BreakpointParser.prototype = Object.create(SourceParser.prototype);
 
-BreakpointParser.prototype.next = function(match, parseCode){};
+BreakpointParser.prototype.next = function(match){};
 
-BreakpointParser.prototype.parse = function(handle, eof, parseCode){
+BreakpointParser.prototype.parse = function(handle, eof){
 	var result = this.parser.find(this.breakpoints, false, true);
 	if(result.pre) this.add(result.pre);
 	if(result.match == '<') {
@@ -93,7 +104,7 @@ BreakpointParser.prototype.parse = function(handle, eof, parseCode){
 			handle();
 		}
 	} else if(result.match) {
-		this.next(result.match, parseCode);
+		this.next(result.match);
 	} else {
 		eof();
 	}
@@ -110,6 +121,10 @@ function TextParser(data, attributes) {
 
 TextParser.prototype = Object.create(SourceParser.prototype);
 
+TextParser.prototype.addText = function(expr){
+	this.add(this.element + ".__builder.text(" + expr + ", " + this.bind + ", " + this.anchor + ");");
+};
+
 TextParser.prototype.replaceText = function(text){
 	return text;
 };
@@ -118,18 +133,18 @@ TextParser.prototype.handle = function(){
 	return true;
 };
 
-TextParser.prototype.parse = function(handle, eof, parseCode){
+TextParser.prototype.parse = function(handle, eof){
 	var result = this.parser.find(['<', '$']);
 	if(result.pre) {
-		this.add(this.element + ".__builder.text=" + JSON.stringify(this.replaceText(result.pre)).replace(/\\n/gm, "\\n\" +\n\"") + ";");
+		this.addText(JSON.stringify(this.replaceText(result.pre)).replace(/\\n/gm, "\\n\" +\n\""));
 	}
 	switch(result.match) {
 		case '$':
-			this.add(this.element + ".__builder.text=" + parseCode(this.parser.readVar(true), this.parser).toValue() + ";");
+			this.addText(this.parseCode(this.parser.readVar(true), this.parser).toValue());
 			break;
 		case '<':
 			if(this.handle()) handle();
-			else this.add(this.element + ".__builder.text='<';");
+			else this.addText("'<'");
 			break;
 		default:
 			eof();
@@ -143,26 +158,37 @@ TextParser.prototype.parse = function(handle, eof, parseCode){
 function JavascriptParser(data, attributes) {
 	BreakpointParser.call(this, data, attributes, ['@', '*']);
 	this.observables = [];
+	this.snaps = [];
 }
 
 JavascriptParser.prototype = Object.create(BreakpointParser.prototype);
 
-JavascriptParser.prototype.next = function(match, parseCode){
+JavascriptParser.prototype.next = function(match){
 	switch(match) {
 		case '@':
 			if(this.parser.peek() == '@') {
 				this.add('@');
 				this.parser.index++;
 			} else {
-				var skip = this.parser.skip();
+				var skip = this.parser.skipImpl({strings: false});
 				if(this.parser.peek() == '=') {
-					this.add("var " + this.element);
+					this.add(this.element);
 					if(skip) this.add(skip);
 				} else {
 					this.add(this.element);
 					if(skip) this.add(skip);
-					if(this.parser.input.substr(this.parser.index).search(/^(text|visible|hidden)[\s]*=/) === 0) this.add(".__builder.");
-					else if(this.parser.peek() && this.parser.peek().search(/[a-zA-Z0-9_]/) === 0) this.add(".");
+					var match = this.parser.input.substr(this.parser.index).match(/^(?:((\.?[a-zA-Z0-9_$]+)+)\s*=(?!=))/);
+					if(match) {
+						this.add(".__builder.");
+						this.parser.index += match[0].length;
+						skip = this.parser.skipImpl({strings: false});
+						if(skip) this.add(skip);
+						var expr = this.parseCode(this.parser.readExpression()).toValue();
+						if(match[1] == "text") this.add("text(" + expr + ", " + this.bind + ", " + this.anchor + ")");
+						else if(match[1] == "visible") this.add("visible(" + expr + ", false, " + this.bind + ")");
+						else if(match[1] == "hidden") this.add("visible(" + expr + ", true, " + this.bind + ")");
+						else this.add("prop(\"" + match[1] + "\", " + expr + ", " + this.bind + ")");
+					}
 				}
 			}
 			break;
@@ -173,7 +199,7 @@ JavascriptParser.prototype.next = function(match, parseCode){
 					if(skipped) this.add(skipped);
 					if(this.parser.peek() == '(') {
 						var start = this.parser.index;
-						this.parser.skipExpr();
+						this.parser.skipEnclosedContent();
 						return this.parser.input.substring(start, this.parser.index);
 					} else {
 						return this.parser.readVarName(true);
@@ -184,10 +210,13 @@ JavascriptParser.prototype.next = function(match, parseCode){
 					if(this.parser.peek() == '*') {
 						this.parser.index++;
 						// spreading an observable
-						this.add(getName.call(this) + ".value");
+						var name = getName.call(this);
+						var id = this.nextId();
+						this.add(name + ".snapped(" + id + ")");
+						this.snaps.push(name + ".snap(" + id + ")");
 					} else {
 						// new observable
-						var parsed = parseCode(this.parser.readExpr());
+						var parsed = this.parseCode(this.parser.readSingleExpression(true));
 						if(parsed.observables && parsed.observables.length) {
 							// computed
 							this.add("Sactory.computedObservable(" + this.bind + ", " + parsed.toValue() + ")");
@@ -204,8 +233,10 @@ JavascriptParser.prototype.next = function(match, parseCode){
 				this.parser.last = ')';
 				this.parser.lastIndex = this.parser.index;
 			} else {
-				// just a multiplication
+				// just a multiplication or exponentiation
 				this.add('*');
+				if(this.parser.peek() == '*') this.add(this.parser.read());
+				this.parser.last = '*';
 			}
 			break;
 	}
@@ -264,15 +295,24 @@ CSSParser.prototype = Object.create(TextParser.prototype);
  */
 function CSSBParser(data, attributes) {
 	SourceParser.call(this, data, attributes);
+	this.observables = [];
+	this.snaps = [];
 	this.expr = [];
-	this.scopes = ["__" + Util.nextId(this.namespace, true)];
-	this.scope = attributes.scoped && ("__sactory" + Util.nextId(this.namespace));
+	this.scopes = ["__root"];
+	this.scope = attributes.scoped && ("__sactory" + this.nextId());
 }
 
 CSSBParser.prototype = Object.create(SourceParser.prototype);
 
+CSSBParser.prototype.parseCodeImpl = function(source){
+	var parsed = this.parseCode(source, this.parser);
+	if(parsed.observables) Array.prototype.push.apply(this.observables, parsed.observables);
+	if(parsed.snaps) Array.prototype.push.apply(this.snaps, parsed.snaps);
+	return parsed.source;
+};
+
 CSSBParser.prototype.addScope = function(selector){
-	var scope = "__" + Util.nextId(this.namespace, true);
+	var scope = "__" + this.nextId();
 	this.add("var " + scope + "=Sactory.select(" + this.scopes[this.scopes.length - 1] + "," + selector + ");");
 	this.scopes.push(scope);
 };
@@ -287,13 +327,14 @@ CSSBParser.prototype.skip = function(){
 };
 
 CSSBParser.prototype.start = function(){
+	this.add("Sactory.compileAndBindStyle(function(){");
 	this.add("var " + this.scopes[0] + "=[];");
 	if(this.scope) {
 		this.addScope("\"." + this.scope + "\"");
 	}
 };
 
-CSSBParser.prototype.parse = function(handle, eof, parseCode){
+CSSBParser.prototype.parse = function(handle, eof){
 	this.skip();
 	var input = this.parser.input.substr(this.parser.index);
 	var length;
@@ -314,8 +355,8 @@ CSSBParser.prototype.parse = function(handle, eof, parseCode){
 		skipStatement.call(this);
 		if(this.parser.peek() != '(') this.parser.error("Expected '(' after statement (if/else if/for/while).");
 		var start = this.parser.index;
-		this.parser.skipExpr();
-		this.add(parseCode(this.parser.input.substring(start, this.parser.index), this.parser).source);
+		this.parser.skipEnclosedContent();
+		this.add(this.parseCodeImpl(this.parser.input.substring(start, this.parser.index)));
 		this.skip();
 		if(this.parser.peek() == '{') {
 			this.add(this.parser.read());
@@ -334,10 +375,10 @@ CSSBParser.prototype.parse = function(handle, eof, parseCode){
 		this.parser.expect('=');
 		this.add('=');
 		this.skip();
-		this.add(CSSBParser.createExpr(parseCode(this.parser.find([';'], true, true).pre, this.parser).source, this.namespace) + ';');
+		this.add(CSSBParser.createExpr(this.parseCodeImpl(this.parser.find([';'], true, true).pre), this.nextId) + ';');
 	} else {
-		var parser = this.parser;
-		var namespace = this.namespace;
+		var parseCodeImpl = this.parseCodeImpl.bind(this);
+		var nextId = this.nextId;
 		function value(e, computable) {
 			e = (function(){
 				// concat strings
@@ -353,7 +394,7 @@ CSSBParser.prototype.parse = function(handle, eof, parseCode){
 			if(e.length) {
 				var ret = [];
 				e.forEach(function(v){
-					ret.push(v.string && JSON.stringify(v.value) || (!computable && parseCode(v.value, parser).source || CSSBParser.createExpr(parseCode(v.value, parser).source, namespace)));
+					ret.push(v.string && JSON.stringify(v.value) || (!computable && parseCodeImpl(v.value) || CSSBParser.createExpr(parseCodeImpl(v.value), nextId)));
 				});
 				return ret.join('+');
 			} else {
@@ -412,7 +453,7 @@ CSSBParser.prototype.parse = function(handle, eof, parseCode){
 };
 
 CSSBParser.prototype.end = function(){
-	this.add(this.element + ".textContent=Sactory.compilecssb(" + this.scopes[0] + ");");
+	this.add("return " + this.scopes[0] + "}, " + this.element + ", " + this.bind + ", [" + uniq(this.observables).join(", ") + "], [" + this.snaps.join(", ") + "])");
 };
 
 CSSBParser.prototype.finalize = function(){
@@ -446,11 +487,11 @@ CSSBParser.createExprImpl = function(expr, info){
 		if(parser.peek() == '(') {
 			info.computed += '(';
 			var start = parser.index + 1;
-			parser.skipExpr();
+			parser.skipEnclosedContent();
 			if(!CSSBParser.createExprImpl(parser.input.substring(start, parser.index - 1), info)) return false;
 			info.computed += ')';
 		} else {
-			var v = parser.readExpr();
+			var v = parser.readSingleExpression(true);
 			if(/^[a-zA-Z_\$]/.exec(v)) {
 				// it's a variable
 				info.is = true;
@@ -468,11 +509,11 @@ CSSBParser.createExprImpl = function(expr, info){
 	return true;
 };
 
-CSSBParser.createExpr = function(expr, namespace){
-	var param = "__" + Util.nextId(namespace, true);
+CSSBParser.createExpr = function(expr, nextId){
+	var param = "__" + nextId();
 	var info = {
 		param: param,
-		computed: "(function(" + param + "){return Sactory.compute(" + param + ",",
+		computed: "(function(" + param + "){return Sactory.computeUnit(" + param + ",",
 		is: false,
 		op: 0
 	};
@@ -513,34 +554,42 @@ Sactory.registerMode("CSSB", ["cssb", "style", "fcss"], CSSBParser, {strings: fa
 
 Sactory.convertSource = function(input, options){
 
-	function nextId(numeric) {
-		return Util.nextId(options.namespace, !numeric);
-	}
+	var start = performance.now();
 	
 	var parser = new Parser(input);
 	
-	var element = "__" + nextId();
-	var bind = "__" + nextId();
-	var anchor = "__" + nextId();
+	var element = "__el";
+	var bind = "__bind";
+	var anchor = "__anchor";
 	
-	var source = ["(function(Sactory, " + element + ", " + bind + ", " + anchor + "){"];
+	var source = [
+		"/*! Transpiled " + (options.filename ? "from " + options.filename : "") + " using Sactory v" + (Sactory.VERSION || version.version) + ". Do not edit manually. */",
+		"(function(Sactory, " + element + ", " + bind + ", " + anchor + "){"
+	];
 	
 	var tags = [];
 	var inheritance = [];
 	var closing = [];
 	var modes = [];
 	var currentMode;
+
+	var count = hash(options.namespace + "") & 100000;
+
+	function nextId() {
+		return count++;
+	}
 	
 	function startMode(mode, attributes) {
 		var info = modeRegistry[mode];
 		if(!info) throw new Error("Mode '" + mode + "' could not be found.");
 		var currentParser = new info.parser({
 			info: info,
-			namespace: options.namespace,
 			parser: parser,
 			element:element,
 			bind: bind,
 			anchor: anchor,
+			nextId: nextId,
+			parseCode: parseCode,
 			source: source
 		}, attributes);
 		parser.options = info.options;
@@ -560,8 +609,6 @@ Sactory.convertSource = function(input, options){
 		if(currentMode) parser.options = currentMode.options;
 		return ret;
 	}
-	
-	startMode(defaultMode, {}).start();
 	
 	/**
 	 * Inserts a semicolon after a tag creation if needed.
@@ -597,24 +644,26 @@ Sactory.convertSource = function(input, options){
 	function parseCode(input, parentParser) {
 		var cparser = new Parser(input, (parentParser || parser).position);
 		var source = [];
-		var mode = Sactory.startMode(defaultMode, options.namespace, cparser, element, source);
+		var mode = Sactory.startMode(defaultMode, cparser, element, bind, anchor, nextId, parseCode, source);
 		mode.start();
 		while(cparser.index < input.length) {
-			mode.parse(function(){ source.push('<'); }, function(){}, parseCode);
+			mode.parse(function(){ source.push('<'); }, function(){});
 		}
 		mode.end();
 		mode.finalize();
 		source = source.join("");
+		var observables = mode.observables ? uniq(mode.observables) : [];
 		return {
 			source: source,
-			observables: mode.observables,
+			observables: observables,
+			snaps: mode.snaps,
 			toValue: function(){
-				if(mode.observables && mode.observables.length) {
+				if(observables.length) {
 					if(input.charAt(0) == '*' && source == input.substr(1) + ".value") {
 						// single observable, pass it raw so it can be used in two-way binding
 						return input.substr(1);
 					} else {
-						return "{observe:[" + mode.observables.join(',') + "],compute:function(){return " + source + "}}";
+						return "{observe:[" + observables.join(',') + "]," + (mode.snaps && mode.snaps.length ? "snap:[" + mode.snaps.join(',') + "]," : "") + "compute:function(){return " + source + "}}";
 					}
 				} else {
 					return source;
@@ -630,6 +679,8 @@ Sactory.convertSource = function(input, options){
 			return value;
 		}
 	}
+	
+	startMode(defaultMode, {}).start();
 	
 	while(parser.index < input.length) {
 		currentMode.parser.parse(function(){
@@ -679,7 +730,7 @@ Sactory.convertSource = function(input, options){
 						parser.index++;
 						parser.expect('.');
 						parser.expect('.');
-						sattributes = parser.readExpr();
+						sattributes = parser.readSingleExpression(false);
 					} else {
 						var attr = {
 							attr: undefined,
@@ -787,7 +838,7 @@ Sactory.convertSource = function(input, options){
 					if(create) {
 						if(append) {
 							var e = "Sactory.appendElement(" + parent + ", " + bind + ", " + anchor + ", " + createExpr() + ")";
-							if(iattributes.unique) e = "Sactory.unique(this, " + nextId(true) + ", function(){return " + e + "})";
+							if(iattributes.unique) e = "Sactory.unique(this, " + nextId() + ", function(){return " + e + "})";
 							source.push(e);
 						} else {
 							source.push(createExpr());
@@ -808,13 +859,13 @@ Sactory.convertSource = function(input, options){
 					else if(tagName == ":bind-each" || tagName == ":each") bindType = "Each";
 					if(!computed && (bindType || tagName == ":bind")) {
 						source.push("Sactory.bind" + bindType + "(" + ["this", parent, bind, anchor, iattributes.to || "0", iattributes.change || "0", iattributes.cleanup || "0"].join(", ") + (bindType == "If" ? ", " + iattributes.condition : "") +
-							", function(" + [element, bind, anchor, iattributes.as || "__" + nextId(), iattributes.index || "__" + nextId(), iattributes.array || "__" + nextId()].join(", ") + "){");
+							", function(" + [element, bind, anchor, iattributes.as || "__value", iattributes.index || "__index", iattributes.array || "__array"].join(", ") + "){");
 					} else if(create) {
 						if(append) {
 							var e = "Sactory.append(" + parent + ", " + bind + ", " + anchor + ", Sactory.call(this, " + expr + ", function(" + element + ", " + anchor + "){";
 							currentClosing += ")";
 							if(iattributes.unique) {
-								e = "Sactory.unique(this, " + nextId(true) + ", function(){return " + e;
+								e = "Sactory.unique(this, " + nextId() + ", function(){return " + e;
 								currentClosing += "})";
 							}
 							source.push(e);
@@ -832,7 +883,7 @@ Sactory.convertSource = function(input, options){
 				}
 			}
 			parser.last = undefined;
-		}, close, parseCode);
+		}, close);
 	}
 	
 	endMode().finalize();
@@ -842,6 +893,7 @@ Sactory.convertSource = function(input, options){
 	//console.log(source.join(""));
 	
 	return {
+		time: performance.now() - start,
 		element: element,
 		bind: bind,
 		anchor: anchor,
@@ -852,9 +904,11 @@ Sactory.convertSource = function(input, options){
 
 if(typeof window == "object") {
 
+	var count = 0;
+
 	function evalScripts() {
 		Array.prototype.forEach.call(document.querySelectorAll("script[type='text/x-builder'], style[type='text/x-builder']"), function(builder){
-			var id = Util.nextId();
+			var id = count++ + "";
 			var content;
 			if(builder.tagName == "STYLE") {
 				builder.removeAttribute("type");
@@ -866,7 +920,7 @@ if(typeof window == "object") {
 			var script = document.createElement("script");
 			script.dataset.sactoryTo = id;
 			script.dataset.from = "[data-sactory-from='" + id + "']";
-			script.textContent = Sactory.convertSource(content || builder.textContent, {}).source;
+			script.textContent = Sactory.convertSource(content || builder.textContent, {namespace: id}).source;
 			document.head.appendChild(script);
 		});
 	}

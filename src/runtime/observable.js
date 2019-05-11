@@ -7,6 +7,7 @@ var Sactory = {};
 function Observable(value) {
 	this.internal = {
 		value: value,
+		snaps: {},
 		count: 0,
 		subscriptions: {}
 	};
@@ -28,6 +29,20 @@ Observable.prototype.update = function(value){
 };
 
 /**
+ * @since 0.49.0
+ */
+Observable.prototype.snap = function(id){
+	this.internal.snaps[id] = this.internal.value;
+};
+
+/**
+ * @since 0.49.0
+ */
+Observable.prototype.snapped = function(id){
+	return this.internal.snaps[id];
+};
+
+/**
  * @since 0.42.0
  */
 Observable.prototype.subscribe = function(callback){
@@ -35,6 +50,7 @@ Observable.prototype.subscribe = function(callback){
 	var subs = this.internal.subscriptions;
 	this.internal.subscriptions[id] = callback;
 	return {
+		to: this,
 		dispose: function(){
 			delete subs[id];
 		}

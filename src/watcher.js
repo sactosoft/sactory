@@ -1,4 +1,3 @@
-var Util = require("./util");
 var Polyfill = require("./polyfill");
 var Sactory = require("./transpiler");
 
@@ -42,20 +41,19 @@ var Watcher = {
 						var namespace = folder + filename;
 						var conv;
 						try {
-							conv = Sactory.convertSource(data.toString(), {namespace: namespace}).source;
+							conv = Sactory.convertSource(data.toString(), {filename: namespace, namespace: namespace});
 						} catch(e) {
 							console.error(e);
 						}
-						Util.reset(namespace);
 						if(conv) {
 							var destFilename = dest + filename.substring(0, filename.length - 1);
 							var destFolder = destFilename.substring(0, destFilename.lastIndexOf('/'));
 							function save() {
-								fs.writeFile(destFilename, "/*! This file was automatically generated using Sactory v" + version.version + " from '" + source + "'. Do not edit manually! */" + conv, function(error){
+								fs.writeFile(destFilename, conv.source, function(error){
 									if(error) {
 										console.error(error);
 									} else {
-										console.log("Converted to " + dest + filename);
+										console.log("Converted to " + dest + filename + " in " + Math.round(conv.time * 1000) / 1000 + " ms");
 									}
 								});
 							}
@@ -106,7 +104,7 @@ var Watcher = {
 				update(filename);
 			});
 			
-			console.log("Watching " + folder + "**/*.jsb using Sactory v" + Sactory.VERSION);
+			console.log("Watching " + folder + "**/*.jsb using Sactory v" + version.version);
 			
 		}
 		

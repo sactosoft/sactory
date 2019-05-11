@@ -10,7 +10,6 @@ function merge() {
 }
 
 module.exports = merge(
-	require("./src/util"),
 	require("./src/runtime/server"),
 	require("./src/runtime/core"),
 	require("./src/runtime/cssb"),

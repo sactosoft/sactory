@@ -10,7 +10,7 @@ window.addEventListener("load", function(){
 		// bind omitting :to (it's taken from :condition)
 		var timeout;
 		<:bind-if :condition={ !!*tagName; } :cleanup={ clearTimeout(timeout); }>
-			<@ @text=("Tag name is now " + *tagName) />
+			@text = "Tag name is now " + *tagName;
 			var spread = {
 				"@style.border": "3px dashed red",
 				"@style.margin": "8px"
@@ -21,13 +21,11 @@ window.addEventListener("load", function(){
 				var type = **"text";
 				<input type="text" *value=*type />
 				<input type=*type @value="placeholder text" />
-				<:bind :to=*type>
-					<style>
-						input[type='${*type}']${*type == "text" ? ",input:not([type])" : ""} {
-							font-weight: bold;
-						}
-					</style>
-				</:bind>
+				<style>
+					input[type='${*type}']${*type == "text" ? ",input:not([type])" : ""} {
+						font-weight: bold;
+					}
+				</style>
 				<p style="background:purple;color:white" @text=*tagName />
 			</>
 			<:bind :to=*tagName>
@@ -53,34 +51,32 @@ window.addEventListener("load", function(){
 		var duration = **30;
 		var durationInSeconds = **(*duration + 's');
 		<input type="number" step="1" *value=*duration />
-		<:bind :to=*duration>
-			<style :scoped>
-				.cookie {
-					display: inline-block;
-					transition: transform .25s;
-					img {
-						animation: rotate ${*durationInSeconds} linear infinite;
-					}
-					&:hover {
-						transform: scale(1.25);
-					}
-					&:active {
-						transform: scale(.75);
-					}
+		<style :scoped>
+			.cookie {
+				display: inline-block;
+				transition: transform .25s;
+				img {
+					animation: rotate ${*durationInSeconds} linear infinite;
 				}
-				@keyframes rotate {
-					from {
-						transform: rotate(0deg);
-					}
-					to {
-						transform: rotate(360deg);
-					}
+				&:hover {
+					transform: scale(1.25);
 				}
-			</style>
-		</:bind>
+				&:active {
+					transform: scale(.75);
+				}
+			}
+			@keyframes rotate {
+				from {
+					transform: rotate(0deg);
+				}
+				to {
+					transform: rotate(360deg);
+				}
+			}
+		</style>
 		var cookies = **(parseInt(localStorage && localStorage.getItem("cookies")) || 0);
 		function increment() {
-			localStorage && localStorage.setItem("cookies", ++*cookies) || *cookies++;
+			localStorage ? localStorage.setItem("cookies", ++*cookies) : *cookies++;
 		}
 		<div class="cookie"><img src="http://icons.iconarchive.com/icons/oxygen-icons.org/oxygen/256/Apps-preferences-web-browser-cookies-icon.png" +click=increment /></div>
 		<p @text=("Clicked " + *cookies + " cookies!") />

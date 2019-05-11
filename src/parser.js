@@ -58,7 +58,6 @@ Object.defineProperty(Parser.prototype, "position", {
  */
 Parser.prototype.error = function(message){
 	var position = this.position;
-	console.log(this.from, position);
 	var endIndex = this.input.substr(this.index).indexOf('\n');
 	var start = this.input.substring(0, this.index).lastIndexOf('\n') + 1;
 	var end = endIndex == -1 ? this.input.length : this.index + endIndex;
@@ -186,13 +185,28 @@ Parser.prototype.skipString = function(){
 };
 
 /**
- * Skips an expression that starts with a parentheses or a bracket.
+ * Skips a regular expression.
+ * @throws {ParserError} When the regular expression is not properly terminated.
+ * @since 0.49.0
+ */
+Parser.prototype.skipRegExp = function(){
+	this.skipString();
+	var flags = ['g', 'i', 'm', 's', 'u', 'y'];
+	var index;
+	while((index = flags.indexOf(this.peek())) != -1) {
+		flags.splice(i, 1);
+		this.index++;
+	}
+};
+
+/**
+ * Skips an expression that starts with a parenthesis, bracket or brace.
  * Comments and strings are skipped and their content is not treated as possible
- * parenthesies/brackets.
+ * enclosures.
  * @throws {ParserError} When the expression is not properly closed.
  * @since 0.20.0
  */
-Parser.prototype.skipExpr = function(){
+Parser.prototype.skipEnclosedContent = function(){
 	var par = {'}': '{', ']': '[', ')': '('};
 	var match = par[this.read()];
 	var count = {'{': 0, '[': 0, '(': 0};
@@ -313,7 +327,7 @@ Parser.prototype.readAttributeName = function(force){
 Parser.prototype.readComputedExpr = function(){
 	if(this.peek() == '[') {
 		var start = this.index;
-		this.skipExpr();
+		this.skipEnclosedContent();
 		return this.input.substring(start + 1, this.index - 1);
 	} else {
 		return false;
@@ -321,7 +335,7 @@ Parser.prototype.readComputedExpr = function(){
 };
 
 /**
- * Reads an expression wrapped in curly brackets (and removes them) or a string.
+ * Reads an expression wrapped in braces (and removes them) or a string.
  * @returns A string if found, false otherwise.
  * @since 0.43.0
  */
@@ -329,7 +343,7 @@ Parser.prototype.readQueryExpr = function(){
 	var peek = this.peek();
 	if(peek == '{') {
 		var start = this.index;
-		this.skipExpr();
+		this.skipEnclosedContent();
 		return this.input.substring(start + 1, this.index - 1);
 	} else if(peek == '"' || peek == '\'' || peek == '`') {
 		var start = this.index;
@@ -341,41 +355,80 @@ Parser.prototype.readQueryExpr = function(){
 };
 
 /**
- * Reads an expression or a series of them. Note that this function's behaviour is different
- * from {@link skipExpr}'s one as more than one expression is read and it doesn't need to be
- * wrapped in parentheses or brackets.
+ * Reads a single operand of an expression.
+ * @param {boolean} skip - Indicates whether the expression (outside of enclosures) can contain whitespaces.
+ * @throws {ParserError} When a string or a regular expression is not terminated.
  * @returns The expression read or an empty string if no expression could be found.
  */
-Parser.prototype.readExpr = function(){
+Parser.prototype.readSingleExpression = function(skip){
 	var start = this.index;
 	var peek = this.peek();
+	var op;
+	if(((peek == '+' || peek == '-' || peek == '*') && (op = peek)) || peek == '@' || peek == '~' || peek == '!') {
+		this.index++;
+		peek = this.peek();
+		if(op == peek) {
+			this.index++;
+			peek = this.peek();
+			if(peek == '*' && op == '*') {
+				this.index++;
+				peek = this.peek();
+			}
+		}
+	}
+	if(skip) this.skipImpl({strings: false});
 	if(peek == '"' || peek == '\'' || peek == '`') {
 		this.skipString();
+	} else if(peek == '/') {
+		this.skipRegExp();
+	} else {
+		this.readImpl(/^(([a-zA-Z_$][a-zA-Z0-9_$]*)|([0-9]*\.?[0-9]+([eE][+-]?[0-9]+)?))/, false, function(){ return "Could not find a valid number or variable name."; });
 	}
 	while(!this.eof()) {
-		this.readImpl(/^[a-zA-Z0-9_\$\.]+/, false);
+		if(skip) this.skipImpl({strings: false});
+		var mod = !!this.readImpl(/^(\.[a-zA-Z0-9_\$]+)/, false);
+		if(skip && mod) this.skipImpl({strings: false});
 		peek = this.peek();
-		if(peek == '{' || peek == '[' || peek == '(') this.skipExpr();
-		else break;
+		if(peek == '{' || peek == '[' || peek == '(') this.skipEnclosedContent();
+		else if(!mod) break;
 	}
+	if((peek == '+' || peek == '-') && this.input.charAt(this.index + 1) == peek) this.index += 2;
 	return this.input.substring(start, this.index);
 };
 
 /**
- * Reads an expression and throws an error if empty.
+ * Reads a full expression, which is a sequence of operands and operators.
+ * @throws {ParserError} When a string or a regular expression is not terminated.
+ * @returns The expression read or an empty string if no expression could be found.
+ * @since 0.49.0
+ */
+Parser.prototype.readExpression = function(){
+	var start = this.index;
+	this.skipImpl({strings: false});
+	if(this.readSingleExpression(true)) {
+		this.skipImpl({strings: false});
+		while(!this.eof() && this.readImpl(/^(\*\*|&&?|\|\|?|\^|=>|==?=?|!==?|<<|>>>?|\?|:|[\+\-\*\/%<>]=?|(new|typeof|in|instanceof|delete)\s)/, false)) {
+			this.skipImpl({strings: false});
+			if(!this.readSingleExpression(true)) this.error("Could not find a valid expression.");
+			this.skipImpl({strings: false});
+		}
+	}
+	var ret = this.input.substring(start, this.index);
+	if(!ret.trim()) this.error("Could not find a valid expression.");
+	else return ret;
+};
+
+/**
+ * Reads a single expression that cannot contains whitespaces and throws an error if empty.
  * @throws {ParserError} If no expression could be found.
  * @since 0.37.0
  */
 Parser.prototype.readAttributeValue = function(){
-	var prefix = (this.peek() == '*' || this.peek() == '@') && this.read() || "";
-	var value = this.readExpr();
-	if(!value) this.error("Could not find a valid expression for the attribute value.");
-	return prefix + value;
+	return this.readSingleExpression(false) || this.error("Could not find a valid expression for the attribute's value.");
 };
 
 /**
- * Reads a variable searching a valid javascript variable name or an expression
- * if wrapped around curly brackets.
+ * Reads a valid javascript variable name or an expression wrapped in braces (and replaces them with parentheses).
  * @param {boolean=} force - Indicates whether to return false or throw an error when a result could not be found.
  * @throws {ParserError} When the force param is true and a result could not be found.
  * @since 0.29.0
@@ -383,7 +436,7 @@ Parser.prototype.readAttributeValue = function(){
 Parser.prototype.readVar = function(force){
 	if(this.peek() == '{') {
 		var start = this.index + 1;
-		this.skipExpr();
+		this.skipEnclosedContent();
 		return '(' + this.input.substring(start, this.index - 1) + ')';
 	} else {
 		return this.readVarName(force);

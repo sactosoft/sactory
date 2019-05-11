@@ -44,7 +44,7 @@ Sactory.unit = function(unit, value){
  * @returns the number concatenated with the unit if present, the unmodified value otherwise.
  * @since 0.37.0
  */
-Sactory.compute = function(unit, result){
+Sactory.computeUnit = function(unit, result){
 	if(typeof result == "number" && unit.unit) {
 		return Math.round(result * 1000) / 1000 + unit.unit;
 	} else {
@@ -52,11 +52,7 @@ Sactory.compute = function(unit, result){
 	}
 };
 
-/**
- * Converts an object to minified CSS.
- * @since 0.19.0
- */
-Sactory.compilecss = function(root){
+function stringify(root) {
 	var ret = "";
 	function compile(obj) {
 		for(var selector in obj) {
@@ -77,13 +73,13 @@ Sactory.compilecss = function(root){
 	}
 	compile(root);
 	return ret;
-};
+}
 
 /**
  * Converts an object in CSSB format to minified CSS.
  * @since 0.19.0
  */
-Sactory.compilecssb = function(root){
+Sactory.compileStyle = function(root){
 	var ret = {};
 	function compile(selectors, curr, obj) {
 		obj.forEach(function(value){
@@ -119,7 +115,24 @@ Sactory.compilecssb = function(root){
 		});
 	}
 	compile([], ret, root);
-	return Sactory.compilecss(ret);
+	return stringify(ret);
+};
+
+/**
+ * Compiles a CSSB object and recompiles it each time an observable in
+ * the given list changes. Also subscribes to the current bind context
+ * if present.
+ * @since 0.49.0
+ */
+Sactory.compileAndBindStyle = function(fun, element, bind, observables){
+	function reload() {
+		element.textContent = Sactory.compileStyle(fun());
+	}
+	observables.forEach(function(observable){
+		var subscription = observable.subscribe(reload);
+		if(bind) bind.subscribe(subscription);
+	});
+	reload();
 };
 
 // css functions

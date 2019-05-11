@@ -71,31 +71,33 @@ Builder.prototype.attr = function(name, value, bind){
 	}
 };
 	
-Builder.prototype.textImpl = function(value, bind, anchor){
+Builder.prototype.text = function(value, bind, anchor){
 	var textNode;
+	var insertBefore = anchor && anchor.parentNode === this.element;
 	if(SactoryObservable.isObservable(value)) {
 		textNode = document.createTextNode("");
 		this.subscribe(bind, SactoryObservable.observe(value, function(value){
 			textNode.textContent = value;
+			textNode.observed = true;
 		}));
 	} else {
+		var prev = insertBefore ? anchor.previousSibling : this.element.lastChild;
+		if(prev && prev.nodeType == Node.TEXT_NODE && !prev.observed) {
+			// append to previous text node instead of creating a new one
+			this.element.lastChild.textContent += value;
+			return;
+		}
 		textNode = document.createTextNode(value);
 	}
-	if(anchor && anchor.parentNode === this.element) this.element.insertBefore(textNode, anchor);
+	if(insertBefore) this.element.insertBefore(textNode, anchor);
 	else this.element.appendChild(textNode);
 	if(bind) bind.appendChild(textNode);
 };
 
-Object.defineProperty(Builder.prototype, "text", {
-	set: function(value){
-		this.textImpl(value);
-	}
-});
-
 /**
  * @since 0.46.0
  */
-Builder.prototype.visibleImpl = function(value, reversed, bind){
+Builder.prototype.visible = function(value, reversed, bind){
 	var element = this.element;
 	var display = "";
 	function update(value) {
@@ -112,18 +114,6 @@ Builder.prototype.visibleImpl = function(value, reversed, bind){
 		update(value);
 	}
 };
-
-Object.defineProperty(Builder.prototype, "visible", {
-	set: function(value){
-		this.visibleImpl(value, false);
-	}
-});
-
-Object.defineProperty(Builder.prototype, "hidden", {
-	set: function(value){
-		this.visibleImpl(value, true);
-	}
-});
 
 /**
  * @since 0.22.0
@@ -160,9 +150,9 @@ Builder.prototype.setImpl = function(name, value, bind, anchor){
 		case '@':
 			name = name.substr(1);
 			if(name == "text") {
-				this.textImpl(value, bind, anchor);
+				this.text(value, bind, anchor);
 			} else if(name == "visible" || name == "hidden") {
-				this.visibleImpl(value, name == "hidden", bind);
+				this.visible(value, name == "hidden", bind);
 			} else {
 				this.prop(name, value, bind);
 			}

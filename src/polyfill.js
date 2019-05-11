@@ -24,10 +24,4 @@ Polyfill.padStart = String.prototype.padStart || function(target, string){
 	return ret;
 };
 
-Polyfill.padEnd = String.prototype.padEnd || function(target, string){
-	var ret = String(this);
-	while(ret.length < target) ret += string;
-	return ret;
-};
-
 module.exports = Polyfill;
