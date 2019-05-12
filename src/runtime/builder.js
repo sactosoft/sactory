@@ -2,6 +2,8 @@ var Polyfill = require("../polyfill");
 var SactoryObservable = require("./observable");
 var SactoryBind = require("./bind");
 
+var TWO_WAY_UPDATE_TYPE = 214;
+
 /**
  * @class
  */
@@ -32,8 +34,8 @@ Builder.prototype.propImpl = function(name, value){
 Builder.prototype.prop = function(name, value, bind){
 	var propImpl = this.propImpl.bind(this);
 	if(SactoryObservable.isObservable(value)) {
-		this.subscribe(bind, SactoryObservable.observe(value, function(value){
-			propImpl(name, value);
+		this.subscribe(bind, SactoryObservable.observe(value, function(value, _, type){
+			if(type != TWO_WAY_UPDATE_TYPE) propImpl(name, value);
 		}));
 	} else {
 		propImpl(name, value);
@@ -47,7 +49,7 @@ Builder.prototype.twoway = function(name, value, bind){
 	if(["value", "checked"].indexOf(name) == -1) throw new Error("Cannot two-way bind property '" + name + "'.");
 	if(!SactoryObservable.isOwnObservable(value)) throw new Error("Cannot two-way bind property '" + name + "': the given value is not an observable.");
 	this.element.addEventListener("input", function(){
-		value.value = this[name];
+		value.update(this[name], TWO_WAY_UPDATE_TYPE);
 	});
 	this.prop(name, value, bind);
 };

@@ -13,19 +13,19 @@ function Observable(value) {
 	};
 }
 
-Observable.prototype.updateImpl = function(value){
+Observable.prototype.updateImpl = function(value, type){
 	var oldValue = this.internal.value;
 	this.internal.value = value;
 	for(var i in this.internal.subscriptions) {
-		this.internal.subscriptions[i](value, oldValue);
+		this.internal.subscriptions[i](value, oldValue, type);
 	}
 };
 
 /**
  * @since 0.42.0
  */
-Observable.prototype.update = function(value){
-	this.updateImpl(arguments.length ? value : this.internal.value);
+Observable.prototype.update = function(value, type){
+	this.updateImpl(arguments.length ? value : this.internal.value, type);
 };
 
 /**
@@ -39,7 +39,7 @@ Observable.prototype.snap = function(id){
  * @since 0.49.0
  */
 Observable.prototype.snapped = function(id){
-	return this.internal.snaps[id];
+	return id in this.internal.snaps ? this.internal.snaps[id] : this.internal.value;
 };
 
 /**

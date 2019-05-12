@@ -573,7 +573,7 @@ Sactory.convertSource = function(input, options){
 	var modes = [];
 	var currentMode;
 
-	var count = hash(options.namespace + "") & 100000;
+	var count = hash(options.namespace + "") % 100000;
 
 	function nextId() {
 		return count++;
