@@ -1,5 +1,5 @@
 var Polyfill = require("./polyfill");
-var Sactory = require("./transpiler");
+var Transpiler = require("./transpiler");
 
 var version = require("../version");
 
@@ -41,7 +41,7 @@ var Watcher = {
 						var namespace = folder + filename;
 						var conv;
 						try {
-							conv = Sactory.convertSource(data.toString(), {filename: namespace, namespace: namespace});
+							conv = new Transpiler().transpile(data.toString(), {filename: namespace, namespace: namespace});
 						} catch(e) {
 							console.error(e);
 						}

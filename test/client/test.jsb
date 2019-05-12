@@ -11,6 +11,7 @@ window.addEventListener("load", function(){
 		var timeout;
 		<:bind-if :condition={ !!*tagName; } :cleanup={ clearTimeout(timeout); }>
 			@text = "Tag name is now " + *tagName;
+			//@text = `Tag name is now ${*tagName}`;
 			var spread = {
 				"@style.border": "3px dashed red",
 				"@style.margin": "8px"
@@ -46,6 +47,12 @@ window.addEventListener("load", function(){
 			//*tagName = Math.random() >= .5 ? "section" : "div";
 		}, 3000);
 	</>
+
+	<:anchor>
+		setTimeout(function(){
+			<hr />
+		}, 1000);
+	</:anchor>
 
 	<div>
 		var duration = **30;

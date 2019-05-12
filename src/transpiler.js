@@ -8,6 +8,8 @@ var version = require("../version");
 
 var performance = require("perf_hooks").performance;
 
+function Transpiler() {}
+
 function hash(str) {
 	var hash = 0;
 	for(var i=0; i<str.length; i++) {
@@ -30,10 +32,6 @@ function stringify(str) {
 	}) + '"';
 }
 
-var Sactory = {};
-
-Sactory.s = stringify;
-
 var modeRegistry = [];
 var modeNames = {};
 var defaultMode;
@@ -41,7 +39,7 @@ var defaultMode;
 /**
  * @since 0.15.0
  */
-Sactory.registerMode = function(displayName, names, parser, options){
+Transpiler.registerMode = function(displayName, names, parser, options){
 	var id = modeRegistry.length;
 	modeRegistry.push({
 		name: displayName,
@@ -58,7 +56,7 @@ Sactory.registerMode = function(displayName, names, parser, options){
 /**
  * @since 0.35.0
  */
-Sactory.startMode = function(mode, parser, element, bind, anchor, nextId, parseCode, source, attributes){
+Transpiler.startMode = function(mode, parser, element, bind, anchor, nextId, parseCode, source, attributes){
 	var m = modeRegistry[mode];
 	return m && new m.parser({options: m.options, parser: parser, element: element, bind: bind, anchor: anchor, nextId: nextId, parseCode: parseCode, source: source}, attributes || {});
 };
@@ -555,7 +553,7 @@ CSSBParser.createExpr = function(expr, nextId){
 
 // export parsers
 
-Sactory.Internal = {
+Transpiler.Internal = {
 	Parser: Parser,
 	SourceParser: SourceParser,
 	BreakpointParser: BreakpointParser,
@@ -569,356 +567,378 @@ Sactory.Internal = {
 
 // register default modes
 
-Sactory.registerMode("Javascript", ["javascript", "js", "code"], JavascriptParser, {isDefault: true, code: true, regexp: true});
-Sactory.registerMode("HTML", ["html"], HTMLParser, {comments: false, strings: false});
-Sactory.registerMode("Text", ["text"], HTMLParser, {comments: false, strings: false, children: false});
-Sactory.registerMode("Script", ["script"], ScriptParser, {comments: false, strings: false, children: false, tags: ["script"]});
-Sactory.registerMode("CSS", ["css"], CSSParser, {inlineComments: false, strings: false, children: false});
-Sactory.registerMode("CSSB", ["cssb", "style", "fcss"], CSSBParser, {strings: false, children: false, tags: ["style"]});
+Transpiler.registerMode("Code", ["code", "javascript", "js"], JavascriptParser, {isDefault: true, code: true, regexp: true});
+Transpiler.registerMode("HTML", ["html"], HTMLParser, {comments: false, strings: false});
+Transpiler.registerMode("Text", ["text"], HTMLParser, {comments: false, strings: false, children: false});
+Transpiler.registerMode("Script", ["script"], ScriptParser, {comments: false, strings: false, children: false, tags: ["script"]});
+Transpiler.registerMode("CSS", ["css"], CSSParser, {inlineComments: false, strings: false, children: false});
+Transpiler.registerMode("CSSB", ["cssb", "style", "fcss"], CSSBParser, {strings: false, children: false, tags: ["style"]});
 
-Sactory.convertSource = function(input, options){
+/**
+ * @since 0.49.0
+ */
+Transpiler.prototype.nextId = function(){
+	return this.count++;
+};
+
+/**
+ * @since 0.16.0
+ */
+Transpiler.prototype.startMode = function(mode, attributes){
+	var currentParser = Transpiler.startMode(mode, this.parser, this.element, this.bind, this.anchor, this.nextId.bind(this), this.parseCode.bind(this), this.source, attributes);
+	this.parser.options = currentParser.options;
+	this.currentMode = {
+		name: modeRegistry[mode].name,
+		parser: currentParser,
+		options: currentParser.options
+	};
+	this.modes.push(this.currentMode);
+	return currentParser;
+};
+
+/**
+ * @since 0.16.0
+ */
+Transpiler.prototype.endMode = function(){
+	var ret = this.modes.pop().parser;
+	ret.end();
+	this.currentMode = this.modes[this.modes.length - 1];
+	if(this.currentMode) this.parser.options = this.currentMode.options;
+	return ret;
+};
+
+/**
+ * @since 0.42.0
+ */
+Transpiler.prototype.parseCode = function(input, parentParser){
+	var parser = new Parser(input, (parentParser || this.parser).position);
+	var source = [];
+	var mode = Transpiler.startMode(defaultMode, parser, this.element, this.bind, this.anchor, this.nextId.bind(this), this.parseCode.bind(this), source);
+	parser.options = mode.options;
+	mode.start();
+	while(parser.index < input.length) {
+		mode.parse(function(){ source.push('<'); }, function(){});
+	}
+	mode.end();
+	mode.finalize();
+	source = source.join("");
+	var observables = mode.observables ? uniq(mode.observables) : [];
+	return {
+		source: source,
+		observables: observables,
+		snaps: mode.snaps,
+		toValue: function(){
+			if(observables.length) {
+				if(input.charAt(0) == '*' && source == input.substr(1) + ".value") {
+					// single observable, pass it raw so it can be used in two-way binding
+					return input.substr(1);
+				} else {
+					return "{observe:[" + observables.join(',') + "]," + (mode.snaps && mode.snaps.length ? "snap:[" + mode.snaps.join(',') + "]," : "") + "compute:function(){return " + source + "}}";
+				}
+			} else {
+				return source;
+			}
+		}
+	};
+};
+
+/**
+ * @since 0.46.0
+ */
+Transpiler.prototype.wrapFunction = function(value){
+	if(value.charAt(0) == '{' && value.charAt(value.length - 1) == '}') {
+		return "function(" + Array.prototype.slice.call(arguments, 1).join(", ") + "){return " + value.substring(1, value.length - 1) + "}";
+	} else {
+		return value;
+	}
+};
+	
+/**
+ * Inserts a semicolon after a tag creation if needed.
+ * @since 0.22.0
+ */
+Transpiler.prototype.addSemicolon = function(){
+	if(this.currentMode.options.code) {
+		var skip = this.parser.skip();
+		var peek = this.parser.peek();
+		if(peek != ';' && peek != ':' && peek != ',' && peek != '.' && peek != ')' && peek != ']' && peek != '}') this.source.push(";");
+		if(skip) this.source.push(skip);
+	} else {
+		this.source.push(";");
+	}
+};
+
+/**
+ * @since 0.29.0
+ */
+Transpiler.prototype.open = function(){
+	if(this.parser.peek() == '/') {
+		this.parser.find(['>'], true, false); // skip until closed
+		this.close();
+	} else if(this.parser.peek() == '!') {
+		this.parser.index++;
+		this.parser.expect('-');
+		this.parser.expect('-');
+		this.source.push("Sactory.comment(" + this.element + ", " + this.bind + ", " + this.anchor + ", " + stringify(this.parser.findSequence("-->", true)) + ");");
+	} else if(this.currentMode.options.children === false) {
+		throw new Error("Mode " + this.currentMode.name + " cannot have children");
+	} else {
+		var parser = this.parser;
+		function skip() {
+			parser.skipImpl({comments: true, strings: false}); // before/after attributes
+		}
+		var currentIndex = this.source.length;
+		var newMode = undefined;
+		var create = true; // whether a new element is being created or the current element is being scoped
+		var append = true; // whether the new element should be appended to the current element after its creation
+		var unique = false; // whether the new element should be appended always or only when its not already on the DOM
+		var parent = this.element; // element that the new element will be appended to, if not null
+		var iattributes = {}; // attributes used to give instructions to the transpiler, not used at runtime
+		var rattributes = []; // attributes used at runtime to modify the element
+		var sattributes = ""; // variable name of the attributes passed using the spread syntax
+		var computed = false;
+		var selector, tagName;
+		if(selector = this.parser.readQueryExpr()) {
+			selector = this.parseCode(selector).source;
+			tagName = this.parser.peek() == '$' ? this.parser.readTagName(true) : "";
+			append = false;
+		} else if(tagName = this.parser.readComputedExpr()) {
+			tagName = this.parseCode(tagName).source;
+			computed = true;
+		} else {
+			tagName = this.parser.readTagName(true);
+		}
+		skip();
+		var next = false;
+		while(!this.parser.eof() && (next = this.parser.peek()) != '>' && next != '/') {
+			if(next == '.') {
+				this.parser.index++;
+				this.parser.expect('.');
+				this.parser.expect('.');
+				sattributes = this.parser.readSingleExpression(false);
+			} else {
+				var attr = {
+					attr: undefined,
+					computed: false,
+					value: "\"\""
+				};
+				var add = false;
+				//skip();
+				if(attr.attr = this.parser.readComputedExpr()) {
+					attr.attr = this.parseCode(attr.attr).source;
+					attr.computed = add = true;
+				} else {
+					attr.attr = this.parser.readAttributeName(true);	
+				}
+				skip();
+				if(this.parser.peek() == '=') {
+					this.parser.index++;
+					skip();
+					var value = this.parser.readAttributeValue();
+					if(attr.attr.charAt(0) == '@' || attr.attr.charAt(0) == '+') {
+						value = this.wrapFunction(value, "event");
+					} else if(attr.attr == ":change") {
+						value = this.wrapFunction(value, "oldValue", "value");
+					} else if(attr.attr == ":cleanup" || attr.attr == ":condition") {
+						value = this.wrapFunction(value);
+					}
+					attr.value = this.parseCode(value).toValue();
+				}
+				if(!attr.computed) {
+					if(attr.attr == "@") {
+						parent = attr.value;
+					} else if(attr.attr.charAt(0) == '#') {
+						newMode = modeNames[attr.attr.substr(1)];
+					} else if(attr.attr.charAt(0) == ':') {
+						iattributes[attr.attr.substr(1)] = attr.value;
+					} else {
+						add = true;
+					}
+				}
+				if(add) {
+					rattributes.push(attr);
+				}
+			}
+			skip();
+			next = false;
+		}
+		if(!next) throw new Error("Tag was not closed"); //TODO throw error from the start of the tag
+		if(!computed) {
+			if(tagName.charAt(0) == ':') {
+				create = false;
+				switch(tagName.substr(1)) {
+					case "anchor":
+						tagName = ":bind";
+						iattributes.to = "[]";
+						break;
+					case "head":
+					case "body":
+						parent = "document." + tagName.substr(1);
+						break;
+				}
+			} else if(tagName.charAt(0) == '#') {
+				newMode = modeNames[tagName.substr(1)];
+				if(newMode !== undefined) create = false; // behave as a scope
+			} else if(tagName.charAt(0) == '@') {
+				append = false;
+				tagName = tagName.substr(1);
+			}
+		}
+		if(newMode === undefined) {
+			for(var i=0; i<modeRegistry.length; i++) {
+				var info = modeRegistry[i];
+				if(info.options.tags && info.options.tags.indexOf(tagName) != -1) {
+					newMode = i;
+					break;
+				}
+			}
+		}
+		if(iattributes.head) parent = "document.head";
+		if(iattributes.body) parent = "document.body";
+		var currentInheritance = "";
+		var currentClosing = "";
+		function createExpr() {
+			var ret = "Sactory.";
+			if(!append) ret += "updateElement(" + this.element + ", ";
+			else ret += "createElement(";
+			ret += (computed ? tagName : '"' + tagName + '"') + ", " + this.bind + ", " + this.anchor + ", [" + this.inheritance.join("");
+			rattributes.forEach(function(attribute){
+				if(!attribute.computed && attribute.attr.charAt(0) == '~') {
+					var expr = "{key:\"" + attribute.attr.substr(1) + "\",value:" + attribute.value + "},";
+					currentInheritance += expr;
+					ret += expr;
+				} else {
+					ret += "{key:" + (attribute.computed ? attribute.attr : '"' + attribute.attr + '"') + ",value:" + attribute.value + "},";
+				}
+			});
+			return ret + "]" + (sattributes && ", " + sattributes) + ")";
+		}
+		parser.index++;
+		if(parent == "\"\"") {
+			// an empty string and null have the same behaviour but null is faster as it avoids the query selector controls when appending
+			parent = "null";
+		}
+		if(selector) {
+			this.source.push("Sactory.query(this, " + selector + ", function(" + this.element + "){");
+			currentClosing += "})";
+		}
+		if(next == '/') {
+			this.parser.expect('>');
+			if(create) {
+				if(append) {
+					var e = "Sactory.appendElement(" + parent + ", " + this.bind + ", " + this.anchor + ", " + createExpr.call(this) + ")";
+					if(iattributes.unique) e = "Sactory.unique(this, " + nextId() + ", function(){return " + e + "})";
+					this.source.push(e);
+				} else {
+					this.source.push(createExpr.call(this));
+				}
+			} else {
+				this.source.push(parent);
+			}
+			if(currentClosing) this.source.push(currentClosing);
+			this.addSemicolon();
+		} else {
+			var expr = createExpr.call(this); // always call to trigger attribute inheritance
+			this.tags.push(newMode !== undefined);
+			if(newMode !== undefined) {
+				this.startMode(newMode, iattributes);
+			}
+			var bindType = "";
+			if(tagName == ":bind-if" || tagName == ":if") bindType = "If";
+			else if(tagName == ":bind-each" || tagName == ":each") bindType = "Each";
+			if(!computed && (bindType || tagName == ":bind")) {
+				this.source.push("Sactory.bind" + bindType + "(" + ["this", parent, this.bind, this.anchor, iattributes.to || "0", iattributes.change || "0", iattributes.cleanup || "0"].join(", ") + (bindType == "If" ? ", " + iattributes.condition : "") +
+					", function(" + [this.element, this.bind, this.anchor, iattributes.as || "__value", iattributes.index || "__index", iattributes.array || "__array"].join(", ") + "){");
+			} else if(create) {
+				if(append) {
+					var e = "Sactory.append(" + parent + ", " + this.bind + ", " + this.anchor + ", Sactory.call(this, " + expr + ", function(" + this.element + ", " + this.anchor + "){";
+					currentClosing += ")";
+					if(iattributes.unique) {
+						e = "Sactory.unique(this, " + this.nextId() + ", function(){return " + e;
+						currentClosing += "})";
+					}
+					this.source.push(e);
+				} else {
+					this.source.push("Sactory.call(this, " + expr + ", function(" + this.element + "){");
+				}
+			} else {
+				this.source.push("Sactory.callElement(this, " + parent + ", function(" + this.element + "){");
+			}
+			this.inheritance.push(currentInheritance);
+			this.closing.push(currentClosing);
+			if(newMode !== undefined) {
+				this.currentMode.parser.start();
+			}
+		}
+	}
+	this.parser.last = undefined;
+};
+
+/**
+ * Closes a scope and optionally ends the current mode and restores the
+ * previous one.
+ * @since 0.29.0
+ */
+Transpiler.prototype.close = function(){
+	var closeCode = !this.parser.eof();
+	var closeMode = this.tags.pop();
+	var oldMode = closeMode && this.endMode();
+	this.inheritance.pop();
+	if(closeCode) this.source.push("})");
+	if(oldMode) oldMode.finalize();
+	if(closeCode) {
+		this.source.push(this.closing.pop());
+		this.addSemicolon();
+	}
+};
+
+/**
+ * @since 0.50.0
+ */
+Transpiler.prototype.transpile = function(input, options){
 
 	var start = performance.now();
 	
-	var parser = new Parser(input);
+	this.parser = new Parser(input);
 	
-	var element = "__e1";
-	var bind = "__bind";
-	var anchor = "__anchor";
+	this.element = "__e1";
+	this.bind = "__bind";
+	this.anchor = "__anchor";
 	
-	var source = [
-		"/*! Transpiled " + (options.filename ? " from " + options.filename : "") + "using Sactory v" + (Sactory.VERSION || version.version) + ". Do not edit manually. */",
-		"(function(Sactory, " + element + ", " + bind + ", " + anchor + "){"
+	this.source = [
+		"/*! Transpiled" + (options.filename ? " from " + options.filename : "") + " using Sactory v" + (typeof Sactory != "undefined" ? Sactory.VERSION : version.version) + ". Do not edit manually. */",
+		"(function(Sactory, " + this.element + ", " + this.bind + ", " + this.anchor + "){"
 	];
 	
-	var tags = [];
-	var inheritance = [];
-	var closing = [];
-	var modes = [];
-	var currentMode;
+	this.tags = [];
+	this.inheritance = [];
+	this.closing = [];
+	this.modes = [];
+	this.currentMode;
 
-	var count = hash(options.namespace + "") % 100000;
+	this.count = hash(options.namespace + "") % 100000;
+	
+	this.startMode(defaultMode, {}).start();
+	
+	var open = this.open.bind(this);
+	var close = this.close.bind(this);
 
-	function nextId() {
-		return count++;
+	while(!this.parser.eof()) {
+		this.currentMode.parser.parse(open, close);
 	}
 	
-	function startMode(mode, attributes) {
-		var info = modeRegistry[mode];
-		if(!info) throw new Error("Mode '" + mode + "' could not be found.");
-		var currentParser = new info.parser({
-			options: info.options,
-			parser: parser,
-			element:element,
-			bind: bind,
-			anchor: anchor,
-			nextId: nextId,
-			parseCode: parseCode,
-			source: source
-		}, attributes);
-		parser.options = info.options;
-		currentMode = {
-			name: info.name,
-			parser: currentParser,
-			options: info.options
-		};
-		modes.push(currentMode);
-		return currentParser;
-	}
+	this.endMode().finalize();
 	
-	function endMode() {
-		var ret = modes.pop().parser;
-		ret.end();
-		currentMode = modes[modes.length - 1];
-		if(currentMode) parser.options = currentMode.options;
-		return ret;
-	}
-	
-	/**
-	 * Inserts a semicolon after a tag creation if needed.
-	 */
-	function addSemicolon() {
-		if(currentMode.options.code) {
-			var skip = parser.skip();
-			var peek = parser.peek();
-			if(peek != ';' && peek != ':' && peek != ',' && peek != '.' && peek != ')' && peek != ']' && peek != '}') source.push(";");
-			if(skip) source.push(skip);
-		} else {
-			source.push(";");
-		}
-	}
-	
-	/**
-	 * Closes a scope and optionally ends the current mode and restores the
-	 * previous one.
-	 */
-	function close() {
-		var closeCode = !parser.eof();
-		var closeMode = tags.pop();
-		var oldMode = closeMode && endMode();
-		inheritance.pop();
-		if(closeCode) source.push("})");
-		if(oldMode) oldMode.finalize();
-		if(closeCode) {
-			source.push(closing.pop());
-			addSemicolon();
-		}
-	}
-
-	function parseCode(input, parentParser) {
-		var cparser = new Parser(input, (parentParser || parser).position);
-		var source = [];
-		var mode = Sactory.startMode(defaultMode, cparser, element, bind, anchor, nextId, parseCode, source);
-		cparser.options = mode.options;
-		mode.start();
-		while(cparser.index < input.length) {
-			mode.parse(function(){ source.push('<'); }, function(){});
-		}
-		mode.end();
-		mode.finalize();
-		source = source.join("");
-		var observables = mode.observables ? uniq(mode.observables) : [];
-		return {
-			source: source,
-			observables: observables,
-			snaps: mode.snaps,
-			toValue: function(){
-				if(observables.length) {
-					if(input.charAt(0) == '*' && source == input.substr(1) + ".value") {
-						// single observable, pass it raw so it can be used in two-way binding
-						return input.substr(1);
-					} else {
-						return "{observe:[" + observables.join(',') + "]," + (mode.snaps && mode.snaps.length ? "snap:[" + mode.snaps.join(',') + "]," : "") + "compute:function(){return " + source + "}}";
-					}
-				} else {
-					return source;
-				}
-			}
-		};
-	}
-
-	function wrapFunction(value) {
-		if(value.charAt(0) == '{' && value.charAt(value.length - 1) == '}') {
-			return "function(" + Array.prototype.slice.call(arguments, 1).join(", ") + "){return " + value.substring(1, value.length - 1) + "}";
-		} else {
-			return value;
-		}
-	}
-	
-	startMode(defaultMode, {}).start();
-	
-	while(parser.index < input.length) {
-		currentMode.parser.parse(function(){
-			if(parser.peek() == '/') {
-				parser.find(['>'], true, false); // skip until closed
-				close();
-			} else if(parser.peek() == '!') {
-				parser.index++;
-				parser.expect('-');
-				parser.expect('-');
-				source.push("Sactory.comment(" + element + ", " + bind + ", " + anchor + ", " + stringify(parser.findSequence("-->", true)) + ");");
-			} else if(currentMode.options.children === false) {
-				throw new Error("Mode " + currentMode.name + " cannot have children");
-			} else {
-				function skip() {
-					parser.skipImpl({comments: true, strings: false}); // before/after attributes
-				}
-				var currentIndex = source.length;
-				var newMode = undefined;
-				var create = true; // whether a new element is being created or the current element is being scoped
-				var append = true; // whether the new element should be appended to the current element after its creation
-				var unique = false; // whether the new element should be appended always or only when its not already on the DOM
-				var parent = element; // element that the new element will be appended to, if not null
-				var iattributes = {}; // attributes used to give instructions to the transpiler, not used at runtime
-				var rattributes = []; // attributes used at runtime to modify the element
-				var sattributes = ""; // variable name of the attributes passed using the spread syntax
-				var computed = false;
-				var selector, tagName;
-				if(selector = parser.readQueryExpr()) {
-					selector = parseCode(selector).source;
-					tagName = parser.peek() == '$' && parser.readTagName(true) || "";
-					append = false;
-				} else if(tagName = parser.readComputedExpr()) {
-					tagName = parseCode(tagName).source;
-					computed = true;
-				} else {
-					tagName = parser.readTagName(true);
-				}
-				skip();
-				var next = false;
-				while(!parser.eof() && (next = parser.peek()) != '>' && next != '/') {
-					if(next == '.') {
-						parser.index++;
-						parser.expect('.');
-						parser.expect('.');
-						sattributes = parser.readSingleExpression(false);
-					} else {
-						var attr = {
-							attr: undefined,
-							computed: false,
-							value: "\"\""
-						};
-						var add = false;
-						//skip();
-						if(attr.attr = parser.readComputedExpr()) {
-							attr.attr = parseCode(attr.attr).source;
-							attr.computed = add = true;
-						} else {
-							attr.attr = parser.readAttributeName(true);	
-						}
-						skip();
-						if(parser.peek() == '=') {
-							parser.index++;
-							skip();
-							var value = parser.readAttributeValue();
-							if(attr.attr.charAt(0) == '@' || attr.attr.charAt(0) == '+') {
-								value = wrapFunction(value, "event");
-							} else if(attr.attr == ":change") {
-								value = wrapFunction(value, "oldValue", "value");
-							} else if(attr.attr == ":cleanup" || attr.attr == ":condition") {
-								value = wrapFunction(value);
-							}
-							attr.value = parseCode(value).toValue();
-						}
-						if(!attr.computed) {
-							if(attr.attr == "@") {
-								parent = attr.value;
-							} else if(attr.attr.charAt(0) == '#') {
-								newMode = modeNames[attr.attr.substr(1)];
-							} else if(attr.attr.charAt(0) == ':') {
-								iattributes[attr.attr.substr(1)] = attr.value;
-							} else {
-								add = true;
-							}
-						}
-						if(add) {
-							rattributes.push(attr);
-						}
-					}
-					skip();
-					next = false;
-				}
-				if(!next) throw new Error("Tag was not closed");
-				if(!computed) {
-					if(tagName.charAt(0) == ':') {
-						create = false;
-						switch(tagName.substr(1)) {
-							case "head":
-							case "body":
-								parent = "document." + tagName.substr(1);
-								break;
-						}
-					} else if(tagName.charAt(0) == '#') {
-						newMode = modeNames[tagName.substr(1)];
-						if(newMode !== undefined) create = false; // behave as a scope
-					} else if(tagName.charAt(0) == '@') {
-						append = false;
-						tagName = tagName.substr(1);
-					}
-				}
-				if(newMode === undefined) {
-					for(var i=0; i<modeRegistry.length; i++) {
-						var info = modeRegistry[i];
-						if(info.options.tags && info.options.tags.indexOf(tagName) != -1) {
-							newMode = i;
-							break;
-						}
-					}
-				}
-				if(iattributes.head) parent = "document.head";
-				if(iattributes.body) parent = "document.body";
-				var currentInheritance = "";
-				var currentClosing = "";
-				function createExpr() {
-					var ret = "Sactory.";
-					if(!append) ret += "updateElement(" + element + ", ";
-					else ret += "createElement(";
-					ret += (computed ? tagName : '"' + tagName + '"') + ", " + bind + ", " + anchor + ", [" + inheritance.join("");
-					rattributes.forEach(function(attribute){
-						if(!attribute.computed && attribute.attr.charAt(0) == '~') {
-							var expr = "{key:\"" + attribute.attr.substr(1) + "\",value:" + attribute.value + "},";
-							currentInheritance += expr;
-							ret += expr;
-						} else {
-							ret += "{key:" + (attribute.computed ? attribute.attr : '"' + attribute.attr + '"') + ",value:" + attribute.value + "},";
-						}
-					});
-					return ret + "]" + (sattributes && ", " + sattributes) + ")";
-				}
-				parser.index++;
-				if(parent == "\"\"") {
-					// an empty string and null have the same behaviour but null is faster as it avoids the query selector controls when appending
-					parent = "null";
-				}
-				if(selector) {
-					source.push("Sactory.query(this, " + selector + ", function(" + element + "){");
-					currentClosing += "})";
-				}
-				if(next == '/') {
-					parser.expect('>');
-					if(create) {
-						if(append) {
-							var e = "Sactory.appendElement(" + parent + ", " + bind + ", " + anchor + ", " + createExpr() + ")";
-							if(iattributes.unique) e = "Sactory.unique(this, " + nextId() + ", function(){return " + e + "})";
-							source.push(e);
-						} else {
-							source.push(createExpr());
-						}
-					} else {
-						source.push(parent);
-					}
-					if(currentClosing) source.push(currentClosing);
-					addSemicolon();
-				} else {
-					var expr = createExpr(); // always call to trigger attribute inheritance
-					tags.push(newMode !== undefined);
-					if(newMode !== undefined) {
-						startMode(newMode, iattributes);
-					}
-					var bindType = "";
-					if(tagName == ":bind-if" || tagName == ":if") bindType = "If";
-					else if(tagName == ":bind-each" || tagName == ":each") bindType = "Each";
-					if(!computed && (bindType || tagName == ":bind")) {
-						source.push("Sactory.bind" + bindType + "(" + ["this", parent, bind, anchor, iattributes.to || "0", iattributes.change || "0", iattributes.cleanup || "0"].join(", ") + (bindType == "If" ? ", " + iattributes.condition : "") +
-							", function(" + [element, bind, anchor, iattributes.as || "__value", iattributes.index || "__index", iattributes.array || "__array"].join(", ") + "){");
-					} else if(create) {
-						if(append) {
-							var e = "Sactory.append(" + parent + ", " + bind + ", " + anchor + ", Sactory.call(this, " + expr + ", function(" + element + ", " + anchor + "){";
-							currentClosing += ")";
-							if(iattributes.unique) {
-								e = "Sactory.unique(this, " + nextId() + ", function(){return " + e;
-								currentClosing += "})";
-							}
-							source.push(e);
-						} else {
-							source.push("Sactory.call(this, " + expr + ", function(" + element + "){");
-						}
-					} else {
-						source.push("Sactory.callElement(this, " + parent + ", function(" + element + "){");
-					}
-					inheritance.push(currentInheritance);
-					closing.push(currentClosing);
-					if(newMode !== undefined) {
-						currentMode.parser.start();
-					}
-				}
-			}
-			parser.last = undefined;
-		}, close);
-	}
-	
-	endMode().finalize();
-	
-	source.push("})(typeof global=='object'&&global.Sactory||typeof window=='object'&&window.Sactory||require('sactory'), " + (options.scope || 0) + ", 0, 0);");
+	this.source.push("})(typeof global=='object'&&global.Sactory||typeof window=='object'&&window.Sactory||require('sactory'), " + (options.scope || 0) + ", 0, 0);");
 	
 	//console.log(source.join(""));
 	
 	return {
 		time: performance.now() - start,
-		element: element,
-		bind: bind,
-		anchor: anchor,
-		source: source.join("")
+		element: this.element,
+		bind: this.bind,
+		anchor: this.anchor,
+		source: this.source.join("")
 	};
 	
 };
@@ -941,7 +961,7 @@ if(typeof window == "object") {
 			var script = document.createElement("script");
 			script.dataset.sactoryTo = id;
 			script.dataset.from = "[data-sactory-from='" + id + "']";
-			script.textContent = Sactory.convertSource(content || builder.textContent, {namespace: id}).source;
+			script.textContent = new Transpiler().transpile(content || builder.textContent, {namespace: id}).source;
 			document.head.appendChild(script);
 		});
 	}
@@ -954,5 +974,5 @@ if(typeof window == "object") {
 	
 }
 
-module.exports = Sactory;
+module.exports = Transpiler;
 	
