@@ -50,7 +50,7 @@ Sactory.registerMode = function(displayName, names, parser, options){
  */
 Sactory.startMode = function(mode, parser, element, bind, anchor, nextId, parseCode, source, attributes){
 	var m = modeRegistry[mode];
-	return m && new m.parser({info: m.info, parser: parser, element: element, bind: bind, anchor: anchor, nextId: nextId, parseCode: parseCode, source: source}, attributes || {});
+	return m && new m.parser({options: m.options, parser: parser, element: element, bind: bind, anchor: anchor, nextId: nextId, parseCode: parseCode, source: source}, attributes || {});
 };
 
 /**
@@ -58,7 +58,7 @@ Sactory.startMode = function(mode, parser, element, bind, anchor, nextId, parseC
  * @since 0.15.0
  */
 function SourceParser(data, attributes) {
-	this.info = data.info;
+	this.options = data.options;
 	this.parser = data.parser;
 	this.element = data.element;
 	this.bind = data.bind;
@@ -97,7 +97,7 @@ BreakpointParser.prototype.parse = function(handle, eof){
 	var result = this.parser.find(this.breakpoints, false, true);
 	if(result.pre) this.add(result.pre);
 	if(result.match == '<') {
-		if(this.info.options.code && [undefined, '(', '[', '{', '}', ';', ':', ',', '=', '/', '?', '&', '|', '>'].indexOf(this.parser.last) == -1 && !this.parser.lastKeyword("return")) {
+		if(this.options.code && [undefined, '(', '[', '{', '}', ';', ':', ',', '=', '/', '?', '&', '|', '>'].indexOf(this.parser.last) == -1 && !this.parser.lastKeyword("return")) {
 			// just a comparison
 			this.add("<");
 		} else {
@@ -193,7 +193,7 @@ JavascriptParser.prototype.next = function(match){
 			}
 			break;
 		case '*':
-			if(this.parser.last === undefined || !this.parser.last.match(/^[a-zA-Z0-9_$\)\]]$/) || this.parser.lastKeyword("return")) {
+			if(this.parser.couldStartRegExp()) {
 				function getName() {
 					var skipped = this.parser.skip();
 					if(skipped) this.add(skipped);
@@ -543,7 +543,7 @@ Sactory.Internal = {
 
 // register default modes
 
-Sactory.registerMode("Javascript", ["javascript", "js", "code"], JavascriptParser, {isDefault: true, code: true});
+Sactory.registerMode("Javascript", ["javascript", "js", "code"], JavascriptParser, {isDefault: true, code: true, regexp: true});
 Sactory.registerMode("HTML", ["html"], HTMLParser, {comments: false, strings: false});
 Sactory.registerMode("Text", ["text"], HTMLParser, {comments: false, strings: false, children: false});
 Sactory.registerMode("Script", ["script"], ScriptParser, {comments: false, strings: false, children: false, tags: ["script"]});
@@ -561,7 +561,7 @@ Sactory.convertSource = function(input, options){
 	var anchor = "__anchor";
 	
 	var source = [
-		"/*! Transpiled " + (options.filename ? "from " + options.filename : "") + " using Sactory v" + (Sactory.VERSION || version.version) + ". Do not edit manually. */",
+		"/*! Transpiled " + (options.filename ? " from " + options.filename : "") + "using Sactory v" + (Sactory.VERSION || version.version) + ". Do not edit manually. */",
 		"(function(Sactory, " + element + ", " + bind + ", " + anchor + "){"
 	];
 	
@@ -581,7 +581,7 @@ Sactory.convertSource = function(input, options){
 		var info = modeRegistry[mode];
 		if(!info) throw new Error("Mode '" + mode + "' could not be found.");
 		var currentParser = new info.parser({
-			info: info,
+			options: info.options,
 			parser: parser,
 			element:element,
 			bind: bind,
@@ -643,6 +643,7 @@ Sactory.convertSource = function(input, options){
 		var cparser = new Parser(input, (parentParser || parser).position);
 		var source = [];
 		var mode = Sactory.startMode(defaultMode, cparser, element, bind, anchor, nextId, parseCode, source);
+		cparser.options = mode.options;
 		mode.start();
 		while(cparser.index < input.length) {
 			mode.parse(function(){ source.push('<'); }, function(){});

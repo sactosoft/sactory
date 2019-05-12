@@ -32,7 +32,7 @@ window.addEventListener("load", function(){
 				var visible = **true;
 				<label #html>
 					Show:
-					<input type="checkbox" *checked=visible />
+					<input type="checkbox" $test=(/<div>*/gm) *checked=visible />
 				</label>
 				<button +click={ console.log("Button clicked") } @text="Button" @visible=*visible />
 				<!-- a comment -->
@@ -79,6 +79,6 @@ window.addEventListener("load", function(){
 			localStorage ? localStorage.setItem("cookies", ++*cookies) : *cookies++;
 		}
 		<div class="cookie"><img src="http://icons.iconarchive.com/icons/oxygen-icons.org/oxygen/256/Apps-preferences-web-browser-cookies-icon.png" +click=increment /></div>
-		<p @text=("Clicked " + *cookies + " cookies!") />
+		<p @text=("Clicked " + *cookies + " cookies! (" + (*cookies - ***cookies) + " in this session)") />
 	</div>
 });

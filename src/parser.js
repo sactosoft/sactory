@@ -112,6 +112,13 @@ Parser.prototype.lastKeyword = function(value){
 };
 
 /**
+ * @since 0.50.0
+ */
+Parser.prototype.couldStartRegExp = function(){
+	return this.last === undefined || !this.last.match(/^[a-zA-Z0-9_$\)\]]$/) || this.lastKeyword("return");
+};
+
+/**
  * Skips whitespaces, comments (if options.comments !== false) and
  * strings (if options.strings !== false).
  * @returns The skipped data.
@@ -124,29 +131,18 @@ Parser.prototype.skipImpl = function(options){
 	var prelastIndex = this.lastIndex;
 	while(!this.eof()) {
 		var next = this.input[this.index];
-		if([' ', '\t', '\n', '\r'].indexOf(next) != -1) {
+		var comment;
+		if(/\s/.test(next)) {
 			this.index++;
-		} else if(options.comments !== false && next == '/') {
-			var comment = this.input[this.index + 1];
-			if(comment == '/' && options.inlineComments !== false) {
-				this.index += 2;
-				this.findSequence("\n", false);
-				this.last = undefined;
-			} else if(comment == '*') {
-				this.index += 2;
-				this.findSequence("*/", true);
-				this.last = undefined;
-			} else {
-				this.last = prelast;
-				this.lastIndex = prelastIndex;
-				prelast = next;
-				prelastIndex = this.index;
-				break;
-			}
+		} else if(options.comments !== false && next == '/' && ((comment = this.input[this.index + 1]) == '/' && options.inlineComments !== false || comment == '*')) {
+			this.index += 2;
+			if(comment == '/') this.findSequence("\n", false);
+			else this.findSequence("*/", true);
+			this.last = undefined;
 		} else if(options.strings !== false && (next == '"' || next == '\'' || next == '`')) {
 			this.skipString();
-			this.last = prelast = next;
-			this.lastIndex = prelastIndex = this.index;
+		} else if(options.regexp === true && next == '/' && this.couldStartRegExp()) {
+			this.skipRegExp();
 		} else {
 			this.last = prelast;
 			this.lastIndex = prelastIndex;
@@ -167,6 +163,17 @@ Parser.prototype.skip = function(){
 	return this.skipImpl(this.options);
 };
 
+Parser.prototype.skipEscapableContent = function(message){
+	var start = this.position;
+	var type = this.read();
+	while(!this.eof()) {
+		var result = this.find(['\\', type], false, false);
+		if(!result.match) this.error("Could not find end of " + message() + " started at line " + start.line + " column " + start.column);
+		else if(result.match == '\\') this.index++; // skip escaped character
+		else break;
+	}
+};
+
 /**
  * Skips a string.
  * This function skips data until the first character is found again and is
@@ -175,13 +182,8 @@ Parser.prototype.skip = function(){
  * @since 0.19.0
  */
 Parser.prototype.skipString = function(){
-	var type = this.read();
-	while(!this.eof()) {
-		var result = this.find(['\\', type], false, false);
-		if(!result.match) this.error("Could not find end of string.");
-		else if(result.match == '\\') this.index++; // skip escaped character
-		else break;
-	}
+	this.skipEscapableContent(function(){ return "string"; });
+	this.last = this.input[this.lastIndex = this.index];
 };
 
 /**
@@ -190,19 +192,20 @@ Parser.prototype.skipString = function(){
  * @since 0.49.0
  */
 Parser.prototype.skipRegExp = function(){
-	this.skipString();
+	this.skipEscapableContent(function(){ return "regular expression"; });
 	var flags = ['g', 'i', 'm', 's', 'u', 'y'];
 	var index;
 	while((index = flags.indexOf(this.peek())) != -1) {
-		flags.splice(i, 1);
+		flags.splice(index, 1);
 		this.index++;
 	}
+	this.last = this.input[this.lastIndex = this.index];
 };
 
 /**
  * Skips an expression that starts with a parenthesis, bracket or brace.
- * Comments and strings are skipped and their content is not treated as possible
- * enclosures.
+ * Comments, strings and regular expressions are skipped and their content is not treated
+ * as possible enclosures.
  * @throws {ParserError} When the expression is not properly closed.
  * @since 0.20.0
  */
@@ -211,15 +214,14 @@ Parser.prototype.skipEnclosedContent = function(){
 	var match = par[this.read()];
 	var count = {'{': 0, '[': 0, '(': 0};
 	while(!this.eof()) {
-		this.skipImpl({comments: true, strings: true});
-		var next = this.read();
-		var close = par[next];
-		var open = count[next];
+		var result = this.find(['{', '}', '[', ']', '(', ')'], true, {comments: true, strings: true, regexp: true});
+		var close = par[result.match];
+		var open = count[result.match];
 		if(close) {
 			count[close]--;
 			if(count[close] < 0) return;
 		} else if(open !== undefined) {
-			count[next]++;
+			count[result.match]++;
 		}
 	}
 	this.error("Expression not completed.");
@@ -236,7 +238,10 @@ Parser.prototype.skipEnclosedContent = function(){
 Parser.prototype.find = function(search, force, skip){
 	var start = this.index;
 	while(!this.eof()) {
-		if(skip) this.skip();
+		if(skip) {
+			if(typeof skip == "object") this.skipImpl(skip);
+			else this.skip();
+		}
 		var next = this.input[this.index++];
 		if(search.indexOf(next) != -1) {
 			return {pre: this.input.substring(start, this.index - 1), match: next};
