@@ -8,7 +8,22 @@ var TWO_WAY_UPDATE_TYPE = 214;
  * @class
  */
 function Builder(element) {
+
 	this.element = element;
+
+	Object.defineProperty(this, "runtimeId", {
+		configurable: true,
+		get: function(){
+			var id = Math.round(Math.random() * 100000);
+			Object.defineProperty(this, "runtimeId", {
+				get: function(){
+					return id;
+				}
+			});
+			return id;
+		}
+	});
+
 }
 
 /**

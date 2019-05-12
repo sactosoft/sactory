@@ -7,7 +7,7 @@ var Sactory = {};
  */
 Sactory.select = function(array, selector){
 	var value = [];
-	array.push({s: selector, v: value});
+	array.push({selector: selector, value: value});
 	return value;
 };
 
@@ -52,24 +52,24 @@ Sactory.computeUnit = function(unit, result){
 	}
 };
 
-function stringify(root) {
+function minify(root) {
 	var ret = "";
-	function compile(obj) {
-		for(var selector in obj) {
-			var value = obj[selector];
-			if(value === null) {
-				ret += selector + ';';
-			} else if(typeof value == "object") {
-				if(Object.keys(value).length) {
-					ret += selector + "{";
-					compile(value);
+	function compile(array) {
+		array.forEach(function(item){
+			if(!item.value) {
+				ret += item.selector + ';';
+			} else if(typeof item.value == "object") {
+				if(item.value.length) {
+					ret += item.selector + "{";
+					compile(item.value);
 					ret += "}";
 				}
 			} else {
-				if(selector == "content" && (value.charAt(0) != '"' || value.charAt(value.length - 1) != '"') && (value.charAt(0) != '\'' || value.charAt(value.length - 1) != '\'')) value = JSON.stringify(value);
-				ret += selector + ":" + value + ";";
+				if(typeof item.value != "string") item.value = item.value + "";
+				if(item.selector == "content" && (item.value.charAt(0) != '"' || item.value.slice(-1) != '"') && (item.value.charAt(0) != '\'' || item.value.slice(-1) != '\'')) item.value = JSON.stringify(item.value);
+				ret += item.selector + ":" + item.value + ";";
 			}
-		}
+		});
 	}
 	compile(root);
 	return ret;
@@ -80,17 +80,17 @@ function stringify(root) {
  * @since 0.19.0
  */
 Sactory.compileStyle = function(root){
-	var ret = {};
+	var ret = [];
 	function compile(selectors, curr, obj) {
 		obj.forEach(function(value){
-			if(value.s) {
-				var selector = value.s;
+			if(value.selector) {
+				var selector = value.selector;
 				if(selector.charAt(0) == '@') {
 					var oret = ret;
-					ret = {};
-					if(selector.substring(1, 6) == "media") compile(selectors, ret[selectors.join(',')] = {}, value.v);
-					else compile([], {}, value.v);
-					oret[selector] = ret;
+					ret = [];
+					if(selector.substr(1, 5) == "media" || selector.substr(1, 8) == "document") compile(selectors, Sactory.select(ret, selectors.join(',')), value.value);
+					else compile([], ret, value.value);
+					oret.push({selector: selector, value: ret});
 					ret = oret;
 				} else {
 					var ns = [];
@@ -107,15 +107,17 @@ Sactory.compileStyle = function(root){
 							return s.trim();
 						});
 					}
-					compile(ns, ret[ns.join(',')] = {}, value.v);
+					compile(ns, Sactory.select(ret, ns.join(',')), value.value);
 				}
 			} else {
-				curr[value.k] = value.v || null;
+				var res = {selector: value.key, value: value.value};
+				if(value.key.charAt(0) == '@') ret.push(res);
+				else curr.push(res);
 			}
 		});
 	}
 	compile([], ret, root);
-	return stringify(ret);
+	return minify(ret);
 };
 
 /**

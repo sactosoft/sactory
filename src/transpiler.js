@@ -299,7 +299,7 @@ function CSSBParser(data, attributes) {
 	this.snaps = [];
 	this.expr = [];
 	this.scopes = ["__root"];
-	this.scope = attributes.scoped && ("__sactory" + this.nextId());
+	this.scope = !!attributes.scoped;
 }
 
 CSSBParser.prototype = Object.create(SourceParser.prototype);
@@ -329,9 +329,7 @@ CSSBParser.prototype.skip = function(){
 CSSBParser.prototype.start = function(){
 	this.add("Sactory.compileAndBindStyle(function(){");
 	this.add("var " + this.scopes[0] + "=[];");
-	if(this.scope) {
-		this.addScope("\"." + this.scope + "\"");
-	}
+	if(this.scope) this.addScope("\".__sactory\" + " + this.element + ".__builder.runtimeId");
 };
 
 CSSBParser.prototype.parse = function(handle, eof){
@@ -353,7 +351,7 @@ CSSBParser.prototype.parse = function(handle, eof){
 	}
 	if(start( "if") || start("else if") || start("for") || start("while")) {
 		skipStatement.call(this);
-		if(this.parser.peek() != '(') this.parser.error("Expected '(' after statement (if/else if/for/while).");
+		if(this.parser.peek() != '(') this.parser.error("Expected '(' after statement name (if/else if/for/while).");
 		var start = this.parser.index;
 		this.parser.skipEnclosedContent();
 		this.add(this.parseCodeImpl(this.parser.input.substring(start, this.parser.index)));
@@ -442,7 +440,7 @@ CSSBParser.prototype.parse = function(handle, eof){
 					}
 					break;
 				case ';':
-					this.add(this.scopes[this.scopes.length - 1] + ".push({k:" + value(expr.key) + (expr.value.length && ",v:" + value(expr.value, true) || "") + "});");
+					this.add(this.scopes[this.scopes.length - 1] + ".push({key:" + value(expr.key) + (expr.value.length && ",value:" + value(expr.value, true) || "") + "});");
 					break;
 				default:
 					eof();
@@ -457,7 +455,7 @@ CSSBParser.prototype.end = function(){
 };
 
 CSSBParser.prototype.finalize = function(){
-	if(this.scope) this.add(", function(){ this.parentNode.__builder.addClass(\"" + this.scope + "\"); }, function(){ this.parentNode.__builder.removeClass(\"" + this.scope + "\"); }");
+	if(this.scope) this.add(", function(){ this.parentNode.__builder.addClass(\"__sactory\" + this.__builder.runtimeId); }, function(){ this.parentNode.__builder.removeClass(\"__sactory\" + this.__builder.runtimeId); }");
 };
 
 CSSBParser.createExprImpl = function(expr, info){
@@ -558,7 +556,7 @@ Sactory.convertSource = function(input, options){
 	
 	var parser = new Parser(input);
 	
-	var element = "__el";
+	var element = "__e1";
 	var bind = "__bind";
 	var anchor = "__anchor";
 	
