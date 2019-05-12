@@ -112,10 +112,13 @@ Parser.prototype.lastKeyword = function(value){
 };
 
 /**
+ * Indicates whether the conditions for a regular expression to start are met. That is,
+ * when there is no last character, when the last character is not a keyword or a function
+ * call, or when the last keyword is `return` or `typeof`.
  * @since 0.50.0
  */
 Parser.prototype.couldStartRegExp = function(){
-	return this.last === undefined || !this.last.match(/^[a-zA-Z0-9_$\)\]]$/) || this.lastKeyword("return");
+	return this.last === undefined || !this.last.match(/^[a-zA-Z0-9_$\)\]\.]$/) || this.lastKeyword("return") || this.lastKeyword("typeof");
 };
 
 /**
@@ -189,7 +192,7 @@ Parser.prototype.skipString = function(){
 /**
  * Skips a regular expression.
  * @throws {ParserError} When the regular expression is not properly terminated.
- * @since 0.49.0
+ * @since 0.50.0
  */
 Parser.prototype.skipRegExp = function(){
 	this.skipEscapableContent(function(){ return "regular expression"; });
@@ -369,18 +372,8 @@ Parser.prototype.readSingleExpression = function(skip){
 	var start = this.index;
 	var peek = this.peek();
 	var op;
-	if(((peek == '+' || peek == '-' || peek == '*') && (op = peek)) || peek == '@' || peek == '~' || peek == '!') {
-		this.index++;
-		peek = this.peek();
-		if(op == peek) {
-			this.index++;
-			peek = this.peek();
-			if(peek == '*' && op == '*') {
-				this.index++;
-				peek = this.peek();
-			}
-		}
-	}
+	var match = this.input.substr(this.index).match(/^([\+-]?[~!]*(\+\+?|\-\-?|\*\*?\*?|@|(new|delete|typeof)\s+))/);
+	if(match) this.index += match[0].length;
 	if(skip) this.skipImpl({strings: false});
 	if(peek == '"' || peek == '\'' || peek == '`') {
 		this.skipString();
@@ -412,7 +405,7 @@ Parser.prototype.readExpression = function(){
 	this.skipImpl({strings: false});
 	if(this.readSingleExpression(true)) {
 		this.skipImpl({strings: false});
-		while(!this.eof() && this.readImpl(/^(\*\*|&&?|\|\|?|\^|=>|==?=?|!==?|<<|>>>?|\?|:|[\+\-\*\/%<>]=?|(new|typeof|in|instanceof|delete)\s)/, false)) {
+		while(!this.eof() && this.readImpl(/^(\*\*|&&?|\|\|?|\^|=>|==?=?|!==?|<<|>>>?|\?|:|[\+\-\*\/%<>]=?|in(stanceof)?\s)/, false)) {
 			this.skipImpl({strings: false});
 			if(!this.readSingleExpression(true)) this.error("Could not find a valid expression.");
 			this.skipImpl({strings: false});

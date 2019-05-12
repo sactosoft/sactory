@@ -22,7 +22,17 @@ function uniq(array) {
 	});
 }
 
+function stringify(str) {
+	// that's not very fast
+	return '"' + str.replace(/(\r?\n)|([\\"])/gm, function(_, newline, escaped){
+		if(newline) return "\\n\" +\n\"";
+		else return '\\' + escaped;
+	}) + '"';
+}
+
 var Sactory = {};
+
+Sactory.s = stringify;
 
 var modeRegistry = [];
 var modeNames = {};
@@ -116,13 +126,20 @@ BreakpointParser.prototype.parse = function(handle, eof){
  */
 function TextParser(data, attributes) {
 	SourceParser.call(this, data, attributes);
-	this.textMode = false;
+	this.currentText = "";
 }
 
 TextParser.prototype = Object.create(SourceParser.prototype);
 
 TextParser.prototype.addText = function(expr){
 	this.add(this.element + ".__builder.text(" + expr + ", " + this.bind + ", " + this.anchor + ");");
+};
+
+TextParser.prototype.addCurrentText = function(){
+	if(this.currentText) {
+		this.addText(stringify(this.replaceText(this.currentText)));
+		this.currentText = "";
+	}
 };
 
 TextParser.prototype.replaceText = function(text){
@@ -135,18 +152,26 @@ TextParser.prototype.handle = function(){
 
 TextParser.prototype.parse = function(handle, eof){
 	var result = this.parser.find(['<', '$']);
-	if(result.pre) {
-		this.addText(JSON.stringify(this.replaceText(result.pre)).replace(/\\n/gm, "\\n\" +\n\""));
-	}
+	this.currentText += result.pre;
 	switch(result.match) {
 		case '$':
+			if(result.pre.slice(-1) == '\\') {
+				this.currentText = this.currentText.slice(0, -1) + '$';
+				break;
+			}
+			this.addCurrentText();
 			this.addText(this.parseCode(this.parser.readVar(true), this.parser).toValue());
 			break;
 		case '<':
-			if(this.handle()) handle();
-			else this.addText("'<'");
+			if(this.handle()) {
+				this.addCurrentText();
+				handle();
+			} else {
+				this.currentText += '<';
+			}
 			break;
 		default:
+			this.addCurrentText();
 			eof();
 	}
 };
@@ -193,7 +218,7 @@ JavascriptParser.prototype.next = function(match){
 			}
 			break;
 		case '*':
-			if(this.parser.couldStartRegExp()) {
+			if(this.parser.couldStartRegExp() || this.parser.lastKeyword("new") || this.parser.lastKeyword("in") || this.parser.lastKeyword("instanceof") || this.parser.lastKeyword("delete")) {
 				function getName() {
 					var skipped = this.parser.skip();
 					if(skipped) this.add(skipped);
@@ -392,7 +417,7 @@ CSSBParser.prototype.parse = function(handle, eof){
 			if(e.length) {
 				var ret = [];
 				e.forEach(function(v){
-					ret.push(v.string && JSON.stringify(v.value) || (!computable && parseCodeImpl(v.value) || CSSBParser.createExpr(parseCodeImpl(v.value), nextId)));
+					ret.push(v.string && stringify(v.value) || (!computable && parseCodeImpl(v.value) || CSSBParser.createExpr(parseCodeImpl(v.value), nextId)));
 				});
 				return ret.join('+');
 			} else {
@@ -415,7 +440,8 @@ CSSBParser.prototype.parse = function(handle, eof){
 					handle();
 					break;
 				case '$':
-					curr.push({string: false, value: this.parser.readVar(true)});
+					if(result.pre.slice(-1) == '\\') curr[curr.length - 1].value = curr[curr.length - 1].value.slice(0, -1) + '$';
+					else curr.push({string: false, value: this.parser.readVar(true)});
 					loop = true;
 					break;
 				case ':':
@@ -690,11 +716,7 @@ Sactory.convertSource = function(input, options){
 				parser.index++;
 				parser.expect('-');
 				parser.expect('-');
-				var seq = parser.findSequence("-->", true);
-				source.push("Sactory.comment(" + element + ", " + bind + ", " + anchor + ", " + JSON.stringify(seq) + ");");
-				for(var i=0; i<seq.length; i++) {
-					if(seq.charAt(i) == '\n') source.push('\n');
-				}
+				source.push("Sactory.comment(" + element + ", " + bind + ", " + anchor + ", " + stringify(parser.findSequence("-->", true)) + ");");
 			} else if(currentMode.options.children === false) {
 				throw new Error("Mode " + currentMode.name + " cannot have children");
 			} else {

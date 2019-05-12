@@ -425,7 +425,7 @@ class Text extends Document {
 	}
 
 	static replaceEntities(data) {
-		return (data + "").replace(/&(#)?([a-zA-Z0-9]+);/gm, (_, hash, value) => String.fromCharCode(hash ? value : entities[value]));
+		return (data + "").replace(/&(#(x)?)?([a-zA-Z0-9]+);/gm, (_, hash, hex, value) => String.fromCharCode(hash ? (hex ? parseInt(value, 16) : value) : entities[value]));
 	}
 
 }
