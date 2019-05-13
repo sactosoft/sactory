@@ -11,7 +11,7 @@ window.addEventListener("load", function(){
 		var timeout;
 		<:bind-if :condition={ !!*tagName; } :cleanup={ clearTimeout(timeout); }>
 			@text = "Tag name is now " + *tagName;
-			//@text = `Tag name is now ${*tagName}`;
+			var a = `${*tagName}`;
 			var spread = {
 				"@style.border": "3px dashed red",
 				"@style.margin": "8px"
@@ -54,6 +54,13 @@ window.addEventListener("load", function(){
 		}, 1000);
 	</:anchor>
 
+	var o = **"o";
+	<p style="font-family:monospace" #text>~~ DI${*o} CANE ~~</p>
+
+	setInterval(function(){
+		*o = Math.random() >= .5 ? 'o' : 'O';
+	}, 250);
+
 	<div>
 		var duration = **30;
 		var durationInSeconds = **(*duration + 's');
@@ -86,6 +93,6 @@ window.addEventListener("load", function(){
 			localStorage ? localStorage.setItem("cookies", ++*cookies) : *cookies++;
 		}
 		<div class="cookie"><img src="http://icons.iconarchive.com/icons/oxygen-icons.org/oxygen/256/Apps-preferences-web-browser-cookies-icon.png" +click=increment /></div>
-		<p @text=("Clicked " + *cookies + " cookies! (" + (*cookies - ***cookies) + " in this session)") />
+		<p @text=`Clicked ${*cookies} cookies! (${*cookies - ***cookies} in this session)` />
 	</div>
 });

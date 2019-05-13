@@ -56,28 +56,35 @@ Transpiler.registerMode = function(displayName, names, parser, options){
 /**
  * @since 0.35.0
  */
-Transpiler.startMode = function(mode, parser, element, bind, anchor, nextId, parseCode, source, attributes){
+Transpiler.startMode = function(mode, transpiler, parser, source, attributes){
 	var m = modeRegistry[mode];
-	return m && new m.parser({options: m.options, parser: parser, element: element, bind: bind, anchor: anchor, nextId: nextId, parseCode: parseCode, source: source}, attributes || {});
+	var ret = new m.parser(transpiler, parser, source, attributes || {});
+	ret.options = parser.options = m.options;
+	return ret;
 };
 
 /**
  * @class
  * @since 0.15.0
  */
-function SourceParser(data, attributes) {
-	this.options = data.options;
-	this.parser = data.parser;
-	this.element = data.element;
-	this.bind = data.bind;
-	this.anchor = data.anchor;
-	this.nextId = data.nextId;
-	this.parseCode = data.parseCode;
-	this.source = data.source;
+function SourceParser(transpiler, parser, source, attributes) {
+	this.transpiler = transpiler;
+	this.parser = parser;
+	this.source = source;
+	this.element = transpiler.element;
+	this.bind = transpiler.bind;
+	this.anchor = transpiler.anchor;
 }
 
 SourceParser.prototype.add = function(text){
 	this.source.push(text);
+};
+
+SourceParser.prototype.parseCodeToValue = function(fun){
+	this.parser.parseTemplateLiteral = null;
+	var expr = Parser.prototype[fun].apply(this.parser, Array.prototype.slice.call(arguments, 1));
+	this.transpiler.updateTemplateLiteralParser();
+	return this.transpiler.parseCode(expr, this.parser).toValue();
 };
 
 SourceParser.prototype.start = function(){};
@@ -92,8 +99,8 @@ SourceParser.prototype.parse = function(handle, eof){};
  * @class
  * @since 0.29.0
  */
-function BreakpointParser(data, attributes, breakpoints) {
-	SourceParser.call(this, data, attributes);
+function BreakpointParser(transpiler, parser, source, attributes, breakpoints) {
+	SourceParser.call(this, transpiler, parser, source, attributes);
 	this.breakpoints = ['<'].concat(breakpoints);
 }
 
@@ -105,7 +112,7 @@ BreakpointParser.prototype.parse = function(handle, eof){
 	var result = this.parser.find(this.breakpoints, false, true);
 	if(result.pre) this.add(result.pre);
 	if(result.match == '<') {
-		if(this.options.code && [undefined, '(', '[', '{', '}', ';', ':', ',', '=', '/', '?', '&', '|', '>'].indexOf(this.parser.last) == -1 && !this.parser.lastKeyword("return")) {
+		if(this.parser.options.code && [undefined, '(', '[', '{', '}', ';', ':', ',', '=', '/', '?', '&', '|', '>'].indexOf(this.parser.last) == -1 && !this.parser.lastKeyword("return")) {
 			// just a comparison
 			this.add("<");
 		} else {
@@ -122,8 +129,8 @@ BreakpointParser.prototype.parse = function(handle, eof){
  * @class
  * @since 0.28.0
  */
-function TextParser(data, attributes) {
-	SourceParser.call(this, data, attributes);
+function TextParser(transpiler, parser, source, attributes) {
+	SourceParser.call(this, transpiler, parser, source, attributes);
 	this.currentText = "";
 }
 
@@ -158,7 +165,7 @@ TextParser.prototype.parse = function(handle, eof){
 				break;
 			}
 			this.addCurrentText();
-			this.addText(this.parseCode(this.parser.readVar(true), this.parser).toValue());
+			this.addText(this.parseCodeToValue("readVar", true));
 			break;
 		case '<':
 			if(this.handle()) {
@@ -178,8 +185,8 @@ TextParser.prototype.parse = function(handle, eof){
  * @class
  * @since 0.15.0
  */
-function JavascriptParser(data, attributes) {
-	BreakpointParser.call(this, data, attributes, ['@', '*']);
+function JavascriptParser(transpiler, parser, source, attributes) {
+	BreakpointParser.call(this, transpiler, parser, source, attributes, ['@', '*']);
 	this.observables = [];
 	this.snaps = [];
 }
@@ -206,7 +213,7 @@ JavascriptParser.prototype.next = function(match){
 						this.parser.index += match[0].length;
 						skip = this.parser.skipImpl({strings: false});
 						if(skip) this.add(skip);
-						var expr = this.parseCode(this.parser.readExpression()).toValue();
+						var expr = this.parseCodeToValue("readExpression");
 						if(match[1] == "text") this.add("text(" + expr + ", " + this.bind + ", " + this.anchor + ")");
 						else if(match[1] == "visible") this.add("visible(" + expr + ", false, " + this.bind + ")");
 						else if(match[1] == "hidden") this.add("visible(" + expr + ", true, " + this.bind + ")");
@@ -221,9 +228,7 @@ JavascriptParser.prototype.next = function(match){
 					var skipped = this.parser.skip();
 					if(skipped) this.add(skipped);
 					if(this.parser.peek() == '(') {
-						var start = this.parser.index;
-						this.parser.skipEnclosedContent();
-						return this.parser.input.substring(start, this.parser.index);
+						return this.parser.skipEnclosedContent();
 					} else {
 						return this.parser.readVarName(true);
 					}
@@ -234,12 +239,12 @@ JavascriptParser.prototype.next = function(match){
 						this.parser.index++;
 						// spreading an observable
 						var name = getName.call(this);
-						var id = this.nextId();
+						var id = this.transpiler.nextId();
 						this.add(name + ".snapped(" + id + ")");
 						this.snaps.push(name + ".snap(" + id + ")");
 					} else {
 						// new observable
-						var parsed = this.parseCode(this.parser.readSingleExpression(true));
+						var parsed = this.transpiler.parseCode(this.parser.readSingleExpression(true));
 						if(parsed.observables && parsed.observables.length) {
 							// computed
 							this.add("Sactory.computedObservable(" + this.bind + ", " + parsed.toValue() + ")");
@@ -269,13 +274,13 @@ JavascriptParser.prototype.next = function(match){
  * @class
  * @since 0.15.0
  */
-function HTMLParser(data, attributes) {
-	TextParser.call(this, data, attributes);
+function HTMLParser(transpiler, parser, source, attributes) {
+	TextParser.call(this, transpiler, parser, source, attributes);
 }
 
 HTMLParser.prototype = Object.create(TextParser.prototype);
 
-var replaceEntities = Text.replaceEntities || (function(){
+HTMLParser.prototype.replaceText = Text.replaceEntities || (function(){
 	var converter;
 	return function(data){
 		if(!converter) converter = document.createElement("textarea");
@@ -284,16 +289,12 @@ var replaceEntities = Text.replaceEntities || (function(){
 	}
 })();
 
-HTMLParser.prototype.replaceText = function(text){
-	return replaceEntities(text);
-};
-
 /**
  * @class
  * @since 0.37.0
  */
-function ScriptParser(data, attributes) {
-	TextParser.call(this, data, attributes);
+function ScriptParser(transpiler, parser, source, attributes) {
+	TextParser.call(this, transpiler, parser, source, attributes);
 }
 
 ScriptParser.prototype = Object.create(TextParser.prototype);
@@ -306,8 +307,8 @@ ScriptParser.prototype.handle = function(){
  * @class
  * @since 0.15.0
  */
-function CSSParser(data, attributes) {
-	TextParser.call(this, data, attributes);
+function CSSParser(transpiler, parser, source, attributes) {
+	TextParser.call(this, transpiler, parser, source, attributes);
 }
 
 CSSParser.prototype = Object.create(TextParser.prototype);
@@ -316,8 +317,8 @@ CSSParser.prototype = Object.create(TextParser.prototype);
  * @class
  * @since 0.15.0
  */
-function CSSBParser(data, attributes) {
-	SourceParser.call(this, data, attributes);
+function CSSBParser(transpiler, parser, source, attributes) {
+	SourceParser.call(this, transpiler, parser, source, attributes);
 	this.observables = [];
 	this.snaps = [];
 	this.expr = [];
@@ -328,14 +329,14 @@ function CSSBParser(data, attributes) {
 CSSBParser.prototype = Object.create(SourceParser.prototype);
 
 CSSBParser.prototype.parseCodeImpl = function(source){
-	var parsed = this.parseCode(source, this.parser);
+	var parsed = this.transpiler.parseCode(source, this.parser);
 	if(parsed.observables) Array.prototype.push.apply(this.observables, parsed.observables);
 	if(parsed.snaps) Array.prototype.push.apply(this.snaps, parsed.snaps);
 	return parsed.source;
 };
 
 CSSBParser.prototype.addScope = function(selector){
-	var scope = "__" + this.nextId();
+	var scope = "__" + this.transpiler.nextId();
 	this.add("var " + scope + "=Sactory.select(" + this.scopes[this.scopes.length - 1] + "," + selector + ");");
 	this.scopes.push(scope);
 };
@@ -356,6 +357,7 @@ CSSBParser.prototype.start = function(){
 };
 
 CSSBParser.prototype.parse = function(handle, eof){
+	this.parser.parseTemplateLiteral = null;
 	this.skip();
 	var input = this.parser.input.substr(this.parser.index);
 	var length;
@@ -375,9 +377,7 @@ CSSBParser.prototype.parse = function(handle, eof){
 	if(start( "if") || start("else if") || start("for") || start("while")) {
 		skipStatement.call(this);
 		if(this.parser.peek() != '(') this.parser.error("Expected '(' after statement name (if/else if/for/while).");
-		var start = this.parser.index;
-		this.parser.skipEnclosedContent();
-		this.add(this.parseCodeImpl(this.parser.input.substring(start, this.parser.index)));
+		this.add(this.parseCodeImpl(this.parser.skipEnclosedContent()));
 		this.skip();
 		if(this.parser.peek() == '{') {
 			this.add(this.parser.read());
@@ -399,7 +399,7 @@ CSSBParser.prototype.parse = function(handle, eof){
 		this.add(CSSBParser.createExpr(this.parseCodeImpl(this.parser.find([';'], true, true).pre), this.nextId) + ';');
 	} else {
 		var parseCodeImpl = this.parseCodeImpl.bind(this);
-		var nextId = this.nextId;
+		var nextId = this.transpiler.nextId.bind(this.transpiler);
 		function value(e, computable) {
 			e = (function(){
 				// concat strings
@@ -415,7 +415,7 @@ CSSBParser.prototype.parse = function(handle, eof){
 			if(e.length) {
 				var ret = [];
 				e.forEach(function(v){
-					ret.push(v.string && stringify(v.value) || (!computable && parseCodeImpl(v.value) || CSSBParser.createExpr(parseCodeImpl(v.value), nextId)));
+					ret.push(v.string && stringify(v.value) || (!computable && parseCodeImpl(v.value) || CSSBParser.createExpr(parseCodeImpl(v.value), nextId())));
 				});
 				return ret.join('+');
 			} else {
@@ -509,8 +509,7 @@ CSSBParser.createExprImpl = function(expr, info){
 		if(parser.peek() == '(') {
 			info.computed += '(';
 			var start = parser.index + 1;
-			parser.skipEnclosedContent();
-			if(!CSSBParser.createExprImpl(parser.input.substring(start, parser.index - 1), info)) return false;
+			if(!CSSBParser.createExprImpl(parser.skipEnclosedContent().slice(1, -1), info)) return false;
 			info.computed += ')';
 		} else {
 			var v = parser.readSingleExpression(true);
@@ -531,8 +530,8 @@ CSSBParser.createExprImpl = function(expr, info){
 	return true;
 };
 
-CSSBParser.createExpr = function(expr, nextId){
-	var param = "__" + nextId();
+CSSBParser.createExpr = function(expr, id){
+	var param = "__" + id;
 	var info = {
 		param: param,
 		computed: "(function(" + param + "){return Sactory.computeUnit(" + param + ",",
@@ -585,8 +584,7 @@ Transpiler.prototype.nextId = function(){
  * @since 0.16.0
  */
 Transpiler.prototype.startMode = function(mode, attributes){
-	var currentParser = Transpiler.startMode(mode, this.parser, this.element, this.bind, this.anchor, this.nextId.bind(this), this.parseCode.bind(this), this.source, attributes);
-	this.parser.options = currentParser.options;
+	var currentParser = Transpiler.startMode(mode, this, this.parser, this.source, attributes);
 	this.currentMode = {
 		name: modeRegistry[mode].name,
 		parser: currentParser,
@@ -613,8 +611,16 @@ Transpiler.prototype.endMode = function(){
 Transpiler.prototype.parseCode = function(input, parentParser){
 	var parser = new Parser(input, (parentParser || this.parser).position);
 	var source = [];
-	var mode = Transpiler.startMode(defaultMode, parser, this.element, this.bind, this.anchor, this.nextId.bind(this), this.parseCode.bind(this), source);
-	parser.options = mode.options;
+	var mode = Transpiler.startMode(defaultMode, this, parser, source);
+	if(mode.observables) {
+		var $this = this;
+		parser.parseTemplateLiteral = function(expr){
+			var parsed = $this.parseCode(expr, parser);
+			Array.prototype.push.apply(mode.observables, parsed.observables);
+			Array.prototype.push.apply(mode.snaps, parsed.snaps);
+			return parsed.source;
+		};
+	}
 	mode.start();
 	while(parser.index < input.length) {
 		mode.parse(function(){ source.push('<'); }, function(){});
@@ -640,6 +646,21 @@ Transpiler.prototype.parseCode = function(input, parentParser){
 			}
 		}
 	};
+};
+
+/**
+ * @since 0.51.0
+ */
+Transpiler.prototype.parseTemplateLiteral = function(expr, parser){
+	return this.parseCode(expr, parser).source;
+};
+
+/**
+ * Sets the parser's template literal parser to @{link parseTemplateLiteral}.
+ * @since 0.51.0
+ */
+Transpiler.prototype.updateTemplateLiteralParser = function(){
+	this.parser.parseTemplateLiteral = this.parseTemplateLiteral.bind(this);
 };
 
 /**
@@ -698,6 +719,7 @@ Transpiler.prototype.open = function(){
 		var sattributes = ""; // variable name of the attributes passed using the spread syntax
 		var computed = false;
 		var selector, tagName;
+		this.updateTemplateLiteralParser();
 		if(selector = this.parser.readQueryExpr()) {
 			selector = this.parseCode(selector).source;
 			tagName = this.parser.peek() == '$' ? this.parser.readTagName(true) : "";
@@ -711,6 +733,7 @@ Transpiler.prototype.open = function(){
 		skip();
 		var next = false;
 		while(!this.parser.eof() && (next = this.parser.peek()) != '>' && next != '/') {
+			this.updateTemplateLiteralParser();
 			if(next == '.') {
 				this.parser.index++;
 				this.parser.expect('.');
@@ -734,6 +757,7 @@ Transpiler.prototype.open = function(){
 				if(this.parser.peek() == '=') {
 					this.parser.index++;
 					skip();
+					this.parser.parseTemplateLiteral = null;
 					var value = this.parser.readAttributeValue();
 					if(attr.attr.charAt(0) == '@' || attr.attr.charAt(0) == '+') {
 						value = this.wrapFunction(value, "event");
@@ -924,6 +948,7 @@ Transpiler.prototype.transpile = function(input, options){
 	var close = this.close.bind(this);
 
 	while(!this.parser.eof()) {
+		this.updateTemplateLiteralParser();
 		this.currentMode.parser.parse(open, close);
 	}
 	
