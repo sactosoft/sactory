@@ -9,13 +9,10 @@ window.addEventListener("load", function(){
 			value: **value,
 			checked: **checked
 		});
-		todos.update();
 	}
 
 	function remove(index) {
-		var list = *todos;
-		list.splice(index, 1);
-		*todos = list;
+		*todos.splice(index, 1);
 	}
 
 	function submit() {

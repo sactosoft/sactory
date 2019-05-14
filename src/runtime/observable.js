@@ -6,12 +6,20 @@ var Sactory = {};
  */
 function Observable(value) {
 	this.internal = {
-		value: value,
+		value: this.replace(value),
 		snaps: {},
 		count: 0,
 		subscriptions: {}
 	};
 }
+
+Observable.prototype.replace = function(value){
+	if(value && (value.constructor === Array || value.constructor === ObservableArray)) {
+		return new ObservableArray(this, value);
+	} else {
+		return value;
+	}
+};
 
 Observable.prototype.updateImpl = function(value, type){
 	var oldValue = this.internal.value;
@@ -25,7 +33,7 @@ Observable.prototype.updateImpl = function(value, type){
  * @since 0.42.0
  */
 Observable.prototype.update = function(value, type){
-	this.updateImpl(arguments.length ? value : this.internal.value, type);
+	this.updateImpl(arguments.length ? this.replace(value) : this.internal.value, type);
 };
 
 /**
@@ -58,7 +66,7 @@ Observable.prototype.subscribe = function(callback){
 };
 
 Observable.prototype.toJSON = function(){
-	return this.internal.value;
+	return this.internal.value && this.internal.value.toJSON ? this.internal.value.toJSON() : this.internal.value;
 };
 
 /**
@@ -69,9 +77,48 @@ Object.defineProperty(Observable.prototype, "value", {
 		return this.internal.value;
 	},
 	set: function(value){
-		this.updateImpl(value);
+		this.update(value);
 	}
 });
+
+/**
+ * @class
+ * @since 0.52.0
+ */
+function ObservableArray(observable, value) {
+	Array.call(this);
+	Array.prototype.push.apply(this, value);
+	Object.defineProperty(this, "observable", {
+		enumerable: false,
+		value: observable
+	});
+}
+
+ObservableArray.prototype = Object.create(Array.prototype);
+
+Object.defineProperty(ObservableArray.prototype, "length", {
+	configurable: false,
+	enumerable: false,
+	writable: true,
+	value: 0
+});
+
+["copyWithin", "fill", "pop", "push", "reverse", "shift", "sort", "splice", "unshift"].forEach(function(fun){
+	if(Array.prototype[fun]) {
+		Object.defineProperty(ObservableArray.prototype, fun, {
+			enumerable: false,
+			value: function(){
+				var ret = Array.prototype[fun].apply(this, arguments);
+				this.observable.update();
+				return ret;
+			}
+		});
+	}
+});
+
+ObservableArray.prototype.toJSON = function(){
+	return Array.apply(null, this);
+};
 
 /**
  * @since 0.40.0
@@ -131,21 +178,11 @@ Sactory.observe = function(value, callback){
  * @since 0.42.0
  */
 Sactory.unobserve = function(value){
-	if(value && value.observe && value.compute) {
+	if(Sactory.isContainerObservable(value)) {
 		return value.compute();
 	} else {
 		return value;
 	}
-};
-
-/**
- * @since 0.46.0
- */
-Sactory.computedOf = function(value){
-	if(Sactory.isOwnObservable(value)) return value.value;
-	else if(Sactory.isFunctionObservable(value)) return value();
-	else if(Sactory.isContainerObservable(value)) return value.compute();
-	else return null;
 };
 
 /**

@@ -197,19 +197,16 @@ JavascriptParser.prototype.next = function(match){
 	switch(match) {
 		case '@':
 			if(this.parser.peek() == '@') {
-				this.add('@');
-				this.parser.index++;
+				this.add(this.parser.read());
 			} else {
 				var skip = this.parser.skipImpl({strings: false});
 				if(this.parser.peek() == '=') {
 					this.add(this.element);
 					if(skip) this.add(skip);
 				} else {
-					this.add(this.element);
-					if(skip) this.add(skip);
 					var match = this.parser.input.substr(this.parser.index).match(/^(?:((\.?[a-zA-Z0-9_$]+)+)\s*=(?!=))/);
 					if(match) {
-						this.add(".__builder.");
+						this.add(this.element + skip + ".__builder.");
 						this.parser.index += match[0].length;
 						skip = this.parser.skipImpl({strings: false});
 						if(skip) this.add(skip);
@@ -218,6 +215,8 @@ JavascriptParser.prototype.next = function(match){
 						else if(match[1] == "visible") this.add("visible(" + expr + ", false, " + this.bind + ")");
 						else if(match[1] == "hidden") this.add("visible(" + expr + ", true, " + this.bind + ")");
 						else this.add("prop(\"" + match[1] + "\", " + expr + ", " + this.bind + ")");
+					} else {
+						this.add('@' + skip);
 					}
 				}
 			}
@@ -247,9 +246,9 @@ JavascriptParser.prototype.next = function(match){
 						var parsed = this.transpiler.parseCode(this.parser.readSingleExpression(true));
 						if(parsed.observables && parsed.observables.length) {
 							// computed
-							this.add("Sactory.computedObservable(" + this.bind + ", " + parsed.toValue() + ")");
+							this.add("__sa.computedObservable(" + this.bind + ", " + parsed.toValue() + ")");
 						} else {
-							this.add("Sactory.observable(" + parsed.source + ")");
+							this.add("__sa.observable(" + parsed.source + ")");
 						}
 					}
 				} else {
@@ -337,7 +336,7 @@ CSSBParser.prototype.parseCodeImpl = function(source){
 
 CSSBParser.prototype.addScope = function(selector){
 	var scope = "__" + this.transpiler.nextId();
-	this.add("var " + scope + "=Sactory.select(" + this.scopes[this.scopes.length - 1] + "," + selector + ");");
+	this.add("var " + scope + "=__sa.select(" + this.scopes[this.scopes.length - 1] + "," + selector + ");");
 	this.scopes.push(scope);
 };
 
@@ -351,9 +350,9 @@ CSSBParser.prototype.skip = function(){
 };
 
 CSSBParser.prototype.start = function(){
-	this.add("Sactory.compileAndBindStyle(function(){");
+	this.add("__sa.compileAndBindStyle(function(){");
 	this.add("var " + this.scopes[0] + "=[];");
-	if(this.scope) this.addScope("\".__sactory\" + " + this.element + ".__builder.runtimeId");
+	if(this.scope) this.addScope("\".__sa\" + " + this.element + ".__builder.runtimeId");
 };
 
 CSSBParser.prototype.parse = function(handle, eof){
@@ -479,7 +478,7 @@ CSSBParser.prototype.end = function(){
 };
 
 CSSBParser.prototype.finalize = function(){
-	if(this.scope) this.add(", function(){ this.parentNode.__builder.addClass(\"__sactory\" + this.__builder.runtimeId); }, function(){ this.parentNode.__builder.removeClass(\"__sactory\" + this.__builder.runtimeId); }");
+	if(this.scope) this.add(", function(){ this.parentNode.__builder.addClass(\"__sa\" + this.__builder.runtimeId); }, function(){ this.parentNode.__builder.removeClass(\"__sa\" + this.__builder.runtimeId); }");
 };
 
 CSSBParser.createExprImpl = function(expr, info){
@@ -516,7 +515,7 @@ CSSBParser.createExprImpl = function(expr, info){
 			if(/^[a-zA-Z_\$]/.exec(v)) {
 				// it's a variable
 				info.is = true;
-				info.computed += "Sactory.unit(" + info.param + "," + v + ")";
+				info.computed += "__sa.unit(" + info.param + "," + v + ")";
 			} else {
 				info.computed += v;
 			}
@@ -534,7 +533,7 @@ CSSBParser.createExpr = function(expr, id){
 	var param = "__" + id;
 	var info = {
 		param: param,
-		computed: "(function(" + param + "){return Sactory.computeUnit(" + param + ",",
+		computed: "(function(" + param + "){return __sa.computeUnit(" + param + ",",
 		is: false,
 		op: 0
 	};
@@ -544,7 +543,7 @@ CSSBParser.createExpr = function(expr, id){
 	while(true) {
 		var result = parser.find(['#'], false, true);
 		ret += result.pre;
-		if(result.match) ret += "Sactory.css.";
+		if(result.match) ret += "__sa.css.";
 		else break;
 	}
 	return ret;
@@ -700,7 +699,7 @@ Transpiler.prototype.open = function(){
 		this.parser.index++;
 		this.parser.expect('-');
 		this.parser.expect('-');
-		this.source.push("Sactory.comment(" + this.element + ", " + this.bind + ", " + this.anchor + ", " + stringify(this.parser.findSequence("-->", true)) + ");");
+		this.source.push("__sa.comment(" + this.element + ", " + this.bind + ", " + this.anchor + ", " + stringify(this.parser.findSequence("-->", true).slice(0, -3)) + ");");
 	} else if(this.currentMode.options.children === false) {
 		throw new Error("Mode " + this.currentMode.name + " cannot have children");
 	} else {
@@ -716,7 +715,7 @@ Transpiler.prototype.open = function(){
 		var parent = this.element; // element that the new element will be appended to, if not null
 		var iattributes = {}; // attributes used to give instructions to the transpiler, not used at runtime
 		var rattributes = []; // attributes used at runtime to modify the element
-		var sattributes = ""; // variable name of the attributes passed using the spread syntax
+		var sattributes = []; // variable name of the attributes passed using the spread syntax
 		var computed = false;
 		var selector, tagName;
 		this.updateTemplateLiteralParser();
@@ -738,7 +737,7 @@ Transpiler.prototype.open = function(){
 				this.parser.index++;
 				this.parser.expect('.');
 				this.parser.expect('.');
-				sattributes = this.parser.readSingleExpression(false);
+				sattributes.push(this.parser.readSingleExpression(false));
 			} else {
 				var attr = {
 					attr: undefined,
@@ -822,7 +821,7 @@ Transpiler.prototype.open = function(){
 		var currentInheritance = "";
 		var currentClosing = "";
 		function createExpr() {
-			var ret = "Sactory.";
+			var ret = "__sa.";
 			if(!append) ret += "updateElement(" + this.element + ", ";
 			else ret += "createElement(";
 			ret += (computed ? tagName : '"' + tagName + '"') + ", " + this.bind + ", " + this.anchor + ", [" + this.inheritance.join("");
@@ -835,7 +834,7 @@ Transpiler.prototype.open = function(){
 					ret += "{key:" + (attribute.computed ? attribute.attr : '"' + attribute.attr + '"') + ",value:" + attribute.value + "},";
 				}
 			});
-			return ret + "]" + (sattributes && ", " + sattributes) + ")";
+			return ret + "]" + sattributes.map(function(a){ return ", " + a; }).join("") + ")";
 		}
 		parser.index++;
 		if(parent == "\"\"") {
@@ -843,15 +842,15 @@ Transpiler.prototype.open = function(){
 			parent = "null";
 		}
 		if(selector) {
-			this.source.push("Sactory.query(this, " + selector + ", function(" + this.element + "){");
+			this.source.push("__sa.query(this, " + selector + ", function(" + this.element + "){");
 			currentClosing += "})";
 		}
 		if(next == '/') {
 			this.parser.expect('>');
 			if(create) {
 				if(append) {
-					var e = "Sactory.appendElement(" + parent + ", " + this.bind + ", " + this.anchor + ", " + createExpr.call(this) + ")";
-					if(iattributes.unique) e = "Sactory.unique(this, " + nextId() + ", function(){return " + e + "})";
+					var e = "__sa.appendElement(" + parent + ", " + this.bind + ", " + this.anchor + ", " + createExpr.call(this) + ")";
+					if(iattributes.unique) e = "__sa.unique(this, " + nextId() + ", function(){return " + e + "})";
 					this.source.push(e);
 				} else {
 					this.source.push(createExpr.call(this));
@@ -871,22 +870,22 @@ Transpiler.prototype.open = function(){
 			if(tagName == ":bind-if" || tagName == ":if") bindType = "If";
 			else if(tagName == ":bind-each" || tagName == ":each") bindType = "Each";
 			if(!computed && (bindType || tagName == ":bind")) {
-				this.source.push("Sactory.bind" + bindType + "(" + ["this", parent, this.bind, this.anchor, iattributes.to || "0", iattributes.change || "0", iattributes.cleanup || "0"].join(", ") + (bindType == "If" ? ", " + iattributes.condition : "") +
+				this.source.push("__sa.bind" + bindType + "(" + ["this", parent, this.bind, this.anchor, iattributes.to || "0", iattributes.change || "0", iattributes.cleanup || "0"].join(", ") + (bindType == "If" ? ", " + iattributes.condition : "") +
 					", function(" + [this.element, this.bind, this.anchor, iattributes.as || "__value", iattributes.index || "__index", iattributes.array || "__array"].join(", ") + "){");
 			} else if(create) {
 				if(append) {
-					var e = "Sactory.append(" + parent + ", " + this.bind + ", " + this.anchor + ", Sactory.call(this, " + expr + ", function(" + this.element + ", " + this.anchor + "){";
+					var e = "__sa.append(" + parent + ", " + this.bind + ", " + this.anchor + ", __sa.call(this, " + expr + ", function(" + this.element + ", " + this.anchor + "){";
 					currentClosing += ")";
 					if(iattributes.unique) {
-						e = "Sactory.unique(this, " + this.nextId() + ", function(){return " + e;
+						e = "__sa.unique(this, " + this.nextId() + ", function(){return " + e;
 						currentClosing += "})";
 					}
 					this.source.push(e);
 				} else {
-					this.source.push("Sactory.call(this, " + expr + ", function(" + this.element + "){");
+					this.source.push("__sa.call(this, " + expr + ", function(" + this.element + "){");
 				}
 			} else {
-				this.source.push("Sactory.callElement(this, " + parent + ", function(" + this.element + "){");
+				this.source.push("__sa.callElement(this, " + parent + ", function(" + this.element + "){");
 			}
 			this.inheritance.push(currentInheritance);
 			this.closing.push(currentClosing);
@@ -931,7 +930,8 @@ Transpiler.prototype.transpile = function(input, options){
 	
 	this.source = [
 		"/*! Transpiled" + (options.filename ? " from " + options.filename : "") + " using Sactory v" + (typeof Sactory != "undefined" ? Sactory.VERSION : version.version) + ". Do not edit manually. */",
-		"(function(Sactory, " + this.element + ", " + this.bind + ", " + this.anchor + "){"
+		"!function(a){if(typeof define=='function'&&define.amd){define(['sactory'], a)}else{a(Sactory)}}",
+		"(function(__sa, " + this.element + ", " + this.bind + ", " + this.anchor + "){"
 	];
 	
 	this.tags = [];
@@ -954,8 +954,8 @@ Transpiler.prototype.transpile = function(input, options){
 	
 	this.endMode().finalize();
 	
-	this.source.push("})(typeof global=='object'&&global.Sactory||typeof window=='object'&&window.Sactory||require('sactory'), " + (options.scope || 0) + ", 0, 0);");
-	
+	this.source.push("})");
+
 	//console.log(source.join(""));
 	
 	return {

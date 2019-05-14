@@ -101,7 +101,7 @@ Builder.prototype.text = function(value, bind, anchor){
 		var prev = insertBefore ? anchor.previousSibling : this.element.lastChild;
 		if(prev && prev.nodeType == Node.TEXT_NODE && !prev.observed) {
 			// append to previous text node instead of creating a new one
-			this.element.lastChild.textContent += value;
+			prev.textContent += value;
 			return;
 		}
 		textNode = document.createTextNode(value);

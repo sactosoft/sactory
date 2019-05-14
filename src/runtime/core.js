@@ -73,7 +73,7 @@ Sactory.createElement = function(str, bind, anchor, args, spread){
 /**
  * @since 0.29.0
  */
-Sactory.updateElement = function(element, str, bind, anchor, args, spread){
+Sactory.updateElement = function(element, str, bind, anchor, args){
 	
 	var split = str.split('$');
 	
@@ -94,13 +94,15 @@ Sactory.updateElement = function(element, str, bind, anchor, args, spread){
 		}
 	});
 
-	if(spread) {
-		for(var key in spread) {
-			args.push({
-				key: key,
-				value: spread[key]
-			});
-		}
+	if(arguments.length > 5) {
+		Array.prototype.slice.call(arguments, 5).forEach(function(spread){
+			for(var key in spread) {
+				args.push({
+					key: key,
+					value: spread[key]
+				});
+			}
+		});
 	}
 	
 	var namespace;
