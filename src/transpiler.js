@@ -234,28 +234,25 @@ JavascriptParser.prototype = Object.create(BreakpointParser.prototype);
 JavascriptParser.prototype.next = function(match){
 	switch(match) {
 		case '@':
-			if(this.parser.peek() == '@') {
-				this.add(this.parser.read());
+			var skip = this.parser.skipImpl({strings: false});
+			var peek = this.parser.peek();
+			if(peek === undefined || /[=,;\.\)\]\}]/.test(peek)) {
+				this.add(this.element);
+				if(skip) this.add(skip);
 			} else {
-				var skip = this.parser.skipImpl({strings: false});
-				if(/[=\)\]\}]/.test(this.parser.peek())) {
-					this.add(this.element);
+				var match = this.parser.input.substr(this.parser.index).match(/^(?:((\.?[a-zA-Z0-9_$]+)+)\s*=(?!=))/);
+				if(match) {
+					this.add(this.element + skip + ".__builder.");
+					this.parser.index += match[0].length;
+					skip = this.parser.skipImpl({strings: false});
 					if(skip) this.add(skip);
+					var expr = this.parseCodeToValue("readExpression");
+					if(match[1] == "text") this.add("text(" + expr + ", " + this.bind + ", " + this.anchor + ")");
+					else if(match[1] == "visible") this.add("visible(" + expr + ", false, " + this.bind + ")");
+					else if(match[1] == "hidden") this.add("visible(" + expr + ", true, " + this.bind + ")");
+					else this.add("prop(\"" + match[1] + "\", " + expr + ", " + this.bind + ")");
 				} else {
-					var match = this.parser.input.substr(this.parser.index).match(/^(?:((\.?[a-zA-Z0-9_$]+)+)\s*=(?!=))/);
-					if(match) {
-						this.add(this.element + skip + ".__builder.");
-						this.parser.index += match[0].length;
-						skip = this.parser.skipImpl({strings: false});
-						if(skip) this.add(skip);
-						var expr = this.parseCodeToValue("readExpression");
-						if(match[1] == "text") this.add("text(" + expr + ", " + this.bind + ", " + this.anchor + ")");
-						else if(match[1] == "visible") this.add("visible(" + expr + ", false, " + this.bind + ")");
-						else if(match[1] == "hidden") this.add("visible(" + expr + ", true, " + this.bind + ")");
-						else this.add("prop(\"" + match[1] + "\", " + expr + ", " + this.bind + ")");
-					} else {
-						this.add('@' + skip);
-					}
+					this.add('@' + skip);
 				}
 			}
 			break;
@@ -286,7 +283,8 @@ JavascriptParser.prototype.next = function(match){
 							// computed
 							this.add("__sa.computedObservable(" + this.bind + ", " + parsed.toValue() + ")");
 						} else {
-							this.add("__sa.observable(" + parsed.source + ")");
+							if(parsed.source.charAt(0) != '(') parsed.source = '(' + parsed.source + ')';
+							this.add("__sa.observable" + parsed.source);
 						}
 					}
 				} else {
@@ -866,6 +864,9 @@ Transpiler.prototype.open = function(){
 		var iattributes = {}; // attributes used to give instructions to the transpiler, not used at runtime
 		var rattributes = []; // attributes used at runtime to modify the element
 		var sattributes = []; // variable name of the attributes passed using the spread syntax
+		var currentNamespace = this.namespaces[this.namespaces.length - 1];
+		var currentInheritance = "";
+		var currentClosing = "";
 		var computed = false;
 		var selector, tagName, templates = [];
 		this.updateTemplateLiteralParser();
@@ -940,6 +941,7 @@ Transpiler.prototype.open = function(){
 			next = false;
 		}
 		if(!next) throw new Error("Tag was not closed"); //TODO throw error from the start of the tag
+		if(iattributes.namespace) currentNamespace = iattributes.namespace;
 		if(!computed) {
 			if(tagName.charAt(0) == ':') {
 				create = false;
@@ -969,6 +971,10 @@ Transpiler.prototype.open = function(){
 					if(this.templates.hasOwnProperty(t)) this.templates[t]++;
 					else this.templates[t] = 1;
 				}
+				if(!iattributes.namespace) {
+					if(tagName == "svg") currentNamespace = "svg";
+					else if(tagName == "math") currentNamespace = "mathml";
+				}
 			}
 		}
 		if(newMode === undefined) {
@@ -982,13 +988,16 @@ Transpiler.prototype.open = function(){
 		}
 		if(iattributes.head) parent = "document.head";
 		if(iattributes.body) parent = "document.body";
-		var currentInheritance = "";
-		var currentClosing = "";
 		function createExpr() {
 			var ret = "__sa.";
 			if(!append) ret += "updateElement(" + this.element + ", ";
 			else ret += "createElement(";
-			ret += (computed ? tagName : '"' + tagName + '"') + ", " + JSON.stringify(templates) + ", " + this.bind + ", " + this.anchor + ", [" + this.inheritance.join("");
+			ret += this.bind + ", " + this.anchor + ", " + (computed ? tagName : '"' + tagName + '"') + ", {";
+			if(currentNamespace) ret += "namespace:\"" + currentNamespace + "\",";
+			if(templates.length) ret += "templates:" + JSON.stringify(templates) + ",";
+			var inheritance = this.inheritance.join("");
+			var args = !!(inheritance || rattributes.length);
+			if(args) ret += "args:[";
 			rattributes.forEach(function(attribute){
 				if(!attribute.computed && attribute.attr.charAt(0) == '~') {
 					var expr = "{key:\"" + attribute.attr.substr(1) + "\",value:" + attribute.value + "},";
@@ -998,7 +1007,8 @@ Transpiler.prototype.open = function(){
 					ret += "{key:" + (attribute.computed ? attribute.attr : '"' + attribute.attr + '"') + ",value:" + attribute.value + "},";
 				}
 			});
-			return ret + "]" + sattributes.map(function(a){ return ", " + a; }).join("") + ")";
+			if(args) ret = ret.slice(0, -1) + "],";
+			return ret + "}" + sattributes.map(function(a){ return ", " + a; }).join("") + ")";
 		}
 		parser.index++;
 		if(parent == "\"\"") {
@@ -1051,6 +1061,7 @@ Transpiler.prototype.open = function(){
 			} else {
 				this.source.push("__sa.callElement(this, " + parent + ", function(" + this.element + "){");
 			}
+			this.namespaces.push(currentNamespace);
 			this.inheritance.push(currentInheritance);
 			this.closing.push(currentClosing);
 			if(newMode !== undefined) {
@@ -1070,6 +1081,7 @@ Transpiler.prototype.close = function(){
 	var closeCode = !this.parser.eof();
 	var closeMode = this.tags.pop();
 	var oldMode = closeMode && this.endMode();
+	this.namespaces.pop();
 	this.inheritance.pop();
 	if(closeCode) this.source.push("})");
 	if(oldMode) oldMode.finalize();
@@ -1105,6 +1117,7 @@ Transpiler.prototype.transpile = function(input, options){
 	this.source = [];
 	
 	this.tags = [];
+	this.namespaces = [];
 	this.inheritance = [];
 	this.closing = [];
 	this.modes = [];

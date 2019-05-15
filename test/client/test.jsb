@@ -90,13 +90,14 @@ window.addEventListener("load", function(){
 				}
 			}
 		</style>
-		var cookies = **(parseInt(localStorage && localStorage.getItem("cookies")) || 0);
-		function increment() {
-			localStorage ? localStorage.setItem("cookies", ++*cookies) : *cookies++;
-		}
-		<div class="cookie"><img src="http://icons.iconarchive.com/icons/oxygen-icons.org/oxygen/256/Apps-preferences-web-browser-cookies-icon.png" +click=increment /></div>
+		var cookies = **(0, "cookies");
+		<div class="cookie"><img src="http://icons.iconarchive.com/icons/oxygen-icons.org/oxygen/256/Apps-preferences-web-browser-cookies-icon.png" +click={ *cookies++ } /></div>
 		<p @text=`Clicked ${*cookies} cookies! (${*cookies - ***cookies} in this session)` />
 	</div>
+
+	<svg>
+		<rect x=0 y=0 width=5 height=5 />
+	</svg>
 
 	var langs = {
 		en: {
@@ -108,7 +109,7 @@ window.addEventListener("load", function(){
 			goodbye: "Arrivederci"
 		},
 		fur: {
-			welcome: "Benvignût",
+			welcome: "Benvignûts",
 			goodbye: "Ariviodisi"
 		}
 	}

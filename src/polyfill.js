@@ -24,4 +24,11 @@ Polyfill.padStart = String.prototype.padStart || function(target, string){
 	return ret;
 };
 
+Polyfill.assign = Object.assign || function(target, source){
+	for(var key in source) {
+		target[key] = source[key];
+	}
+	return target;
+};
+
 module.exports = Polyfill;

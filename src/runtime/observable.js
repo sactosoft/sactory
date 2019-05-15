@@ -83,6 +83,46 @@ Object.defineProperty(Observable.prototype, "value", {
 
 /**
  * @class
+ * @since 0.54.0
+ */
+function SavedObservable(defaultValue, storage) {
+	if(storage.get) {
+		var ret = storage.get(defaultValue);
+		Observable.call(this, this.handleReturn(ret) ? defaultValue : ret);
+	} else {
+		Observable.call(this, defaultValue);
+	}
+	this.internal.storage = storage;
+}
+
+SavedObservable.prototype = Object.create(Observable.prototype);
+
+if(typeof Promise == "function") {
+	SavedObservable.prototype.handleReturn = function(ret){
+		if(ret instanceof Promise) {
+			var $this = this;
+			ret.then(function(value){
+				// do not call this.updateImpl to avoid saving
+				Observable.prototype.updateImpl.call($this, value);
+			});
+			return true;
+		} else {
+			return false;
+		}
+	};
+} else {
+	SavedObservable.prototype.handleReturn = function(){
+		return false;
+	};
+}
+
+SavedObservable.prototype.updateImpl = function(value, type){
+	this.internal.storage.set(value);
+	Observable.prototype.updateImpl.call(this, value, type);
+};
+
+/**
+ * @class
  * @since 0.52.0
  */
 function ObservableArray(observable, value) {
@@ -118,6 +158,24 @@ Object.defineProperty(ObservableArray.prototype, "length", {
 
 ObservableArray.prototype.toJSON = function(){
 	return Array.apply(null, this);
+};
+
+/**
+ * @class
+ * @since 0.54.0
+ */
+function StorageObservableProvider(storage, key) {
+	this.storage = storage;
+	this.key = key;
+}
+
+StorageObservableProvider.prototype.get = function(defaultValue){
+	var item = this.storage.getItem(this.key);
+	return item === null ? defaultValue : JSON.parse(item);
+};
+
+StorageObservableProvider.prototype.set = function(value){
+	this.storage.setItem(this.key, JSON.stringify(value));
 };
 
 /**
@@ -188,7 +246,18 @@ Sactory.unobserve = function(value){
 /**
  * @since 0.41.0
  */
-Sactory.observable = function(value){
+Sactory.observable = function(value, storage, key){
+	if(arguments.length > 1) {
+		if(typeof storage == "object") {
+			return new SavedObservable(value, storage);
+		} else if(storage instanceof Storage) {
+			return new SavedObservable(value, new StorageObservableProvider(storage, key));
+		} else if(window.localStorage) {
+			return new SavedObservable(value, new StorageObservableProvider(window.localStorage, storage));
+		} else {
+			console.warn("window.localStorage is unavailable. '" + key + "' will not be stored.");
+		}
+	}
 	return new Observable(value);
 };
 

@@ -25,7 +25,7 @@ function make(filename, className, sources) {
 	))
 	.pipe(footer("\nreturn " + className + ";\n\n});"))
 	.pipe(gulp.dest("dist"))
-	.pipe(uglify({mangle: false}))
+	.pipe(uglify({mangle: true}))
 	.pipe(rename(filename + ".min.js"))
 	.pipe(gulp.dest("dist"));
 }

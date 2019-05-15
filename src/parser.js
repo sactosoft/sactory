@@ -404,6 +404,7 @@ Parser.prototype.readSingleExpression = function(skip){
 			break;
 		}
 	}
+	var peek = this.peek();
 	if((peek == '+' || peek == '-') && this.input.charAt(this.index + 1) == peek) ret += this.read() + this.read();
 	return ret;
 };
@@ -421,7 +422,7 @@ Parser.prototype.readExpression = function(){
 		ret += expr + this.skipImpl({strings: false});
 		while(!this.eof() && (expr = this.readImpl(/^(\*\*|&&?|\|\|?|\^|=>|==?=?|!==?|<<|>>>?|\?|:|[\+\-\*\/%<>]=?|in(stanceof)?\s)/, false))) {
 			ret += expr + this.skipImpl({strings: false});
-			if(!(expr = this.readSingleExpression(true))) this.error("Could not find a valid expression.");
+			if(!(expr = this.readSingleExpression(true)).trim()) this.error("Could not find a valid expression.");
 			ret += expr + this.skipImpl({strings: false});
 		}
 	}

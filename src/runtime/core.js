@@ -1,4 +1,4 @@
-var Util = require("../util");
+var Polyfill = require("../polyfill");
 
 var Sactory = {};
 
@@ -36,7 +36,6 @@ Sactory.defineTemplate = function(name, tagName, args, handler){
 		args: args || [],
 		handler: handler
 	};
-	console.log(definedTemplates[name]);
 };
 
 // init global functions used at runtime
@@ -52,7 +51,7 @@ Sactory.check = function(major, minor, patch){
 
 /**
  */
-Sactory.createElement = function(tagName, templateNames, bind, anchor, args){
+Sactory.createElement = function(bind, anchor, tagName, options){
 	var a = Array.prototype.slice.call(arguments, 0);
 	a.unshift(null);
 	return Sactory.updateElement.apply(null, a);
@@ -61,56 +60,55 @@ Sactory.createElement = function(tagName, templateNames, bind, anchor, args){
 /**
  * @since 0.29.0
  */
-Sactory.updateElement = function(element, tagName, templateNames, bind, anchor, args){
-
-	var templates = [];
-	
-	templateNames.forEach(function(templateName){
-		var optional = templateName.charAt(0) == '?';
-		if(optional) templateName = templateName.substr(1);
-		var template = definedTemplates[templateName];
-		if(template) {
-			templates.push(template);
-			if(!tagName) tagName = template.tagName;
-			else if(template.forced && tagName) throw new Error("Template '" + templateName + "' forces the tag name but the tag name it's already set.");
-		} else if(!optional) {
-			throw new Error("Template '" + templateName + "' could not be found.")
-		}
-	});
-
-	if(arguments.length > 6) {
-		Array.prototype.slice.call(arguments, 6).forEach(function(spread){
-			for(var key in spread) {
-				args.push({
-					key: key,
-					value: spread[key]
-				});
-			}
-		});
-	}
+Sactory.updateElement = function(element, bind, anchor, tagName, options){
 	
 	var namespace;
 	var elementArgs = {};
 	var templateArgs = {};
-	args.forEach(function(arg){
-		var remove = false;
-		if(arg.key == "namespace") {
-			namespace = arg.value;
-		} else if(arg.key.charAt(0) == '$') {
-			var key = arg.key.substr(1);
-			if(key == "arguments") {
-				templateArgs = Object.assign(templateArgs, arg.value);
+	if(options.args) {
+		options.args.forEach(function(arg){
+			var remove = false;
+			if(arg.key == "namespace") {
+				namespace = arg.value;
+			} else if(arg.key.charAt(0) == '$') {
+				var key = arg.key.substr(1);
+				if(key == "arguments") {
+					Polyfill.assign(templateArgs, arg.value);
+				} else {
+					templateArgs[key] = arg.value;
+				}
 			} else {
-				templateArgs[key] = arg.value;
+				elementArgs[arg.key] = arg.value;
 			}
-		} else {
-			elementArgs[arg.key] = arg.value;
-		}
-	});
+		});
+	}
+
+	var templates = [];
+	
+	if(options.templates) {
+		options.templates.forEach(function(templateName){
+			var optional = templateName.charAt(0) == '?';
+			if(optional) templateName = templateName.substr(1);
+			var template = definedTemplates[templateName];
+			if(template) {
+				templates.push(template);
+				if(!tagName) tagName = template.tagName;
+				else if(template.forced && tagName) throw new Error("Template '" + templateName + "' forces the tag name but the tag name it's already set.");
+			} else if(!optional) {
+				throw new Error("Template '" + templateName + "' could not be found.")
+			}
+		});
+	}
+
+	if(arguments.length > 5) {
+		Array.prototype.slice.call(arguments, 5).forEach(function(spread){
+			Polyfill.assign(elementArgs, spread);
+		});
+	}
 	
 	if(!element) {
-		if(namespace) {
-			element = document.createElementNS(NAMESPACES[namespace] || namespace, tagName);
+		if(options.namespace) {
+			element = document.createElementNS(NAMESPACES[options.namespace] || options.namespace, tagName);
 		} else {
 			element = document.createElement(tagName);
 		}
