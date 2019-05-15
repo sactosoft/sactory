@@ -349,115 +349,137 @@ function CSSParser(transpiler, parser, source, attributes) {
 CSSParser.prototype = Object.create(TextParser.prototype);
 
 /**
+ * @param {class} ParentParser - A class that extends TextParser.
+ * @since 0.55.0
+ */
+function createLogicParser(ParentParser) {
+
+	/**
+	 * @class
+	 * @since 0.53.0
+	 */
+	function LogicParser(transpiler, parser, source, attributes) {
+		ParentParser.call(this, transpiler, parser, source, attributes);
+		this.count = 0;
+		this.statements = [];
+		this.popped = [];
+	}
+
+	LogicParser.prototype = Object.create(ParentParser.prototype);
+
+	LogicParser.prototype.getLineText = function(){
+		var index = this.currentText.lastIndexOf('\n');
+		if(index > 0) return this.currentText.substr(index);
+		else return this.currentText;
+	};
+
+	LogicParser.prototype.parseLogic = function(expected, args){
+		var line;
+		if(
+			this.parser.input.substr(this.parser.index, expected.length - 1) == expected.substr(1) && // when the expected keyword is found
+			!/\S/.test(line = this.getLineText()) && // when is start of line
+			!/[a-zA-Z0-9_$]/.test(this.parser.input.charAt(this.parser.index + expected.length - 1)) // when is an exact keyword
+		) {
+			this.parser.index += expected.length - 1;
+			this.currentText = Polyfill.trimEnd.call(this.currentText);
+			this.addCurrentText();
+			this.add(line);
+			var statement = Polyfill.startsWith.call(expected, "else") ? this.popped.pop() : {
+				startIndex: this.source.length,
+				observables: []
+			};
+			if(args) {
+				var skipped = this.parser.skip();
+				if(this.parser.peek() != '(') this.parser.error("Expected '(' after '" + expected + "'.");
+				var parsed = this.transpiler.parseCode(this.parser.skipEnclosedContent(), this.parser);
+				Array.prototype.push.apply(statement.observables, parsed.observables);
+				this.add(expected + skipped + parsed.source);
+			} else {
+				this.add(expected);
+			}
+			var skipped = this.parser.skip();
+			if(this.parser.peek() != '{') this.parser.error("Expected '{' after '" + expected + "' declaration.");
+			this.add(skipped + this.parser.read());
+			this.statements.push(statement);
+			return true;
+		} else {
+			if(line && line.slice(-1) == '\\') this.currentText = this.currentText.slice(0, -1);
+			return false;
+		}
+	};
+
+	LogicParser.prototype.parse = function(handle, eof){
+		var result = this.parser.find(['$', '<', 'i', 'e', 'f', 'w', '}'], false, false);
+		this.currentText += result.pre;
+		switch(result.match) {
+			case 'i':
+				if(!this.parseLogic("if", true)) this.currentText += 'i';
+				break;
+			case 'e':
+				if(!this.parseLogic("else if", true) && !this.parseLogic("else", false)) this.currentText += 'e';
+				break;
+			case 'f':
+				if(!this.parseLogic("for", true)) this.currentText += 'f';
+				break;
+			case 'w':
+				if(!this.parseLogic("while", true)) this.currentText += 'w';
+				break;
+			case '}':
+				if(this.currentText.slice(-1) == '\\') {
+					this.currentText = this.currentText.slice(0, -1) + '}';
+				} else if(this.statements.length) {
+					var line = this.getLineText();
+					this.currentText = Polyfill.trimEnd.call(this.currentText);
+					this.addCurrentText();
+					this.add(line + '}');
+					var statement = this.statements.pop();
+					statement.endIndex = this.source.length;
+					this.popped.push(statement);
+				} else {
+					this.currentText += '}';
+				}
+				break;
+			default:
+				this.parseImpl(result.pre, result.match, handle, eof);
+		}
+	};
+
+	LogicParser.prototype.end = function(){
+		var sorted = [];
+		this.popped.forEach(function(popped){
+			if(popped.observables) {
+				sorted.push(
+					{index: popped.startIndex, start: true, observables: popped.observables},
+					{index: popped.endIndex, start: false}
+				);
+			}
+		});
+		sorted.sort(function(a, b){
+			return a.index - b.index;
+		});
+		var shift = 0;
+		for(var i=0; i<sorted.length; i++) {
+			var popped = sorted[i];
+			this.source.splice(popped.index + shift++, 0, popped.start ? "__sa.bind(this, " + this.element + ", " + this.bind + ", " + this.anchor +
+				", [" + uniq(popped.observables).join(", ") + "], 0, 0, function(" + this.element + ", " + this.bind + ", " + this.anchor + "){" : "});");
+		}
+	};
+
+	return LogicParser;
+
+}
+
+/**
  * @class
  * @since 0.53.0
  */
-function HTMLLogicParser(transpiler, parser, source, attributes) {
-	HTMLParser.call(this, transpiler, parser, source, attributes);
-	this.count = 0;
-	this.statements = [];
-	this.popped = [];
-}
+var HTMLLogicParser = createLogicParser(HTMLParser);
 
-HTMLLogicParser.prototype = Object.create(HTMLParser.prototype);
-
-HTMLLogicParser.prototype.getLineText = function(){
-	var index = this.currentText.lastIndexOf('\n');
-	if(index > 0) return this.currentText.substr(index);
-	else return this.currentText;
-};
-
-HTMLLogicParser.prototype.parseLogic = function(expected, args){
-	var line;
-	if(
-		this.parser.input.substr(this.parser.index, expected.length - 1) == expected.substr(1) && // when the expected keyword is found
-		!/\S/.test(line = this.getLineText()) && // when is start of line
-		!/[a-zA-Z0-9_$]/.test(this.parser.input.charAt(this.parser.index + expected.length - 1)) // when is an exact keyword
-	) {
-		this.parser.index += expected.length - 1;
-		this.currentText = Polyfill.trimEnd.call(this.currentText);
-		this.addCurrentText();
-		this.add(line);
-		var statement = Polyfill.startsWith.call(expected, "else") ? this.popped.pop() : {
-			startIndex: this.source.length,
-			observables: []
-		};
-		if(args) {
-			var skipped = this.parser.skip();
-			if(this.parser.peek() != '(') this.parser.error("Expected '(' after '" + expected + "'.");
-			var parsed = this.transpiler.parseCode(this.parser.skipEnclosedContent(), this.parser);
-			Array.prototype.push.apply(statement.observables, parsed.observables);
-			this.add(expected + skipped + parsed.source);
-		} else {
-			this.add(expected);
-		}
-		var skipped = this.parser.skip();
-		if(this.parser.peek() != '{') this.parser.error("Expected '{' after '" + expected + "' declaration.");
-		this.add(skipped + this.parser.read());
-		this.statements.push(statement);
-		return true;
-	} else {
-		if(line && line.slice(-1) == '\\') this.currentText = this.currentText.slice(0, -1);
-		return false;
-	}
-};
-
-HTMLLogicParser.prototype.parse = function(handle, eof){
-	var result = this.parser.find(['$', '<', 'i', 'e', 'f', 'w', '}'], false, false);
-	this.currentText += result.pre;
-	switch(result.match) {
-		case 'i':
-			if(!this.parseLogic("if", true)) this.currentText += 'i';
-			break;
-		case 'e':
-			if(!this.parseLogic("else if", true) && !this.parseLogic("else", false)) this.currentText += 'e';
-			break;
-		case 'f':
-			if(!this.parseLogic("for", true)) this.currentText += 'f';
-			break;
-		case 'w':
-			if(!this.parseLogic("while", true)) this.currentText += 'w';
-			break;
-		case '}':
-			if(this.currentText.slice(-1) == '\\') {
-				this.currentText = this.currentText.slice(0, -1) + '}';
-			} else if(this.statements.length) {
-				var line = this.getLineText();
-				this.currentText = Polyfill.trimEnd.call(this.currentText);
-				this.addCurrentText();
-				this.add(line + '}');
-				var statement = this.statements.pop();
-				statement.endIndex = this.source.length;
-				this.popped.push(statement);
-			} else {
-				this.currentText += '}';
-			}
-			break;
-		default:
-			this.parseImpl(result.pre, result.match, handle, eof);
-	}
-};
-
-HTMLLogicParser.prototype.end = function(){
-	var sorted = [];
-	this.popped.forEach(function(popped){
-		if(popped.observables) {
-			sorted.push(
-				{index: popped.startIndex, start: true, observables: popped.observables},
-				{index: popped.endIndex, start: false}
-			);
-		}
-	});
-	sorted.sort(function(a, b){
-		return a.index - b.index;
-	});
-	var shift = 0;
-	for(var i=0; i<sorted.length; i++) {
-		var popped = sorted[i];
-		this.source.splice(popped.index + shift++, 0, popped.start ? "__sa.bind(this, " + this.element + ", " + this.bind + ", " + this.anchor +
-			", [" + uniq(popped.observables).join(", ") + "], 0, 0, function(" + this.element + ", " + this.bind + ", " + this.anchor + "){" : "});");
-	}
-};
+/**
+ * @class
+ * @since 0.55.0
+ */
+var CSSLogicParser = createLogicParser(CSSParser);
 
 /**
  * @class
@@ -705,8 +727,10 @@ Transpiler.Internal = {
 	TextParser: TextParser,
 	JavascriptParser: JavascriptParser,
 	HTMLParser: HTMLParser,
+	HTMLLogicParser: HTMLLogicParser,
 	SourceParser: SourceParser,
 	CSSParser: CSSParser,
+	CSSLogicParser: CSSLogicParser,
 	CSSBParser: CSSBParser
 };
 
@@ -718,6 +742,8 @@ Transpiler.defineMode(["text"], HTMLParser, {comments: false, strings: false, ch
 Transpiler.defineMode(["script"], ScriptParser, {comments: false, strings: false, children: false, tags: ["script"]});
 Transpiler.defineMode(["css"], CSSParser, {inlineComments: false, strings: false, children: false});
 Transpiler.defineMode(["html:logic", "hl"], HTMLLogicParser, {comments: false, strings: false});
+Transpiler.defineMode(["text:logic", "tl"], HTMLLogicParser, {comments: false, strings: false, children: false});
+Transpiler.defineMode(["css:logic", "cl"], CSSLogicParser, {inlineComments: false, strings: false, children: false});
 Transpiler.defineMode(["cssb", "style"], CSSBParser, {strings: false, children: false, tags: ["style"]});
 
 /**
