@@ -86,9 +86,9 @@ Sactory.bind = function(context, element, bind, anchor, target, change, cleanup,
 	var currentBind = (bind || Sactory.bindFactory).fork();
 	var currentAnchor = null;
 	var oldValue;
-	function subscribe(subscriptions) {
+	var subscribe = !bind ? function(){} : function(subscriptions) {
 		if(bind) bind.subscribe(subscriptions);
-	}
+	};
 	function record(value) {
 		fun.call(context, element, currentBind, currentAnchor, oldValue = value);
 	}

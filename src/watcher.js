@@ -49,7 +49,7 @@ var Watcher = {
 							var destFilename = dest + filename.substring(0, filename.length - 1);
 							var destFolder = destFilename.substring(0, destFilename.lastIndexOf('/'));
 							function save() {
-								fs.writeFile(destFilename, conv.source, function(error){
+								fs.writeFile(destFilename, conv.source.all, function(error){
 									if(error) {
 										console.error(error);
 									} else {

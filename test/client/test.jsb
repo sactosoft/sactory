@@ -1,10 +1,13 @@
 window.addEventListener("load", function(){
+
 	// query selector from variable
 	@ = document.body;
+
+	// observable creation
+	var tagName = **"div";
+
 	<!-- start -->
 	<{document.body} class="body">
-		// observable creation
-		var tagName = **"div";
 		// two-way binding for observable
 		<input *value=*tagName />
 		// bind omitting :to (it's taken from :condition)
@@ -114,5 +117,26 @@ window.addEventListener("load", function(){
 	var lang = **(langs[*langValue] || langs.en);
 
 	<p #html>Language is set to <input style="width:32px" *value=*langValue />, ${*lang.welcome}! ${*lang.goodbye}.</p>
+
+	var test = **true;
+
+	<input type="checkbox" *checked=*test />
+
+	<#hl>
+		Some text
+		<p>Some tag</p>
+		if(*test) {
+			if(*tagName == "div"){
+				<span>Only if true and *tagName == "div"</span>
+			}
+		} else if(*o == 'o') {
+			<span>Variable 'o' is lowercase</span>
+		} else {
+			<span>Only if false</span>
+		}
+		for(var i=1; i<=6; i++) {
+			<['h' + i]>The big brown fox jumps over the lazy dog</>
+		}
+	</#hl>
 
 });

@@ -39,10 +39,10 @@ var defaultMode;
 /**
  * @since 0.15.0
  */
-Transpiler.registerMode = function(displayName, names, parser, options){
+Transpiler.defineMode = function(names, parser, options){
 	var id = modeRegistry.length;
 	modeRegistry.push({
-		name: displayName,
+		name: names[0],
 		parser: parser,
 		options: options
 	});
@@ -51,6 +51,35 @@ Transpiler.registerMode = function(displayName, names, parser, options){
 	});
 	if(options.isDefault) defaultMode = id;
 	return id;
+};
+
+/**
+ * @since 0.53.0
+ */
+Transpiler.getModeByName = function(name){
+	return modeNames[name];
+};
+
+/**
+ * @since 0.53.0
+ */
+Transpiler.replaceMode = function(mode, parser, options){
+	modeRegistry[mode].parser = parser;
+	if(options) modeRegistry[mode].options = options;
+};
+
+/**
+ * @since 0.53.0
+ */
+Transpiler.getModeParser = function(mode){
+	return (modeRegistry[mode] || {}).parser;
+};
+
+/**
+ * @since 0.53.0
+ */
+Transpiler.getModeOptions = function(mode){
+	return (modeRegistry[mode] || {}).options;
 };
 
 /**
@@ -78,6 +107,11 @@ function SourceParser(transpiler, parser, source, attributes) {
 
 SourceParser.prototype.add = function(text){
 	this.source.push(text);
+};
+
+SourceParser.prototype.parseCodeToSource = function(fun){
+	var expr = Parser.prototype[fun].apply(this.parser, Array.prototype.slice.call(arguments, 1));
+	return this.transpiler.parseCode(expr, this.parser).source;
 };
 
 SourceParser.prototype.parseCodeToValue = function(fun){
@@ -155,12 +189,10 @@ TextParser.prototype.handle = function(){
 	return true;
 };
 
-TextParser.prototype.parse = function(handle, eof){
-	var result = this.parser.find(['<', '$']);
-	this.currentText += result.pre;
-	switch(result.match) {
+TextParser.prototype.parseImpl = function(pre, match, handle, eof){
+	switch(match) {
 		case '$':
-			if(result.pre.slice(-1) == '\\') {
+			if(pre.slice(-1) == '\\') {
 				this.currentText = this.currentText.slice(0, -1) + '$';
 				break;
 			}
@@ -179,6 +211,12 @@ TextParser.prototype.parse = function(handle, eof){
 			this.addCurrentText();
 			eof();
 	}
+};
+
+TextParser.prototype.parse = function(handle, eof){
+	var result = this.parser.find(['<', '$'], false, false);
+	this.currentText += result.pre;
+	this.parseImpl(result.pre, result.match, handle, eof);
 };
 
 /**
@@ -200,7 +238,7 @@ JavascriptParser.prototype.next = function(match){
 				this.add(this.parser.read());
 			} else {
 				var skip = this.parser.skipImpl({strings: false});
-				if(this.parser.peek() == '=') {
+				if(/[=\)\]\}]/.test(this.parser.peek())) {
 					this.add(this.element);
 					if(skip) this.add(skip);
 				} else {
@@ -311,6 +349,117 @@ function CSSParser(transpiler, parser, source, attributes) {
 }
 
 CSSParser.prototype = Object.create(TextParser.prototype);
+
+/**
+ * @class
+ * @since 0.53.0
+ */
+function HTMLLogicParser(transpiler, parser, source, attributes) {
+	HTMLParser.call(this, transpiler, parser, source, attributes);
+	this.count = 0;
+	this.statements = [];
+	this.popped = [];
+}
+
+HTMLLogicParser.prototype = Object.create(HTMLParser.prototype);
+
+HTMLLogicParser.prototype.getLineText = function(){
+	var index = this.currentText.lastIndexOf('\n');
+	if(index > 0) return this.currentText.substr(index);
+	else return this.currentText;
+};
+
+HTMLLogicParser.prototype.parseLogic = function(expected, args){
+	var line;
+	if(
+		this.parser.input.substr(this.parser.index, expected.length - 1) == expected.substr(1) && // when the expected keyword is found
+		!/\S/.test(line = this.getLineText()) && // when is start of line
+		!/[a-zA-Z0-9_$]/.test(this.parser.input.charAt(this.parser.index + expected.length - 1)) // when is an exact keyword
+	) {
+		this.parser.index += expected.length - 1;
+		this.currentText = Polyfill.trimEnd.call(this.currentText);
+		this.addCurrentText();
+		this.add(line);
+		var statement = Polyfill.startsWith.call(expected, "else") ? this.popped.pop() : {
+			startIndex: this.source.length,
+			observables: []
+		};
+		if(args) {
+			var skipped = this.parser.skip();
+			if(this.parser.peek() != '(') this.parser.error("Expected '(' after '" + expected + "'.");
+			var parsed = this.transpiler.parseCode(this.parser.skipEnclosedContent(), this.parser);
+			Array.prototype.push.apply(statement.observables, parsed.observables);
+			this.add(expected + skipped + parsed.source);
+		} else {
+			this.add(expected);
+		}
+		var skipped = this.parser.skip();
+		if(this.parser.peek() != '{') this.parser.error("Expected '{' after '" + expected + "' declaration.");
+		this.add(skipped + this.parser.read());
+		this.statements.push(statement);
+		return true;
+	} else {
+		if(line && line.slice(-1) == '\\') this.currentText = this.currentText.slice(0, -1);
+		return false;
+	}
+};
+
+HTMLLogicParser.prototype.parse = function(handle, eof){
+	var result = this.parser.find(['$', '<', 'i', 'e', 'f', 'w', '}'], false, false);
+	this.currentText += result.pre;
+	switch(result.match) {
+		case 'i':
+			if(!this.parseLogic("if", true)) this.currentText += 'i';
+			break;
+		case 'e':
+			if(!this.parseLogic("else if", true) && !this.parseLogic("else", false)) this.currentText += 'e';
+			break;
+		case 'f':
+			if(!this.parseLogic("for", true)) this.currentText += 'f';
+			break;
+		case 'w':
+			if(!this.parseLogic("while", true)) this.currentText += 'w';
+			break;
+		case '}':
+			if(this.currentText.slice(-1) == '\\') {
+				this.currentText = this.currentText.slice(0, -1) + '}';
+			} else if(this.statements.length) {
+				var line = this.getLineText();
+				this.currentText = Polyfill.trimEnd.call(this.currentText);
+				this.addCurrentText();
+				this.add(line + '}');
+				var statement = this.statements.pop();
+				statement.endIndex = this.source.length;
+				this.popped.push(statement);
+			} else {
+				this.currentText += '}';
+			}
+			break;
+		default:
+			this.parseImpl(result.pre, result.match, handle, eof);
+	}
+};
+
+HTMLLogicParser.prototype.end = function(){
+	var sorted = [];
+	this.popped.forEach(function(popped){
+		if(popped.observables) {
+			sorted.push(
+				{index: popped.startIndex, start: true, observables: popped.observables},
+				{index: popped.endIndex, start: false}
+			);
+		}
+	});
+	sorted.sort(function(a, b){
+		return a.index - b.index;
+	});
+	var shift = 0;
+	for(var i=0; i<sorted.length; i++) {
+		var popped = sorted[i];
+		this.source.splice(popped.index + shift++, 0, popped.start ? "__sa.bind(this, " + this.element + ", " + this.bind + ", " + this.anchor +
+			", [" + uniq(popped.observables).join(", ") + "], 0, 0, function(" + this.element + ", " + this.bind + ", " + this.anchor + "){" : "});");
+	}
+};
 
 /**
  * @class
@@ -488,7 +637,7 @@ CSSBParser.createExprImpl = function(expr, info){
 		if(skipped) info.computed += skipped;
 	}
 	function readSign() {
-		var result = parser.readImpl(/^((\+\+?)|(\-\-?))/, false);
+		var result = parser.readImpl(/^(\+\+?|\-\-?)/, false);
 		if(result) {
 			info.computed += result;
 			info.op++;
@@ -565,12 +714,13 @@ Transpiler.Internal = {
 
 // register default modes
 
-Transpiler.registerMode("Code", ["code", "javascript", "js"], JavascriptParser, {isDefault: true, code: true, regexp: true});
-Transpiler.registerMode("HTML", ["html"], HTMLParser, {comments: false, strings: false});
-Transpiler.registerMode("Text", ["text"], HTMLParser, {comments: false, strings: false, children: false});
-Transpiler.registerMode("Script", ["script"], ScriptParser, {comments: false, strings: false, children: false, tags: ["script"]});
-Transpiler.registerMode("CSS", ["css"], CSSParser, {inlineComments: false, strings: false, children: false});
-Transpiler.registerMode("CSSB", ["cssb", "style", "fcss"], CSSBParser, {strings: false, children: false, tags: ["style"]});
+Transpiler.defineMode(["code", "javascript", "js"], JavascriptParser, {isDefault: true, code: true, regexp: true});
+Transpiler.defineMode(["html"], HTMLParser, {comments: false, strings: false});
+Transpiler.defineMode(["text"], HTMLParser, {comments: false, strings: false, children: false});
+Transpiler.defineMode(["script"], ScriptParser, {comments: false, strings: false, children: false, tags: ["script"]});
+Transpiler.defineMode(["css"], CSSParser, {inlineComments: false, strings: false, children: false});
+Transpiler.defineMode(["html:logic", "hl"], HTMLLogicParser, {comments: false, strings: false});
+Transpiler.defineMode(["cssb", "style"], CSSBParser, {strings: false, children: false, tags: ["style"]});
 
 /**
  * @since 0.49.0
@@ -717,7 +867,7 @@ Transpiler.prototype.open = function(){
 		var rattributes = []; // attributes used at runtime to modify the element
 		var sattributes = []; // variable name of the attributes passed using the spread syntax
 		var computed = false;
-		var selector, tagName;
+		var selector, tagName, templates = [];
 		this.updateTemplateLiteralParser();
 		if(selector = this.parser.readQueryExpr()) {
 			selector = this.parseCode(selector).source;
@@ -728,6 +878,10 @@ Transpiler.prototype.open = function(){
 			computed = true;
 		} else {
 			tagName = this.parser.readTagName(true);
+		}
+		if(!computed) {
+			templates = tagName.split('$');
+			tagName = templates.shift();
 		}
 		skip();
 		var next = false;
@@ -805,6 +959,16 @@ Transpiler.prototype.open = function(){
 			} else if(tagName.charAt(0) == '@') {
 				append = false;
 				tagName = tagName.substr(1);
+			} else {
+				if(tagName) {
+					if(this.tagNames.hasOwnProperty(tagName)) this.tagNames[tagName]++;
+					else this.tagNames[tagName] = 1;
+				}
+				for(var i=0; i<templates.length; i++) {
+					var t = templates[i];
+					if(this.templates.hasOwnProperty(t)) this.templates[t]++;
+					else this.templates[t] = 1;
+				}
 			}
 		}
 		if(newMode === undefined) {
@@ -824,7 +988,7 @@ Transpiler.prototype.open = function(){
 			var ret = "__sa.";
 			if(!append) ret += "updateElement(" + this.element + ", ";
 			else ret += "createElement(";
-			ret += (computed ? tagName : '"' + tagName + '"') + ", " + this.bind + ", " + this.anchor + ", [" + this.inheritance.join("");
+			ret += (computed ? tagName : '"' + tagName + '"') + ", " + JSON.stringify(templates) + ", " + this.bind + ", " + this.anchor + ", [" + this.inheritance.join("");
 			rattributes.forEach(function(attribute){
 				if(!attribute.computed && attribute.attr.charAt(0) == '~') {
 					var expr = "{key:\"" + attribute.attr.substr(1) + "\",value:" + attribute.value + "},";
@@ -923,24 +1087,28 @@ Transpiler.prototype.transpile = function(input, options){
 	var start = performance.now();
 	
 	this.parser = new Parser(input);
+
+	this.count = hash(options.namespace + "") % 100000;
 	
-	this.element = "__e1";
+	this.element = "__el" + this.count % 10;
 	this.bind = "__bind";
 	this.anchor = "__anchor";
+
+	this.tagNames = {};
+	this.templates = {};
 	
-	this.source = [
-		"/*! Transpiled" + (options.filename ? " from " + options.filename : "") + " using Sactory v" + (typeof Sactory != "undefined" ? Sactory.VERSION : version.version) + ". Do not edit manually. */",
-		"!function(a){if(typeof define=='function'&&define.amd){define(['sactory'], a)}else{a(Sactory)}}",
-		"(function(__sa, " + this.element + ", " + this.bind + ", " + this.anchor + "){"
-	];
+	this.before =
+		"/*! Transpiled" + (options.filename ? " from " + options.filename : "") + " using Sactory v" +
+		(typeof Sactory != "undefined" ? Sactory.VERSION : version.version) + ". Do not edit manually. */" +
+		"!function(a){if(typeof define=='function'&&define.amd){define(['sactory'], a)}else{a(Sactory)}}" +
+		"(function(__sa, " + this.element + ", " + this.bind + ", " + this.anchor + "){";
+	this.source = [];
 	
 	this.tags = [];
 	this.inheritance = [];
 	this.closing = [];
 	this.modes = [];
 	this.currentMode;
-
-	this.count = hash(options.namespace + "") % 100000;
 	
 	this.startMode(defaultMode, {}).start();
 	
@@ -954,16 +1122,21 @@ Transpiler.prototype.transpile = function(input, options){
 	
 	this.endMode().finalize();
 	
-	this.source.push("})");
+	this.after = "})";
 
-	//console.log(source.join(""));
+	var source = this.source.join("");
 	
 	return {
 		time: performance.now() - start,
 		element: this.element,
 		bind: this.bind,
 		anchor: this.anchor,
-		source: this.source.join("")
+		tags: this.tagNames,
+		templates: this.templates,
+		source: {
+			all: this.before + source + this.after,
+			contentOnly: source
+		}
 	};
 	
 };
@@ -986,7 +1159,7 @@ if(typeof window == "object") {
 			var script = document.createElement("script");
 			script.dataset.sactoryTo = id;
 			script.dataset.from = "[data-sactory-from='" + id + "']";
-			script.textContent = new Transpiler().transpile(content || builder.textContent, {namespace: id}).source;
+			script.textContent = new Transpiler().transpile(content || builder.textContent, {namespace: id}).source.all;
 			document.head.appendChild(script);
 		});
 	}

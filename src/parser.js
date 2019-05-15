@@ -2,7 +2,11 @@ var Polyfill = require("./polyfill");
 
 function ParserError(message, fileName, lineNumber) {
 	var error = new Error(message, fileName, lineNumber);
-	Object.setPrototypeOf(error, Object.getPrototypeOf(this));
+	if(Object.setPrototypeOf) {
+		Object.setPrototypeOf(error, Object.getPrototypeOf(this));
+	} else {
+		error.__proto__ = this.__proto__;
+	}
 	if(Error.captureStackTrace) Error.captureStackTrace(error, ParserError);
 	return error;
 }
@@ -371,7 +375,7 @@ Parser.prototype.readQueryExpr = function(){
  * @returns The expression read or an empty string if no expression could be found.
  */
 Parser.prototype.readSingleExpression = function(skip){
-	var ret = this.readImpl(/^([\+-]?[~!]*(\+\+?|\-\-?|\*\*?\*?|@|(new|delete|typeof)\s+))/) || "";
+	var ret = this.readImpl(/^([-+~!]*((new|delete|typeof)\s+)?\*{0,3}@{0,2})/) || "";
 	if(skip) ret += this.skipImpl({strings: false});
 	var peek = this.peek();
 	if(peek == '"' || peek == '\'' || peek == '`') {

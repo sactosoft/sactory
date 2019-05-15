@@ -31,26 +31,12 @@ Sactory.defineTemplate = function(name, tagName, args, handler){
 	var forced = tagName && tagName.charAt(0) == '!';
 	definedTemplates[name] = {
 		name: name,
-		tagName: forced && tagName.substr(1) || tagName,
+		tagName: forced ? tagName.substr(1) : tagName,
 		forced: forced,
 		args: args || [],
 		handler: handler
 	};
-};
-
-// components
-
-var definedComponents = {};
-
-/**
- * @since 0.31.0
- */
-Sactory.defineComponent = function(name, tagName, component){
-	definedComponents[name] = {
-		name: name,
-		tagName: tagName,
-		component: component
-	};
+	console.log(definedTemplates[name]);
 };
 
 // init global functions used at runtime
@@ -66,22 +52,20 @@ Sactory.check = function(major, minor, patch){
 
 /**
  */
-Sactory.createElement = function(str, bind, anchor, args, spread){
-	return Sactory.updateElement(null, str, bind, anchor, args, spread);
+Sactory.createElement = function(tagName, templateNames, bind, anchor, args){
+	var a = Array.prototype.slice.call(arguments, 0);
+	a.unshift(null);
+	return Sactory.updateElement.apply(null, a);
 };
 
 /**
  * @since 0.29.0
  */
-Sactory.updateElement = function(element, str, bind, anchor, args){
-	
-	var split = str.split('$');
-	
-	var tagName = split[0];
-	var component;
+Sactory.updateElement = function(element, tagName, templateNames, bind, anchor, args){
+
 	var templates = [];
 	
-	split.slice(1).forEach(function(templateName){
+	templateNames.forEach(function(templateName){
 		var optional = templateName.charAt(0) == '?';
 		if(optional) templateName = templateName.substr(1);
 		var template = definedTemplates[templateName];
@@ -94,8 +78,8 @@ Sactory.updateElement = function(element, str, bind, anchor, args){
 		}
 	});
 
-	if(arguments.length > 5) {
-		Array.prototype.slice.call(arguments, 5).forEach(function(spread){
+	if(arguments.length > 6) {
+		Array.prototype.slice.call(arguments, 6).forEach(function(spread){
 			for(var key in spread) {
 				args.push({
 					key: key,
@@ -106,6 +90,7 @@ Sactory.updateElement = function(element, str, bind, anchor, args){
 	}
 	
 	var namespace;
+	var elementArgs = {};
 	var templateArgs = {};
 	args.forEach(function(arg){
 		var remove = false;
@@ -119,17 +104,11 @@ Sactory.updateElement = function(element, str, bind, anchor, args){
 				templateArgs[key] = arg.value;
 			}
 		} else {
-			return;
+			elementArgs[arg.key] = arg.value;
 		}
-		arg.removed = true;
 	});
 	
-	if(tagName && (component = definedComponents[tagName])) {
-		tagName = component.tagName;
-	}
-	
 	if(!element) {
-		if(!tagName) throw new Error("No tag could be found in expression '" + str + "'.");
 		if(namespace) {
 			element = document.createElementNS(NAMESPACES[namespace] || namespace, tagName);
 		} else {
@@ -137,13 +116,9 @@ Sactory.updateElement = function(element, str, bind, anchor, args){
 		}
 	}
 	
-	if(component) {
-		element.__component = new component.component(element);
+	for(var key in elementArgs) {
+		element.__builder.setImpl(key, elementArgs[key], bind, anchor);
 	}
-	
-	args.forEach(function(arg){
-		if(!arg.removed) element.__builder.setImpl(arg.key, arg.value, bind, anchor);
-	});
 	
 	var container = element;
 	
