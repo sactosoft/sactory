@@ -147,7 +147,7 @@ BreakpointParser.prototype.parse = function(handle, eof){
 	var result = this.parser.find(this.breakpoints, false, true);
 	if(result.pre) this.add(result.pre);
 	if(result.match == '<') {
-		if(this.parser.options.code && [undefined, '(', '[', '{', '}', ';', ':', ',', '=', '/', '?', '&', '|', '>'].indexOf(this.parser.last) == -1 && !this.parser.lastKeyword("return")) {
+		if(this.parser.options.code && !this.parser.couldStartRegExp()) {
 			// just a comparison
 			this.add("<");
 		} else {
@@ -258,7 +258,7 @@ JavascriptParser.prototype.next = function(match){
 			}
 			break;
 		case '*':
-			if(this.parser.couldStartRegExp() || this.parser.lastKeyword("new") || this.parser.lastKeyword("in") || this.parser.lastKeyword("instanceof") || this.parser.lastKeyword("delete")) {
+			if(this.parser.couldStartRegExp()) {
 				function getName() {
 					var skipped = this.parser.skip();
 					if(skipped) this.add(skipped);

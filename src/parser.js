@@ -51,7 +51,7 @@ Object.defineProperty(Parser.prototype, "position", {
 		return {
 			absolute: this.index + (this.from && this.from.absolute - this.input.length || 0),
 			line: line + (this.from && this.from.line - (this.input.match(/\n/g) || []).length || 0),
-			column: column + (this.from && this.from.column - this.input.length || 0)
+			column: Math.max(0, column) + (this.from && this.from.column - this.input.length || 0)
 		};
 	}
 });
@@ -109,21 +109,54 @@ Parser.prototype.expect = function(c){
 };
 
 /**
+ * Indicates whether the last keyword ending at the given index
+ * is equal to the given value.
+ * @since 0.57.0
+ */
+Parser.prototype.lastKeywordAt = function(index, value){
+	return this.input.charAt(index) === value.charAt(value.length - 1) && this.input.substring(index - value.length + 1, index + 1) == value && !/[a-zA-Z0-9_$\.]/.test(this.input.charAt(index - value.length));
+};
+
+/**
+ * Indicates whether one of the given keywords is equal to the last keyword
+ * ending at the given index.
+ * @since 0.57.0
+ */
+Parser.prototype.lastKeywordAtIn = function(index){
+	for(var i=1; i<arguments.length; i++) {
+		if(this.lastKeywordAt(index, arguments[i])) return true;
+	}
+	return false;
+};
+
+/**
  * Indicates whether the last keyword is equal to the given value.
  * @since 0.41.0
  */
 Parser.prototype.lastKeyword = function(value){
-	return this.last === value.charAt(value.length - 1) && this.input.substring(this.lastIndex - value.length + 1, this.lastIndex + 1) == value;
+	return this.lastKeywordAt(this.lastIndex, value);
 };
 
 /**
- * Indicates whether the conditions for a regular expression to start are met. That is,
- * when there is no last character, when the last character is not a keyword or a function
- * call, or when the last keyword is `return` or `typeof`.
+ * Indicates whether one of the given keywords is equal to the last keyword.
+ * @since 0.57.0
+ */
+Parser.prototype.lastKeywordIn = function(){
+	for(var i=0; i<arguments.length; i++) {
+		if(this.lastKeyword(arguments[i])) return true;
+	}
+	return false;
+};
+
+/**
+ * Indicates whether the conditions for a regular expression to start are met.
  * @since 0.50.0
  */
 Parser.prototype.couldStartRegExp = function(){
-	return this.last === undefined || !this.last.match(/^[a-zA-Z0-9_$\)\]\.]$/) || this.lastKeyword("return") || this.lastKeyword("typeof");
+	return this.last === undefined || !this.last.match(/^[a-zA-Z0-9_$\)\]\.]$/) ||
+		this.lastKeywordIn("return", "throw", "typeof", "do", "in", "instanceof", "new", "delete", "else") ||
+		//this.lastEnclosureIndex > 0 && this.lastKeywordAtIn(this.lastEnclosureIndex - 1, "if", "else", "for", "while") ||
+		/\n/.test(this.input.substring(this.lastIndex, this.index)) && this.lastKeywordIn("++", "--", "break", "continue");
 };
 
 /**
@@ -225,6 +258,7 @@ Parser.prototype.skipRegExp = function(){
  * @since 0.20.0
  */
 Parser.prototype.skipEnclosedContent = function(){
+	this.lastEnclosureIndex = this.index;
 	var par = {'}': '{', ']': '[', ')': '('};
 	var ret = this.read();
 	var match = par[ret];

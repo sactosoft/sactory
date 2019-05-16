@@ -120,7 +120,7 @@ Builder.prototype.visible = function(value, reversed, bind){
 	function update(value) {
 		if(!!value ^ reversed) {
 			element.style.display = display;
-		} else {
+		} else if(element.style.display != "none") {
 			display = element.style.display;
 			element.style.display = "none";
 		}
