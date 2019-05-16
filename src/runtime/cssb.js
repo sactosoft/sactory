@@ -98,7 +98,7 @@ Sactory.compileStyle = function(root){
 						selector.split(',').map(function(s2){
 							var prefix = s2.indexOf('&') != -1;
 							selectors.forEach(function(s1){
-								if(prefix) ns.push(s2.trim().replace('&', s1));
+								if(prefix) ns.push(s2.trim().replace(/&/g, s1));
 								else ns.push(s1 + ' ' + s2.trim());
 							});
 						});

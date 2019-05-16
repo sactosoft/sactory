@@ -14,18 +14,23 @@ function Observable(value) {
 }
 
 Observable.prototype.replace = function(value){
-	if(value && (value.constructor === Array || value.constructor === ObservableArray)) {
-		return new ObservableArray(this, value);
-	} else {
-		return value;
+	if(value){
+		if(value.constructor === Array || value.constructor === ObservableArray) {
+			value = new ObservableArray(this, value);
+		}
+		if(typeof value == "object") {
+			value = new Proxy(value, new ObservableProxyHandler(this));
+		}
 	}
+	return value;
 };
 
 Observable.prototype.updateImpl = function(value, type){
 	var oldValue = this.internal.value;
 	this.internal.value = value;
 	for(var i in this.internal.subscriptions) {
-		this.internal.subscriptions[i](value, oldValue, type);
+		var subscription = this.internal.subscriptions[i];
+		if(!subscription.type || subscription.type !== type) subscription.callback(value, oldValue, type);
 	}
 };
 
@@ -53,12 +58,16 @@ Observable.prototype.snapped = function(id){
 /**
  * @since 0.42.0
  */
-Observable.prototype.subscribe = function(callback){
+Observable.prototype.subscribe = function(callback, type){
 	var id = this.internal.count++;
 	var subs = this.internal.subscriptions;
-	this.internal.subscriptions[id] = callback;
+	var subscription = this.internal.subscriptions[id] = {
+		type: type,
+		callback: callback
+	};
 	return {
 		to: this,
+		subscription: subscription,
 		dispose: function(){
 			delete subs[id];
 		}
@@ -67,6 +76,10 @@ Observable.prototype.subscribe = function(callback){
 
 Observable.prototype.toJSON = function(){
 	return this.internal.value && this.internal.value.toJSON ? this.internal.value.toJSON() : this.internal.value;
+};
+
+Observable.prototype.toString = function(){
+	return this.internal.value + "";
 };
 
 /**
@@ -119,6 +132,23 @@ if(typeof Promise == "function") {
 SavedObservable.prototype.updateImpl = function(value, type){
 	this.internal.storage.set(value);
 	Observable.prototype.updateImpl.call(this, value, type);
+};
+
+/**
+ * @class
+ * @since 0.56.0
+ */
+function ObservableProxyHandler(observable) {
+	this.observable = observable;
+}
+
+ObservableProxyHandler.prototype.get = function(object, property){
+	return object[property];
+};
+
+ObservableProxyHandler.prototype.set = function(object, property, value){
+	object[property] = value;
+	this.observable.updateImpl(this.observable.internal.value);
 };
 
 /**
@@ -211,20 +241,17 @@ Sactory.isFunctionObservable = function(value){
  * @returns An array with the new subscriptions.
  * @since 0.40.0
  */
-Sactory.observe = function(value, callback){
+Sactory.observe = function(value, callback, type){
 	var subscriptions = [];
 	if(value instanceof Observable) {
-		subscriptions.push(value.subscribe(callback));
+		subscriptions.push(value.subscribe(callback, type));
 		callback(value.value);
-	} else if(value.subscribe) {
-		subscriptions.push(value.subscribe(callback));
-		callback(value());
 	} else {
 		function computed() {
 			callback(value.compute());
 		}
 		value.observe.forEach(function(observable){
-			subscriptions.push(observable.subscribe(computed));
+			subscriptions.push(observable.subscribe(computed, type));
 		});
 		computed();
 	}
@@ -255,7 +282,7 @@ Sactory.observable = function(value, storage, key){
 		} else if(window.localStorage) {
 			return new SavedObservable(value, new StorageObservableProvider(window.localStorage, storage));
 		} else {
-			console.warn("window.localStorage is unavailable. '" + key + "' will not be stored.");
+			console.warn("window.localStorage is unavailable. '" + storage + "' will not be stored.");
 		}
 	}
 	return new Observable(value);

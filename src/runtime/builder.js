@@ -46,12 +46,12 @@ Builder.prototype.propImpl = function(name, value){
 	o[s[0]] = value;
 };
 	
-Builder.prototype.prop = function(name, value, bind){
+Builder.prototype.prop = function(name, value, bind, type){
 	var propImpl = this.propImpl.bind(this);
 	if(SactoryObservable.isObservable(value)) {
-		this.subscribe(bind, SactoryObservable.observe(value, function(value, _, type){
-			if(type != TWO_WAY_UPDATE_TYPE) propImpl(name, value);
-		}));
+		this.subscribe(bind, SactoryObservable.observe(value, function(value){
+			propImpl(name, value);
+		}, type));
 	} else {
 		propImpl(name, value);
 	}
@@ -66,7 +66,7 @@ Builder.prototype.twoway = function(name, value, bind){
 	this.element.addEventListener("input", function(){
 		value.update(this[name], TWO_WAY_UPDATE_TYPE);
 	});
-	this.prop(name, value, bind);
+	this.prop(name, value, bind, TWO_WAY_UPDATE_TYPE);
 };
 	
 Builder.prototype.attrImpl = function(name, value){

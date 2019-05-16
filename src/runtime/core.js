@@ -18,22 +18,16 @@ var definedTemplates = {};
 
 /**
  */
-Sactory.defineTemplate = function(name, tagName, args, handler){
+Sactory.defineTemplate = function(name, tagName, handler){
 	if(typeof tagName == "function" || Array.isArray(tagName)) {
-		handler = args;
-		args = tagName;
+		handler = tagName;
 		tagName = null;
-	}
-	if(typeof args == "function") {
-		handler = args;
-		args = [];
 	}
 	var forced = tagName && tagName.charAt(0) == '!';
 	definedTemplates[name] = {
 		name: name,
 		tagName: forced ? tagName.substr(1) : tagName,
 		forced: forced,
-		args: args || [],
 		handler: handler
 	};
 };

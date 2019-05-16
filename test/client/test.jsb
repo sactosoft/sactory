@@ -127,9 +127,7 @@ window.addEventListener("load", function(){
 		Some text
 		<p>Some tag</p>
 		if(*test) {
-			if(*tagName == "div"){
-				<span>Only if true and *tagName == "div"</span>
-			}
+			if(*tagName == "div") <span>Only if true and *tagName == "div"</span>
 		} else if(*o == 'o') {
 			<span>Variable 'o' is lowercase</span>
 		} else {
@@ -139,5 +137,13 @@ window.addEventListener("load", function(){
 			<['h' + i]>The big brown fox jumps over the lazy dog</>
 		}
 	</#hl>
+
+	var html = **"";
+
+	<textarea style="width:600px;height:400px;font-family:monospace" *value=*html />
+
+	<div style="margin:8px 0;border:4px solid silver">
+		@innerHTML = *html;
+	</div>
 
 });
