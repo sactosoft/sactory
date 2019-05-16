@@ -7,19 +7,22 @@ window.onload = function(){
 		.CodeMirror {
 			border: 1px solid silver;
 			margin-bottom: 8px;
+			body.error & {
+				border-color: red;
+			}
 		}
 	</style>
 	
 	<:body>
 
-		var es6 = false;
+		var es6 = true;
 		try {
 			eval("class Test {}");
 		} catch(e) {
 			es6 = false;
 		}
 
-		var content = **("var name = **\"world\";\n\n<h1 @text=" + (es6 ? "`Hello ${*name}!`" : "(\"Hello \" + *name)") + " />", "sandbox");
+		var content = **("var name = **\"world\";\n\n<h1 @text=" + (es6 ? "`Hello, ${*name}!`" : "(\"Hello, \" + *name)") + " />\n", "sandbox");
 		var result = **((function(){
 			try {
 				return new Transpiler().transpile(*content, {scope: "document.body"});
@@ -44,6 +47,7 @@ window.onload = function(){
 
 		result.subscribe(function(value){
 			readonly.setValue(value.error || value.source.contentOnly);
+			document.body.classList[value.error ? "add" : "remove"]("error");
 		});
 
 		<span @text=("Transpiled in " + *result.time + " ms") />

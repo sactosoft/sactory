@@ -248,7 +248,7 @@ Sactory.observe = function(value, callback, type){
 		callback(value.value);
 	} else {
 		function computed() {
-			callback(value.compute());
+			callback(value.compute.call(value.context));
 		}
 		value.observe.forEach(function(observable){
 			subscriptions.push(observable.subscribe(computed, type));
@@ -291,12 +291,12 @@ Sactory.observable = function(value, storage, key){
 /**
  * @since 0.48.0
  */
-Sactory.computedObservable = function(bind, value){
-	var ret = new Observable(value.compute());
+Sactory.computedObservable = function(context, bind, observables, fun){
+	var ret = new Observable(fun.call(context));
 	var subscriptions = [];
-	value.observe.forEach(function(o){
-		subscriptions.push(o.subscribe(function(){
-			ret.value = value.compute();
+	observables.forEach(function(observable){
+		subscriptions.push(observable.subscribe(function(){
+			ret.value = fun.call(context);
 		}));
 	});
 	if(bind) subscriptions.forEach(bind.subscribe);

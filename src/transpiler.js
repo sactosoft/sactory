@@ -262,11 +262,6 @@ JavascriptParser.prototype.next = function(match){
 				function getName() {
 					var skipped = this.parser.skip();
 					if(skipped) this.add(skipped);
-					/*if(this.parser.peek() == '(') {
-						return this.parser.skipEnclosedContent();
-					} else {
-						return this.parser.readVarName(true);
-					}*/
 					if(this.parser.peek() == '(') {
 						return this.parseCodeToSource("skipEnclosedContent");
 					} else {
@@ -284,10 +279,12 @@ JavascriptParser.prototype.next = function(match){
 						this.snaps.push(name + ".snap(" + id + ")");
 					} else {
 						// new observable
+						this.parser.parseTemplateLiteral = null;
 						var parsed = this.transpiler.parseCode(this.parser.readSingleExpression(true));
+						this.transpiler.updateTemplateLiteralParser();
 						if(parsed.observables && parsed.observables.length) {
 							// computed
-							this.add(this.runtime + ".computedObservable(" + this.bind + ", " + parsed.toValue() + ")");
+							this.add(this.runtime + ".computedObservable(this, " + this.bind + ", " + parsed.toSpreadValue() + ")");
 						} else {
 							if(parsed.source.charAt(0) != '(') parsed.source = '(' + parsed.source + ')';
 							this.add(this.runtime + ".observable" + parsed.source);
@@ -831,11 +828,14 @@ Transpiler.prototype.parseCode = function(input, parentParser){
 					// single observable, pass it raw so it can be used in two-way binding
 					return input.substr(1);
 				} else {
-					return "{observe:[" + observables.join(',') + "]," + (mode.snaps && mode.snaps.length ? "snap:[" + mode.snaps.join(',') + "]," : "") + "compute:function(){return " + source + "}}";
+					return "{context:this,observe:[" + observables.join(',') + "]," + (mode.snaps && mode.snaps.length ? "snap:[" + mode.snaps.join(',') + "]," : "") + "compute:function(){return " + source + "}}";
 				}
 			} else {
 				return source;
 			}
+		},
+		toSpreadValue: function(){
+			return "[" + observables.join(", ") + "], function(){return " + source + "}" + (mode.snaps && mode.snaps.length ? ", " + mode.snaps.join(", ") : "");
 		}
 	};
 };
