@@ -31,9 +31,11 @@ function Parser(input, from) {
 	this.input = input;
 	this.last = undefined;
 	this.lastIndex = undefined;
+	this.parseTemplateLiteral = null;
+	this.parentheses = [];
+	this.lastParenthesis = undefined;
 	this.options = {};
 	this.from = from || {};
-	this.parseTemplateLiteral = null;
 }
 
 Object.defineProperty(Parser.prototype, "position", {
@@ -155,7 +157,7 @@ Parser.prototype.lastKeywordIn = function(){
 Parser.prototype.couldStartRegExp = function(){
 	return this.last === undefined || !this.last.match(/^[a-zA-Z0-9_$\)\]\.]$/) ||
 		this.lastKeywordIn("return", "throw", "typeof", "do", "in", "instanceof", "new", "delete", "else") ||
-		//this.lastEnclosureIndex > 0 && this.lastKeywordAtIn(this.lastEnclosureIndex - 1, "if", "else", "for", "while") ||
+		this.last == ')' && this.lastParenthesis !== undefined && this.lastKeywordAtIn(this.lastParenthesis, "if", "else", "for", "while") ||
 		/\n/.test(this.input.substring(this.lastIndex, this.index)) && this.lastKeywordIn("++", "--", "break", "continue");
 };
 

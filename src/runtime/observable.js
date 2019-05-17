@@ -13,16 +13,14 @@ function Observable(value) {
 	};
 }
 
+Observable.Proxy = typeof Proxy == "function" ? Proxy : null;
+
 Observable.prototype.replace = function(value){
-	if(value){
-		if(value.constructor === Array || value.constructor === ObservableArray) {
-			value = new ObservableArray(this, value);
-		}
-		if(typeof value == "object") {
-			value = new Proxy(value, new ObservableProxyHandler(this));
-		}
+	if(value && typeof value == "object" && Observable.Proxy) {
+		return new Observable.Proxy(value, new ObservableProxyHandler(this));
+	} else {
+		return value;
 	}
-	return value;
 };
 
 Observable.prototype.updateImpl = function(value, type){
@@ -142,52 +140,16 @@ function ObservableProxyHandler(observable) {
 	this.observable = observable;
 }
 
-ObservableProxyHandler.prototype.get = function(object, property){
-	return object[property];
-};
-
 ObservableProxyHandler.prototype.set = function(object, property, value){
 	object[property] = value;
 	this.observable.updateImpl(this.observable.internal.value);
+	return value;
 };
 
-/**
- * @class
- * @since 0.52.0
- */
-function ObservableArray(observable, value) {
-	Array.call(this);
-	Array.prototype.push.apply(this, value);
-	Object.defineProperty(this, "observable", {
-		enumerable: false,
-		value: observable
-	});
-}
-
-ObservableArray.prototype = Object.create(Array.prototype);
-
-Object.defineProperty(ObservableArray.prototype, "length", {
-	configurable: false,
-	enumerable: false,
-	writable: true,
-	value: 0
-});
-
-["copyWithin", "fill", "pop", "push", "reverse", "shift", "sort", "splice", "unshift"].forEach(function(fun){
-	if(Array.prototype[fun]) {
-		Object.defineProperty(ObservableArray.prototype, fun, {
-			enumerable: false,
-			value: function(){
-				var ret = Array.prototype[fun].apply(this, arguments);
-				this.observable.update();
-				return ret;
-			}
-		});
-	}
-});
-
-ObservableArray.prototype.toJSON = function(){
-	return Array.apply(null, this);
+ObservableProxyHandler.prototype.deleteProperty = function(object, property){
+	var ret = delete object[property];
+	this.observable.updateImpl(this.observable.internal.value);
+	return ret;
 };
 
 /**
@@ -209,62 +171,37 @@ StorageObservableProvider.prototype.set = function(value){
 };
 
 /**
+ * Indicates whether the given value is an instanceof {@link Observable}.
  * @since 0.40.0
  */
 Sactory.isObservable = function(value){
-	return Sactory.isOwnObservable(value) || Sactory.isContainerObservable(value) || Sactory.isFunctionObservable(value);
-};
-
-/**
- * @since 0.42.0
- */
-Sactory.isOwnObservable = function(value){
 	return value instanceof Observable;
 };
 
 /**
- * @since 0.42.0
- */
-Sactory.isContainerObservable = function(value){
-	return value && value.observe && value.compute;
-};
-
-/**
- * @since 0.42.0
- */
-Sactory.isFunctionObservable = function(value){
-	return typeof value == "function" && value.subscribe;
-};
-
-/**
  * Subscribes to the observables and calls the callback with the current value.
- * @returns An array with the new subscriptions.
+ * @returns The new subscription.
  * @since 0.40.0
  */
 Sactory.observe = function(value, callback, type){
-	var subscriptions = [];
-	if(value instanceof Observable) {
-		subscriptions.push(value.subscribe(callback, type));
-		callback(value.value);
-	} else {
-		function computed() {
-			callback(value.compute.call(value.context));
-		}
-		value.observe.forEach(function(observable){
-			subscriptions.push(observable.subscribe(computed, type));
-		});
-		computed();
-	}
-	return subscriptions;
+	var ret = value.subscribe(callback, type);
+	callback(value.value);
+	return ret;
 };
 
 /**
- * @deprecated Use {@link computedOf} instead.
+ * If the given value is an observable, returns the unobserved value. If the value
+ * is a computed observable also disposes the subscriptions.
  * @since 0.42.0
  */
 Sactory.unobserve = function(value){
-	if(Sactory.isContainerObservable(value)) {
-		return value.compute();
+	if(Sactory.isObservable(value)) {
+		if(value.computed) {
+			value.subscriptions.forEach(function(subscription){
+				subscription.dispose();
+			});
+		}
+		return value.value;
 	} else {
 		return value;
 	}
@@ -275,10 +212,10 @@ Sactory.unobserve = function(value){
  */
 Sactory.observable = function(value, storage, key){
 	if(arguments.length > 1) {
-		if(typeof storage == "object") {
-			return new SavedObservable(value, storage);
-		} else if(storage instanceof Storage) {
+		if(storage instanceof Storage) {
 			return new SavedObservable(value, new StorageObservableProvider(storage, key));
+		} else if(typeof storage == "object") {
+			return new SavedObservable(value, storage);
 		} else if(window.localStorage) {
 			return new SavedObservable(value, new StorageObservableProvider(window.localStorage, storage));
 		} else {
@@ -293,13 +230,15 @@ Sactory.observable = function(value, storage, key){
  */
 Sactory.computedObservable = function(context, bind, observables, fun){
 	var ret = new Observable(fun.call(context));
-	var subscriptions = [];
+	ret.computed = true;
+	ret.dependencies = observables;
+	ret.subscriptions = [];
 	observables.forEach(function(observable){
-		subscriptions.push(observable.subscribe(function(){
+		ret.subscriptions.push(observable.subscribe(function(){
 			ret.value = fun.call(context);
 		}));
 	});
-	if(bind) subscriptions.forEach(bind.subscribe);
+	if(bind) ret.subscriptions.forEach(bind.subscribe);
 	return ret;
 };
 

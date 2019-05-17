@@ -134,7 +134,7 @@ Sactory.bind = function(context, element, bind, anchor, target, change, cleanup,
  * @since 0.40.0
  */
 Sactory.bindIf = function(context, element, bind, anchor, target, change, cleanup, condition, fun){
-	if(!target && SactoryObservable.isContainerObservable(condition)) target = condition.observe;
+	if(!target && SactoryObservable.isObservable(condition) && condition.computed) target = condition.dependencies;
 	condition = SactoryObservable.unobserve(condition);
 	if(typeof condition != "function") throw new Error("The condition provided to :bind-if is not a function.");
 	Sactory.bind(context, element, bind, anchor, target, change, cleanup, function(element, bind, anchor, value){

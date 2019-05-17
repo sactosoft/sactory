@@ -15,11 +15,15 @@ var NAMESPACES = {
 // templates
 
 var definedTemplates = {};
+var definedComponents = {};
 
 /**
+ * Defines or replaces a template.
+ * @param {string} name - The case-sensitive name of the template.
+ * @param {function(element, bind, args)} handler - The modifier called when a template is used.
  */
 Sactory.defineTemplate = function(name, tagName, handler){
-	if(typeof tagName == "function" || Array.isArray(tagName)) {
+	if(typeof tagName == "function") {
 		handler = tagName;
 		tagName = null;
 	}
@@ -30,6 +34,30 @@ Sactory.defineTemplate = function(name, tagName, handler){
 		forced: forced,
 		handler: handler
 	};
+};
+
+/**
+ * @since 0.58.0
+ */
+Sactory.undefineTemplate = function(name){
+	delete definedTemplates[name];
+};
+
+/**
+ * @since 0.58.0
+ */
+Sactory.defineComponent = function(name, handler){
+	definedComponents[name] = {
+		name: name,
+		handler: handler
+	};
+};
+
+/**
+ * @since 0.58.0
+ */
+Sactory.undefineComponent = function(name){
+	delete definedComponents[name];
 };
 
 // init global functions used at runtime
@@ -101,7 +129,19 @@ Sactory.updateElement = function(element, bind, anchor, tagName, options){
 	}
 	
 	if(!element) {
-		if(options.namespace) {
+		var component = definedComponents[tagName];
+		if(component) {
+			var attributes = {};
+			for(var key in elementArgs) {
+				if(!/[@*+-]/.test(key.charAt(0))) {
+					attributes[key] = elementArgs[key];
+					delete elementArgs[key];
+				}
+			}
+			component = component.handler();
+			element = component.render(attributes, options.namespace);
+			element.component = component;
+		} else if(options.namespace) {
 			element = document.createElementNS(NAMESPACES[options.namespace] || options.namespace, tagName);
 		} else {
 			element = document.createElement(tagName);
@@ -126,7 +166,7 @@ Sactory.updateElement = function(element, bind, anchor, tagName, options){
 				a[key] = value;
 			}
 		}
-		container = template.handler.call(container, container, a) || container;
+		container = template.handler(container, bind, null, a) || container;
 	});
 	
 	return {
@@ -200,25 +240,38 @@ Sactory.comment = function(element, bind, anchor, comment){
 /**
  * @since 0.32.0
  */
-Sactory.query = function(context, doc, selector, fun){
+Sactory.query = function(context, doc, selector, all, fun){
 	if(!fun) {
-		fun = selector;
+		fun = all;
+		all = selector;
 		selector = doc;
 		doc = document;
 	}
-	var elements, ret;
-	if(selector instanceof Element) {
-		elements = [selector];
-		ret = selector;
-	} else if(selector instanceof NodeList) {
-		elements = ret = selector;
+	var nodes = false;
+	if(all || (nodes = selector instanceof NodeList)) {
+		if(!nodes) {
+			selector = doc.querySelectorAll(selector);
+		}
+		Array.prototype.forEach.call(selector, function(element){
+			fun.call(context, element);
+		});
+		return selector;
 	} else {
-		elements = ret = doc.querySelectorAll(selector);
+		if(!(selector instanceof Element)) {
+			selector = doc.querySelector(selector);
+		}
+		if(selector) fun.call(context, selector);
+		return selector;
 	}
-	for(var i=0; i<elements.length; i++) {
-		fun.call(context, elements[i]);
-	}
-	return ret;
+};
+
+/**
+ * @since 0.58.0
+ */
+Sactory.subscribe = function(bind, observable, callback, type){
+	var subscription = observable.subscribe(callback, type);
+	if(bind) bind.subscribe(subscription);
+	return subscription;
 };
 
 if(!Sactory.compilecssb) {

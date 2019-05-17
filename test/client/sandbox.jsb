@@ -1,5 +1,10 @@
 window.onload = function(){
 
+	var file = **("snippet", "current_snippet");
+	var key = **("storage." + *file);
+
+	var input, output;
+
 	var es6 = true;
 	try {
 		eval("class Test {}");
@@ -7,16 +12,25 @@ window.onload = function(){
 		es6 = false;
 	}
 
-	var content = **("var name = **\"world\";\n\n<h1 @text=" + (es6 ? "`Hello, ${*name}!`" : "(\"Hello, \" + *name)") + " />\n", "sandbox");
+	var defaultContent = "var name = **\"world\";\n\n<h1 @text=" + (es6 ? "`Hello, ${*name}!`" : "(\"Hello, \" + *name)") + " />\n";
+
+	var content = **(defaultContent, ***key);
 	var result = **((function(){
 		try {
 			return new Transpiler().transpile(*content, {scope: "document.body"});
 		} catch(e) {
-			return {error: e};
+			console.warn(e);
+			return {error: e, parserError: true};
 		}
 	})());
 
-	var input, output;
+	file.subscribe(function(value){
+		content.internal.storage.key = ***key;
+		var set = content.internal.storage.set;
+		content.internal.storage.set = function(){}; // disable saving
+		input.setValue(*content = content.internal.storage.get(defaultContent));
+		content.internal.storage.set = set; // enable saving
+	});
 
 	<style :head>
 		body {
@@ -40,10 +54,21 @@ window.onload = function(){
 	<:body>
 
 		<section>
+			<input *value=*file />
+			if(window.localStorage) {
+				<select *value=*file>
+					Object.keys(window.localStorage).forEach(function(key){
+						if(key.substr(0, 8) == "storage.") <option value=key.substr(8) @text=key.substr(8) />
+					});
+				</select>
+			}
+		</section>
+
+		<section>
 			input = <textarea style="width:100%;height:360px;font-family:monospace" *value=*content />
 		</section>
 
-		<section @visible=!*result.error>
+		<section @visible=!*result.parserError>
 			output = <textarea style="width:100%;height:180px" @value=(*result.source && *result.source.contentOnly) />
 			<span @text=("Transpiled in " + Math.round(*result.time * 1000) / 1000 + " ms") />
 		</section>
@@ -61,30 +86,31 @@ window.onload = function(){
 				try {
 					container.contentWindow.eval(*result.source.all);
 				} catch(e) {
-					*result = {error: e};
+					*result.error = e;
 				}
 			};
 		</:bind-if>
 
 	</:body>
 
-	CodeMirror.fromTextArea(input, {
+	input = CodeMirror.fromTextArea(input, {
 		lineNumbers: true,
 		indentWithTabs: true,
 		smartIndent: false,
 		lineWrapping: true
-	}).on("change", function(editor){
+	});
+	input.on("change", function(editor){
 		*content = editor.getValue();
 	});
 
-	var readonly = CodeMirror.fromTextArea(output, {
+	output = CodeMirror.fromTextArea(output, {
 		lineNumbers: true,
 		lineWrapping: true,
 		readOnly: true
 	});
 
 	result.subscribe(function(value){
-		readonly.setValue(value.source ? value.source.contentOnly : "");
+		output.setValue(value.source ? value.source.contentOnly : "");
 	});
 
 };

@@ -225,15 +225,32 @@ TextParser.prototype.parse = function(handle, eof){
  * @since 0.15.0
  */
 function JavascriptParser(transpiler, parser, source, attributes) {
-	BreakpointParser.call(this, transpiler, parser, source, attributes, ['@', '*']);
+	BreakpointParser.call(this, transpiler, parser, source, attributes, ['(', ')', '@', '*']);
 	this.observables = [];
 	this.snaps = [];
+	this.parentheses = [];
 }
 
 JavascriptParser.prototype = Object.create(BreakpointParser.prototype);
 
+JavascriptParser.prototype.handleParenthesis = function(match){
+	this.add(this.parser.last = match);
+	this.parser.lastIndex = this.parser.index;
+};
+
 JavascriptParser.prototype.next = function(match){
 	switch(match) {
+		case '(':
+			this.parentheses.push(false);
+			this.parser.parentheses.push(this.parser.lastIndex);
+			this.handleParenthesis(match);
+			break;
+		case ')':
+			var popped = this.parentheses.pop();
+			if(popped) this.add(popped);
+			this.parser.lastParenthesis = this.parser.parentheses.pop();
+			this.handleParenthesis(match);
+			break;
 		case '@':
 			var skip = this.parser.skipImpl({strings: false});
 			var peek = this.parser.peek();
@@ -241,17 +258,49 @@ JavascriptParser.prototype.next = function(match){
 				this.add(this.element);
 				if(skip) this.add(skip);
 			} else {
-				var match = this.parser.input.substr(this.parser.index).match(/^(?:((\.?[a-zA-Z0-9_$]+)+)\s*=(?!=))/);
+				var match = this.parser.input.substr(this.parser.index).match(/^(?:(((\.?[a-zA-Z0-9_$]+)+)\s*=(?!=))|(?:(subscribe)|(?:(?:(templates)|(components))\.(?:(add)|(remove))))(\s*)\()/);
 				if(match) {
-					this.add(this.element + skip + ".__builder.");
-					this.parser.index += match[0].length;
-					skip = this.parser.skipImpl({strings: false});
-					if(skip) this.add(skip);
-					var expr = this.parseCodeToValue("readExpression");
-					if(match[1] == "text") this.add("text(" + expr + ", " + this.bind + ", " + this.anchor + ")");
-					else if(match[1] == "visible") this.add("visible(" + expr + ", false, " + this.bind + ")");
-					else if(match[1] == "hidden") this.add("visible(" + expr + ", true, " + this.bind + ")");
-					else this.add("prop(\"" + match[1] + "\", " + expr + ", " + this.bind + ")");
+					if(match[1]) {
+						this.add(this.element + skip + ".__builder.");
+						this.parser.index += match[1].length;
+						skip = this.parser.skipImpl({strings: false});
+						if(skip) this.add(skip);
+						var expr = this.parseCodeToValue("readExpression");
+						if(match[2] == "text") this.add("text(" + expr + ", " + this.bind + ", " + this.anchor + ")");
+						else if(match[2] == "visible") this.add("visible(" + expr + ", false, " + this.bind + ")");
+						else if(match[2] == "hidden") this.add("visible(" + expr + ", true, " + this.bind + ")");
+						else this.add("prop(\"" + match[2] + "\", " + expr + ", " + this.bind + ")");
+					} else {
+						this.parser.index += match[0].length;
+						if(match[4]) {
+							this.add(this.runtime  + skip + ".subscribe" + match[7] + "(" + this.bind + ", ");
+							this.parentheses.push(false);
+						} else if(match[5]) {
+							if(match[7]) {
+								this.add(this.runtime + skip + ".defineTemplate" + match[9] + "(");
+								this.add(this.parser.readExpression()); // template name
+								this.parser.expect(',');
+								this.add(',' + this.parser.readExpression()); // tag name
+								this.parser.expect(',');
+								this.add(", function(" + this.element + ", " + this.bind + ", " + this.anchor + ", args){(");
+								this.parentheses.push(").call(this, args)}");
+							} else {
+								this.add(this.runtime + skip + ".undefineTemplate" + match[9] + "(");
+								this.parentheses.push(false);
+							}
+						} else {
+							if(match[7]) {
+								this.add(this.runtime + skip + ".defineComponent" + match[9] + "(");
+								this.add(this.parser.readExpression()); // component name
+								this.parser.expect(',');
+								this.add(", function(" + this.element + ", " + this.bind + ", " + this.anchor + "){return new (");
+								this.parentheses.push(")()}");
+							} else {
+								this.add(this.runtime + skip + ".undefineComponent" + match[9] + "(");
+								this.parentheses.push(false);
+							}
+						}
+					}
 				} else {
 					this.add('@' + skip);
 				}
@@ -818,7 +867,8 @@ Transpiler.prototype.parseCode = function(input, parentParser){
 	mode.finalize();
 	source = source.join("");
 	var observables = mode.observables ? uniq(mode.observables) : [];
-	return {
+	var $this = this;
+	var ret = {
 		source: source,
 		observables: observables,
 		snaps: mode.snaps,
@@ -828,7 +878,7 @@ Transpiler.prototype.parseCode = function(input, parentParser){
 					// single observable, pass it raw so it can be used in two-way binding
 					return input.substr(1);
 				} else {
-					return "{context:this,observe:[" + observables.join(',') + "]," + (mode.snaps && mode.snaps.length ? "snap:[" + mode.snaps.join(',') + "]," : "") + "compute:function(){return " + source + "}}";
+					return $this.runtime + ".computedObservable(this, " + $this.bind + ", " + ret.toSpreadValue() + ")";
 				}
 			} else {
 				return source;
@@ -838,6 +888,7 @@ Transpiler.prototype.parseCode = function(input, parentParser){
 			return "[" + observables.join(", ") + "], function(){return " + source + "}" + (mode.snaps && mode.snaps.length ? ", " + mode.snaps.join(", ") : "");
 		}
 	};
+	return ret;
 };
 
 /**
@@ -914,9 +965,11 @@ Transpiler.prototype.open = function(){
 		var currentClosing = "";
 		var computed = false;
 		var selector, tagName, templates = [];
+		var selectorAll = false;
 		this.updateTemplateLiteralParser();
 		if(selector = this.parser.readQueryExpr()) {
 			selector = this.parseCode(selector).source;
+			if(this.parser.peek() == '+') selectorAll = !!this.parser.read();
 			tagName = this.parser.peek() == '$' ? this.parser.readTagName(true) : "";
 			append = false;
 		} else if(tagName = this.parser.readComputedExpr()) {
@@ -1017,8 +1070,8 @@ Transpiler.prototype.open = function(){
 					else this.templates[t] = 1;
 				}
 				if(!iattributes.namespace) {
-					if(tagName == "svg") currentNamespace = "svg";
-					else if(tagName == "math") currentNamespace = "mathml";
+					if(tagName == "svg") currentNamespace = "\"svg\"";
+					else if(tagName == "math") currentNamespace = "\"mathml\"";
 				}
 			}
 		}
@@ -1038,7 +1091,7 @@ Transpiler.prototype.open = function(){
 			if(!append) ret += "updateElement(" + this.element + ", ";
 			else ret += "createElement(";
 			ret += this.bind + ", " + this.anchor + ", " + (computed ? tagName : '"' + tagName + '"') + ", {";
-			if(currentNamespace) ret += "namespace:\"" + currentNamespace + "\",";
+			if(currentNamespace) ret += "namespace:" + currentNamespace + ",";
 			if(templates.length) ret += "templates:" + JSON.stringify(templates) + ",";
 			var inheritance = this.inheritance.join("");
 			var args = !!(inheritance || rattributes.length);
@@ -1061,7 +1114,7 @@ Transpiler.prototype.open = function(){
 			parent = "null";
 		}
 		if(selector) {
-			this.source.push(this.runtime + ".query(this, " + selector + ", function(" + this.element + "){");
+			this.source.push(this.runtime + ".query(this, " + selector + ", " + selectorAll + ", function(" + this.element + "){");
 			currentClosing += "})";
 		}
 		if(next == '/') {
@@ -1145,7 +1198,9 @@ Transpiler.prototype.transpile = function(input, options){
 	
 	this.parser = new Parser(input);
 
-	this.count = hash(options.namespace + "") % 100000;
+	this.options = options || {};
+
+	this.count = hash(this.options.namespace + "") % 100000;
 	
 	this.runtime = "__s" + this.count % 96;
 	this.element = "__e" + this.count++ % 9;
@@ -1159,13 +1214,13 @@ Transpiler.prototype.transpile = function(input, options){
 	this.templates = {};
 	
 	this.before =
-		"/*! Transpiled" + (options.filename ? " from " + options.filename : "") + " using Sactory v" +
+		"/*! Transpiled" + (this.options.filename ? " from " + this.options.filename : "") + " using Sactory v" +
 		(typeof Sactory != "undefined" ? Sactory.VERSION : version.version) + ". Do not edit manually. */" +
 		"!function(a){if(typeof define=='function'&&define.amd){define(['sactory'], a)}else{a(Sactory)}}" +
 		"(function(" + this.runtime + ", " + this.element + ", " + this.bind + ", " + this.anchor + "){";
 	this.source = [];
 
-	if(options.scope) this.before += this.element + "=" + options.scope + ";";
+	if(this.options.scope) this.before += this.element + "=" + this.options.scope + ";";
 	
 	this.tags = [];
 	this.namespaces = [];
@@ -1205,6 +1260,17 @@ Transpiler.prototype.transpile = function(input, options){
 	};
 	
 };
+
+Object.defineProperty(Transpiler, "instance", {
+	configurable: true,
+	get: function(){
+		var instance = new Transpiler();
+		Object.defineProperty(Transpiler, "instance", {
+			value: instance
+		});
+		return instance;
+	}
+});
 
 if(typeof window == "object") {
 
