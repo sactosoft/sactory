@@ -948,8 +948,11 @@ Transpiler.prototype.open = function(){
 		throw new Error("Mode " + this.currentMode.name + " cannot have children");
 	} else {
 		var parser = this.parser;
-		function skip() {
-			parser.skipImpl({comments: true, strings: false}); // before/after attributes
+		var skipped = "", requiredSkip;
+		function skip(required) {
+			var s = parser.skipImpl({comments: true, strings: false}); // before/after attributes
+			skipped += s;
+			if(required) requiredSkip = s;
 		}
 		var currentIndex = this.source.length;
 		var newMode = undefined;
@@ -982,9 +985,10 @@ Transpiler.prototype.open = function(){
 			templates = tagName.split('$');
 			tagName = templates.shift();
 		}
-		skip();
+		skip(true);
 		var next = false;
 		while(!this.parser.eof() && (next = this.parser.peek()) != '>' && next != '/') {
+			if(!/[\n\t ]/.test(requiredSkip)) this.parser.error("Space is required between attribute names.");
 			this.updateTemplateLiteralParser();
 			if(next == '.') {
 				this.parser.index++;
@@ -998,7 +1002,6 @@ Transpiler.prototype.open = function(){
 					value: "\"\""
 				};
 				var add = false;
-				//skip();
 				if(attr.attr = this.parser.readComputedExpr()) {
 					attr.attr = this.parseCode(attr.attr).source;
 					attr.computed = add = true;
@@ -1035,7 +1038,7 @@ Transpiler.prototype.open = function(){
 					rattributes.push(attr);
 				}
 			}
-			skip();
+			skip(true);
 			next = false;
 		}
 		if(!next) throw new Error("Tag was not closed"); //TODO throw error from the start of the tag
@@ -1146,8 +1149,13 @@ Transpiler.prototype.open = function(){
 					", function(" + [this.element, this.bind, this.anchor, iattributes.as || this.value, iattributes.index || this.index, iattributes.array || this.array].join(", ") + "){");
 			} else if(create) {
 				if(append) {
-					var e = this.runtime + ".append(" + parent + ", " + this.bind + ", " + this.anchor + ", " + this.runtime + ".call(this, " + expr + ", function(" + this.element + ", " + this.anchor + "){";
-					currentClosing += ")";
+					var e;
+					if(iattributes.append) {
+						e = this.runtime + ".callElement(this, " + this.runtime + ".appendElement(" + parent + ", " + this.bind + ", " + this.anchor + ", " + expr + "), function(" + this.element + ", " + this.anchor + "){";
+					} else {
+						 e = this.runtime + ".append(" + parent + ", " + this.bind + ", " + this.anchor + ", " + this.runtime + ".call(this, " + expr + ", function(" + this.element + ", " + this.anchor + "){";
+						currentClosing += ")";
+					}
 					if(iattributes.unique) {
 						e = this.runtime + ".unique(this, " + this.nextId() + ", function(){return " + e;
 						currentClosing += "})";

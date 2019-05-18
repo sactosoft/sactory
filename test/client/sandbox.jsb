@@ -78,17 +78,16 @@ window.onload = function(){
 		</section>
 
 		<:bind-if :condition={ !*result.error } >
-			var container;
-			<section>
-				container = <iframe style="width:100%;height:calc(100vh - 16px);border:none" />
+			<section :append>
+				var container = <iframe style="width:100%;height:calc(100vh - 16px);border:none" />
+				<script @=container.contentWindow.document.head async src="../dist/sactory.js" />.onload = function(){
+					try {
+						container.contentWindow.eval(*result.source.all);
+					} catch(e) {
+						*result.error = e;
+					}
+				};
 			</section>
-			<script @=container.contentWindow.document.head async src="../dist/sactory.js" />.onload = function(){
-				try {
-					container.contentWindow.eval(*result.source.all);
-				} catch(e) {
-					*result.error = e;
-				}
-			};
 		</:bind-if>
 
 	</:body>
