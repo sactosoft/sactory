@@ -282,7 +282,7 @@ JavascriptParser.prototype.next = function(match){
 								this.parser.expect(',');
 								this.add(',' + this.parser.readExpression()); // tag name
 								this.parser.expect(',');
-								this.add(", function(" + this.element + ", " + this.bind + ", " + this.anchor + ", args){(");
+								this.add(", this, function(" + this.element + ", " + this.bind + ", " + this.anchor + ", args){(");
 								this.parentheses.push(").call(this, args)}");
 							} else {
 								this.add(this.runtime + skip + ".undefineTemplate" + match[9] + "(");

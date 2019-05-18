@@ -22,16 +22,11 @@ var definedComponents = {};
  * @param {string} name - The case-sensitive name of the template.
  * @param {function(element, bind, args)} handler - The modifier called when a template is used.
  */
-Sactory.defineTemplate = function(name, tagName, handler){
-	if(typeof tagName == "function") {
-		handler = tagName;
-		tagName = null;
-	}
-	var forced = tagName && tagName.charAt(0) == '!';
+Sactory.defineTemplate = function(name, tagName, context, handler){
 	definedTemplates[name] = {
 		name: name,
-		tagName: forced ? tagName.substr(1) : tagName,
-		forced: forced,
+		tagName: tagName,
+		context: context,
 		handler: handler
 	};
 };
@@ -115,7 +110,6 @@ Sactory.updateElement = function(element, bind, anchor, tagName, options){
 			if(template) {
 				templates.push(template);
 				if(!tagName) tagName = template.tagName;
-				else if(template.forced && tagName) throw new Error("Template '" + templateName + "' forces the tag name but the tag name it's already set.");
 			} else if(!optional) {
 				throw new Error("Template '" + templateName + "' could not be found.")
 			}
@@ -166,7 +160,7 @@ Sactory.updateElement = function(element, bind, anchor, tagName, options){
 				a[key] = value;
 			}
 		}
-		container = template.handler(container, bind, null, a) || container;
+		container = template.handler.call(template.context, container, bind, null, a) || container;
 	});
 	
 	return {

@@ -162,6 +162,10 @@ Builder.prototype.event = function(name, value){
 };
 	
 Builder.prototype.setImpl = function(name, value, bind, anchor){
+	if(name.charAt(0) == '?') {
+		if(value === undefined || value === null) return;
+		else name = name.substr(1);
+	}
 	switch(name.charAt(0)) {
 		case '@':
 			name = name.substr(1);
