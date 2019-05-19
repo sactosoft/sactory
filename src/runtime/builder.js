@@ -62,8 +62,16 @@ Builder.prototype.twoway = function(name, value, bind){
 	if(["value", "checked"].indexOf(name) == -1) throw new Error("Cannot two-way bind property '" + name + "'.");
 	if(!SactoryObservable.isObservable(value)) throw new Error("Cannot two-way bind property '" + name + "': the given value is not an observable.");
 	var type = 1048576 + Math.floor(Math.random() * 1048576);
+	var convert;
+	if(this.element.type == "number") {
+		convert = function(value){ return parseFloat(value); };
+	} /*else if(this.element.type == "date" || this.element.type == "datetime-local") {
+		convert = function(value){ return new Date(value); };
+	} */else {
+		convert = function(value){ return value; };
+	}
 	this.element.addEventListener("input", function(){
-		value.update(this[name], type);
+		value.update(convert(this[name]), type);
 	});
 	this.prop(name, value, bind, type);
 };

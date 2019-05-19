@@ -3,6 +3,8 @@ window.onload = function(){
 	var file = **("snippet", "current_snippet");
 	var key = **("storage." + *file);
 
+	var showOutput = **(true, "show_output");
+
 	var input, output;
 
 	var es6 = true;
@@ -16,10 +18,11 @@ window.onload = function(){
 
 	var content = **(defaultContent, ***key);
 	var result = **((function(){
+		console.clear();
 		try {
 			return new Transpiler().transpile(*content, {scope: "document.body"});
 		} catch(e) {
-			console.warn(e);
+			console.error(e);
 			return {error: e, parserError: true};
 		}
 	})());
@@ -69,8 +72,11 @@ window.onload = function(){
 		</section>
 
 		<section @visible=!*result.parserError>
-			output = <textarea style="width:100%;height:180px" @value=(*result.source && *result.source.contentOnly) />
-			<span @text=("Transpiled in " + Math.round(*result.time * 1000) / 1000 + " ms") />
+			<section #html>Transpiled code (<a href="javascript:" +click={ *showOutput = !*showOutput } @text=(*showOutput ? "hide" : "show") />)</section>
+			<section @visible=*showOutput>
+				output = <textarea style="width:100%;height:180px" @value=(*result.source && *result.source.contentOnly) />
+			</section>
+			<section @text=("Transpiled in " + Math.round(*result.time * 1000) / 1000 + " ms") />
 		</section>
 
 		<section @visible=!!*result.error>
@@ -84,6 +90,7 @@ window.onload = function(){
 					try {
 						container.contentWindow.eval(*result.source.all);
 					} catch(e) {
+						console.error(e);
 						*result.error = e;
 					}
 				};

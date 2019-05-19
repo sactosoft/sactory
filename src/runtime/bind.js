@@ -61,13 +61,6 @@ Bind.prototype.appendChild = function(element){
 	this.elements.push(element);
 };
 
-/**
- * @since 0.48.0
- */
-Bind.createAnchor = function(){
-	return this.anchor = document.createComment("");
-};
-
 var factory = new Bind(null);
 
 /**
@@ -78,6 +71,17 @@ Object.defineProperty(Sactory, "bindFactory", {
 		return factory;
 	}
 });
+
+/**
+ * @since 0.48.0
+ */
+Sactory.createAnchor = function(element, bind, anchor){
+	var ret = document.createComment("");
+	if(anchor) element.insertBefore(ret, anchor);
+	else element.appendChild(ret);
+	if(bind) bind.appendChild(ret);
+	return ret;
+};
 
 /**
  * @since 0.11.0
@@ -98,11 +102,7 @@ Sactory.bind = function(context, element, bind, anchor, target, change, cleanup,
 		record(value);
 	}
 	if(element) {
-		currentAnchor = Bind.createAnchor();
-		currentAnchor.__bind = currentBind;
-		if(anchor) element.insertBefore(currentAnchor, anchor);
-		else element.appendChild(currentAnchor);
-		if(bind) bind.appendChild(currentAnchor);
+		currentAnchor = Sactory.createAnchor(element, bind, anchor);
 	}
 	change = SactoryObservable.unobserve(change);
 	cleanup = SactoryObservable.unobserve(cleanup);
@@ -120,11 +120,7 @@ Sactory.bind = function(context, element, bind, anchor, target, change, cleanup,
 				rollback(value);
 			}
 		}));
-		if(SactoryObservable.isOwnObservable(target)) {
-			record(target.value);
-		} else {
-			record(target());
-		}
+		record(target.value);
 	} else {
 		throw new Error("Cannot bind to the given value: not an observable or an array of observables.");
 	}

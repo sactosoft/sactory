@@ -35,7 +35,7 @@ window.addEventListener("load", function(){
 				var visible = **true;
 				<label #html>
 					Show:
-					<input type="checkbox" $test=(/<div>*/gm) *checked=visible />
+					<input type="checkbox" *checked=visible />
 				</label>
 				<button +click={ console.log("Button clicked") } @text="Button" @visible=*visible />
 				<!-- a comment -->

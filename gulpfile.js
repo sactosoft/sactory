@@ -13,13 +13,13 @@ function make(filename, className, sources) {
 		return "src/" + s + ".js";
 	}))
 	.pipe(concat(filename + ".js"))
-	.pipe(replace(/((var Sactory = )|(function Transpiler\(\) )){};?/gm, ""))
+	.pipe(replace(/var Sactory = {};?/gm, ""))
 	.pipe(replace(/(var [a-zA-Z0-9_]+ = )?require\(\"[a-zA-Z0-9_\-\.\/]*\"\)[a-zA-Z0-9_\.]*;/gm, ""))
 	.pipe(replace(/module\.exports = [a-zA-Z0-9_\.]*;/gm, ""))
 	.pipe(replace(/(Util|SactoryObservable|SactoryBind)/gm, className))
 	.pipe(header(
 		"!function(a){\n\tif(typeof define == 'function' && define.amd) {\n\t\tdefine(a);\n\t} else {\n\t\twindow." + className + " = a();\n\t}\n" +
-		"}(function(){\n\nfunction " + className + "(){};\nvar toString = function(){return Object.toString().replace(/Object/, '" +  className + "').replace(/native/, 'sactory');};\n" + className + ".toString = toString.toString = toString;\n" +
+		"}(function(){\n\nvar toString = function(){return Object.toString().replace(/Object/, '" +  className + "').replace(/native/, 'sactory');};\n" + className + ".toString = toString.toString = toString;\n" +
 		"function get(prop, value){ Object.defineProperty(" + className + ", prop, {get: function(){ return value; }}); }\nget('VERSION_MAJOR', " + version.major + ");\nget('VERSION_MINOR', " + version.minor + ");\nget('VERSION_PATCH', " + version.patch + ");\n" +
 		"get('VERSION', '" + version.version + "');\n\n"
 	))

@@ -238,7 +238,11 @@ Sactory.computedObservable = function(context, bind, observables, fun){
 			ret.value = fun.call(context);
 		}));
 	});
-	if(bind) ret.subscriptions.forEach(bind.subscribe);
+	if(bind) {
+		ret.subscriptions.forEach(function(subscription){
+			bind.subscribe(subscription);
+		});
+	}
 	return ret;
 };
 

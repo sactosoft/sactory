@@ -126,7 +126,9 @@ SourceParser.prototype.start = function(){};
 
 SourceParser.prototype.end = function(){};
 
-SourceParser.prototype.finalize = function(){};
+SourceParser.prototype.afterappend = function(){};
+
+SourceParser.prototype.beforeremove = function(){};
 
 SourceParser.prototype.parse = function(handle, eof){};
 
@@ -252,57 +254,61 @@ JavascriptParser.prototype.next = function(match){
 			this.handleParenthesis(match);
 			break;
 		case '@':
-			var skip = this.parser.skipImpl({strings: false});
-			var peek = this.parser.peek();
-			if(peek === undefined || /[=,;\.\)\]\}]/.test(peek)) {
-				this.add(this.element);
-				if(skip) this.add(skip);
+			if(this.parser.peek() == '@') {
+				this.parser.index++;
+				this.add(this.element + ".__component");
+				var skipped = this.parser.skipImpl({strings: false});
+				this.add(skipped);
+				if(/[a-zA-Z_$]/.test(this.parser.peek())) this.add(".");
 			} else {
-				var match = this.parser.input.substr(this.parser.index).match(/^(?:(((\.?[a-zA-Z0-9_$]+)+)\s*=(?!=))|(?:(subscribe)|(?:(?:(templates)|(components))\.(?:(add)|(remove))))(\s*)\()/);
-				if(match) {
-					if(match[1]) {
-						this.add(this.element + skip + ".__builder.");
-						this.parser.index += match[1].length;
-						skip = this.parser.skipImpl({strings: false});
-						if(skip) this.add(skip);
-						var expr = this.parseCodeToValue("readExpression");
-						if(match[2] == "text") this.add("text(" + expr + ", " + this.bind + ", " + this.anchor + ")");
-						else if(match[2] == "visible") this.add("visible(" + expr + ", false, " + this.bind + ")");
-						else if(match[2] == "hidden") this.add("visible(" + expr + ", true, " + this.bind + ")");
-						else this.add("prop(\"" + match[2] + "\", " + expr + ", " + this.bind + ")");
-					} else {
-						this.parser.index += match[0].length;
-						if(match[4]) {
-							this.add(this.runtime  + skip + ".subscribe" + match[7] + "(" + this.bind + ", ");
-							this.parentheses.push(false);
-						} else if(match[5]) {
-							if(match[7]) {
-								this.add(this.runtime + skip + ".defineTemplate" + match[9] + "(");
-								this.add(this.parser.readExpression()); // template name
-								this.parser.expect(',');
-								this.add(',' + this.parser.readExpression()); // tag name
-								this.parser.expect(',');
-								this.add(", this, function(" + this.element + ", " + this.bind + ", " + this.anchor + ", args){(");
-								this.parentheses.push(").call(this, args)}");
-							} else {
-								this.add(this.runtime + skip + ".undefineTemplate" + match[9] + "(");
-								this.parentheses.push(false);
-							}
+				var skip = this.parser.skipImpl({strings: false});
+				var peek = this.parser.peek();
+				if(peek === undefined || /[=,;\.\)\]\}]/.test(peek)) {
+					this.add(this.element);
+					if(skip) this.add(skip);
+				} else {
+					var match = this.parser.input.substr(this.parser.index).match(/^(?:(((\.?[a-zA-Z0-9_$]+)+)\s*=(?!=))|(?:(subscribe)|(anchor)|(?:(?:(templates)|(components))\.(?:(add)|(remove)|(names))))(\s*)\()/);
+					if(match) {
+						if(match[1]) {
+							this.add(this.element + skip + ".__builder.");
+							this.parser.index += match[1].length;
+							skip = this.parser.skipImpl({strings: false});
+							if(skip) this.add(skip);
+							var expr = this.parseCodeToValue("readExpression");
+							if(match[2] == "text") this.add("text(" + expr + ", " + this.bind + ", " + this.anchor + ")");
+							else if(match[2] == "visible") this.add("visible(" + expr + ", false, " + this.bind + ")");
+							else if(match[2] == "hidden") this.add("visible(" + expr + ", true, " + this.bind + ")");
+							else this.add("prop(\"" + match[2] + "\", " + expr + ", " + this.bind + ")");
 						} else {
-							if(match[7]) {
-								this.add(this.runtime + skip + ".defineComponent" + match[9] + "(");
-								this.add(this.parser.readExpression()); // component name
-								this.parser.expect(',');
-								this.add(", function(" + this.element + ", " + this.bind + ", " + this.anchor + "){return new (");
-								this.parentheses.push(")()}");
-							} else {
-								this.add(this.runtime + skip + ".undefineComponent" + match[9] + "(");
+							this.parser.index += match[0].length;
+							if(match[4]) {
+								this.add(this.runtime  + skip + ".subscribe" + match[11] + "(" + this.bind + ", ");
 								this.parentheses.push(false);
+							} else if(match[5]) {
+								this.add(this.transpiler.anchorsRegistry  + skip + ".add" + match[11] + "(" + this.runtime + ".createAnchor(" + this.element + ", " + this.bind + ", " + this.anchor + "), ");
+								this.parentheses.push(false);
+							} else {
+								var type = match[6] ? "Template" : "Component";
+								if(match[8]) {
+									this.add(this.runtime + skip + ".define" + type + match[11] + "(");
+									this.add(this.parser.readExpression()); // name
+									this.parser.expect(',');
+									if(match[6]) {
+										this.add(", this, function(" + this.element + ", " + this.bind + ", " + this.anchor + ", " + this.transpiler.args + "){(");
+										this.parentheses.push(").call(this, " + this.transpiler.args + ", " + this.transpiler.args + ")}");
+									} else {
+										this.add(", function(" + this.transpiler.anchorsRegistry + ", " + this.element + ", " + this.bind + ", " + this.anchor + "){return new (");
+										this.parentheses.push(")()}");
+									}
+								} else {
+									this.add(this.runtime + skip + (match[9] ? ".undefine" + type : ".get" + type + "sName") + match[11] + "(");
+									this.parentheses.push(false);
+								}
 							}
 						}
+					} else {
+						this.add('@' + skip);
 					}
-				} else {
-					this.add('@' + skip);
 				}
 			}
 			break;
@@ -710,8 +716,12 @@ CSSBParser.prototype.end = function(){
 	this.add("return " + this.scopes[0] + "}, " + this.element + ", " + this.bind + ", [" + uniq(this.observables).join(", ") + "], [" + this.snaps.join(", ") + "])");
 };
 
-CSSBParser.prototype.finalize = function(){
-	if(this.scope) this.add(", function(){ this.parentNode.__builder.addClass(\"__sa\" + this.__builder.runtimeId); }, function(){ this.parentNode.__builder.removeClass(\"__sa\" + this.__builder.runtimeId); }");
+CSSBParser.prototype.afterappend = function(){
+	if(this.scope) return "function(){ this.parentNode.__builder.addClass(\"__sa\" + this.__builder.runtimeId); }";
+};
+
+CSSBParser.prototype.beforeremove = function(){
+	if(this.scope) return "function(){ this.parentNode.__builder.removeClass(\"__sa\" + this.__builder.runtimeId); }";
 };
 
 CSSBParser.createExprImpl = function(expr, info){
@@ -864,7 +874,6 @@ Transpiler.prototype.parseCode = function(input, parentParser){
 		mode.parse(function(){ source.push('<'); }, function(){});
 	}
 	mode.end();
-	mode.finalize();
 	source = source.join("");
 	var observables = mode.observables ? uniq(mode.observables) : [];
 	var $this = this;
@@ -943,7 +952,8 @@ Transpiler.prototype.open = function(){
 		this.parser.index++;
 		this.parser.expect('-');
 		this.parser.expect('-');
-		this.source.push(this.runtime + ".comment(" + this.element + ", " + this.bind + ", " + this.anchor + ", " + stringify(this.parser.findSequence("-->", true).slice(0, -3)) + ");");
+		this.source.push(this.runtime + ".comment(" + this.element + ", " + this.bind + ", " + this.anchor + ", " + stringify(this.parser.findSequence("-->", true).slice(0, -3)) + ")");
+		this.addSemicolon();
 	} else if(this.currentMode.options.children === false) {
 		throw new Error("Mode " + this.currentMode.name + " cannot have children");
 	} else {
@@ -966,24 +976,28 @@ Transpiler.prototype.open = function(){
 		var currentNamespace = this.namespaces[this.namespaces.length - 1];
 		var currentInheritance = "";
 		var currentClosing = "";
+		var createAnchor;
 		var computed = false;
-		var selector, tagName, templates = [];
+		var selector, tagName;
 		var selectorAll = false;
+		var anchorName;
 		this.updateTemplateLiteralParser();
 		if(selector = this.parser.readQueryExpr()) {
 			selector = this.parseCode(selector).source;
 			if(this.parser.peek() == '+') selectorAll = !!this.parser.read();
-			tagName = this.parser.peek() == '$' ? this.parser.readTagName(true) : "";
+			tagName = "";
 			append = false;
 		} else if(tagName = this.parser.readComputedExpr()) {
 			tagName = this.parseCode(tagName).source;
 			computed = true;
 		} else {
 			tagName = this.parser.readTagName(true);
-		}
-		if(!computed) {
-			templates = tagName.split('$');
-			tagName = templates.shift();
+			var column = tagName.indexOf(':');
+			if(column > 0) {
+				anchorName = tagName.substr(column + 1);
+				tagName = tagName.substring(0, column);
+				append = false;
+			}
 		}
 		skip(true);
 		var next = false;
@@ -994,7 +1008,10 @@ Transpiler.prototype.open = function(){
 				this.parser.index++;
 				this.parser.expect('.');
 				this.parser.expect('.');
-				sattributes.push(this.parser.readSingleExpression(false));
+				var expr = this.parser.readSingleExpression(false);
+				if(!expr) this.parser.error("Could not find a valid expression.");
+				sattributes.push(expr);
+				skip(true);
 			} else {
 				var attr = {
 					attr: undefined,
@@ -1008,7 +1025,7 @@ Transpiler.prototype.open = function(){
 				} else {
 					attr.attr = this.parser.readAttributeName(true);	
 				}
-				skip();
+				skip(true);
 				if(this.parser.peek() == '=') {
 					this.parser.index++;
 					skip();
@@ -1022,6 +1039,7 @@ Transpiler.prototype.open = function(){
 						value = this.wrapFunction(value);
 					}
 					attr.value = this.parseCode(value).toValue();
+					skip(true);
 				}
 				if(!attr.computed) {
 					if(attr.attr == "@") {
@@ -1038,7 +1056,6 @@ Transpiler.prototype.open = function(){
 					rattributes.push(attr);
 				}
 			}
-			skip(true);
 			next = false;
 		}
 		if(!next) throw new Error("Tag was not closed"); //TODO throw error from the start of the tag
@@ -1067,11 +1084,6 @@ Transpiler.prototype.open = function(){
 					if(this.tagNames.hasOwnProperty(tagName)) this.tagNames[tagName]++;
 					else this.tagNames[tagName] = 1;
 				}
-				for(var i=0; i<templates.length; i++) {
-					var t = templates[i];
-					if(this.templates.hasOwnProperty(t)) this.templates[t]++;
-					else this.templates[t] = 1;
-				}
 				if(!iattributes.namespace) {
 					if(tagName == "svg") currentNamespace = "\"svg\"";
 					else if(tagName == "math") currentNamespace = "\"mathml\"";
@@ -1089,87 +1101,136 @@ Transpiler.prototype.open = function(){
 		}
 		if(iattributes.head) parent = "document.head";
 		if(iattributes.body) parent = "document.body";
-		function createExpr() {
-			var ret = this.runtime + ".";
-			if(!append) ret += "updateElement(" + this.element + ", ";
-			else ret += "createElement(";
-			ret += this.bind + ", " + this.anchor + ", " + (computed ? tagName : '"' + tagName + '"') + ", {";
-			if(currentNamespace) ret += "namespace:" + currentNamespace + ",";
-			if(templates.length) ret += "templates:" + JSON.stringify(templates) + ",";
+		function createExprOptions() {
+			var ret = "";
 			var inheritance = this.inheritance.join("");
 			var args = !!(inheritance || rattributes.length);
+			if(currentNamespace) ret += "namespace:" + currentNamespace + ",";
 			if(args) ret += "args:[";
-			rattributes.forEach(function(attribute){
+			for(var i=0; i<rattributes.length; i++) {
+				var attribute = rattributes[i];
 				if(!attribute.computed && attribute.attr.charAt(0) == '~') {
 					var expr = "{key:\"" + attribute.attr.substr(1) + "\",value:" + attribute.value + "},";
 					currentInheritance += expr;
 					ret += expr;
+				} else if(attribute.attr == "@anchor") {
+					createAnchor = attribute.value;
 				} else {
 					ret += "{key:" + (attribute.computed ? attribute.attr : '"' + attribute.attr + '"') + ",value:" + attribute.value + "},";
 				}
-			});
+				if(!attribute.computed && attribute.attr.charAt(0) == '$') {
+					var index = attribute.attr.indexOf(':');
+					var name = index == -1 ? attribute.attr.substr(1) : attribute.attr.substring(1, index);
+					if(this.templates.hasOwnProperty(name)) this.templates[name]++;
+					else this.templates[name] = 1;
+				}
+			}
 			if(args) ret = ret.slice(0, -1) + "],";
-			return ret + "}" + sattributes.map(function(a){ return ", " + a; }).join("") + ")";
+			if(sattributes.length) ret += "spread:[" + sattributes.join(",") + "],";
+			return "{" + ret.slice(0, -1) + "}";
 		}
 		parser.index++;
 		if(parent == "\"\"") {
 			// an empty string and null have the same behaviour but null is faster as it avoids the query selector controls when appending
 			parent = "null";
 		}
+		if(newMode !== undefined) {
+			this.startMode(newMode, iattributes);
+		}
+
 		if(selector) {
 			this.source.push(this.runtime + ".query(this, " + selector + ", " + selectorAll + ", function(" + this.element + "){");
+		}
+		if(iattributes.unique) {
+			this.source.push(this.runtime + ".unique(this, " + this.nextId() + ", function(){return ");
+		}
+
+		var before = [], after = [];
+		var call = true;
+		var inline = false;
+		var bindType = "";
+		if(tagName == ":bind-if" || tagName == ":if") bindType = "If";
+		else if(tagName == ":bind-each" || tagName == ":each") bindType = "Each";
+		if(!computed && (bindType || tagName == ":bind")) {
+			this.source.push(this.runtime + ".bind" + bindType + "(" + ["this", parent, this.bind, this.anchor, iattributes.to || "0", iattributes.change || "0", iattributes.cleanup || "0"].join(", ") +
+				(bindType == "If" ? ", " + iattributes.condition : "") + ", function(" + [this.element, this.bind, this.anchor, iattributes.as || this.value, iattributes.index || this.index, iattributes.array || this.array].join(", ") + "){");
+			before = create = false;
 			currentClosing += "})";
+		}
+		if(anchorName) {
+			before.push(["updateAnchor", this.bind, this.anchor, createExprOptions.call(this), this.anchors, '"' + tagName + '"', '"' + anchorName + '"', "function(" + this.element + ", " + this.anchor + "){"]);
+			call = false;
+			currentClosing += "}";
+		} else if(create) {
+			if(append) {
+				// create the element
+				var hooks = newMode !== undefined ? [this.currentMode.parser.afterappend() || 0, this.currentMode.parser.beforeremove() || 0] : [];
+				before.push(["create", this.bind, this.anchor, computed ? tagName : '"' + tagName + '"', createExprOptions.call(this)]);
+				before.push(["append", parent, this.bind, this.anchor].concat(hooks));
+			} else {
+				// update the element
+				before.push(["update", this.element, this.bind, this.anchor, createExprOptions.call(this)]);
+			}
 		}
 		if(next == '/') {
 			this.parser.expect('>');
-			if(create) {
-				if(append) {
-					var e = this.runtime + ".appendElement(" + parent + ", " + this.bind + ", " + this.anchor + ", " + createExpr.call(this) + ")";
-					if(iattributes.unique) e = this.runtime + ".unique(this, " + nextId() + ", function(){return " + e + "})";
-					this.source.push(e);
-				} else {
-					this.source.push(createExpr.call(this));
-				}
+			inline = true;
+			call = false;
+		}
+		if(before && (call || createAnchor)) {
+			// create body
+			if(create && append && !iattributes.append) {
+				// move the append function in the 'after' calls, so the DOM tree won't be re-rendered too much
+				after.push(before.pop());
+			}
+			if(before.length == 0) {
+				// nothing was created or updated, the container must be set manually
+				before.push(["set", "container", parent]);
+			}
+			before.push(["call", this.anchors, "function(" + this.element + ", " + this.anchor + ", " + this.anchors + "){"]);
+			currentClosing += "}";
+		}
+
+		var runtime = this.runtime;
+		function mapNext(a) {
+			if(a[0] == "set") {
+				return ".set(" + JSON.stringify(a[1]) + ", " + a[2] + ")";
+			} else {
+				return ".next(" + runtime + "." + a[0] + ", " + a.slice(1).join(", ") + ")";
+			}
+		}
+
+		if(before) {
+			if(before.length) {
+				this.source.push(this.runtime + "(this)" + before.map(mapNext).join("").slice(0, -1));
+				currentClosing += ")" + after.map(mapNext).join("") + ".close()";
 			} else {
 				this.source.push(parent);
 			}
-			if(currentClosing) this.source.push(currentClosing);
+		}
+
+		if(createAnchor) {
+			this.source.push(this.anchorsRegistry + ".add(null, " + createAnchor + ", " + this.element + ");");
+		}
+
+		if(selector) {
+			currentClosing += "})";
+		}
+		if(iattributes.unique) {
+			currentClosing += "})";
+		}
+
+		if(inline) {
+			if(newMode !== undefined) {
+				this.endMode();
+			}
+			this.source.push(currentClosing);
 			this.addSemicolon();
 		} else {
-			var expr = createExpr.call(this); // always call to trigger attribute inheritance
-			this.tags.push(newMode !== undefined);
-			if(newMode !== undefined) {
-				this.startMode(newMode, iattributes);
-			}
-			var bindType = "";
-			if(tagName == ":bind-if" || tagName == ":if") bindType = "If";
-			else if(tagName == ":bind-each" || tagName == ":each") bindType = "Each";
-			if(!computed && (bindType || tagName == ":bind")) {
-				this.source.push(this.runtime + ".bind" + bindType + "(" + ["this", parent, this.bind, this.anchor, iattributes.to || "0", iattributes.change || "0", iattributes.cleanup || "0"].join(", ") + (bindType == "If" ? ", " + iattributes.condition : "") +
-					", function(" + [this.element, this.bind, this.anchor, iattributes.as || this.value, iattributes.index || this.index, iattributes.array || this.array].join(", ") + "){");
-			} else if(create) {
-				if(append) {
-					var e;
-					if(iattributes.append) {
-						e = this.runtime + ".callElement(this, " + this.runtime + ".appendElement(" + parent + ", " + this.bind + ", " + this.anchor + ", " + expr + "), function(" + this.element + ", " + this.anchor + "){";
-					} else {
-						 e = this.runtime + ".append(" + parent + ", " + this.bind + ", " + this.anchor + ", " + this.runtime + ".call(this, " + expr + ", function(" + this.element + ", " + this.anchor + "){";
-						currentClosing += ")";
-					}
-					if(iattributes.unique) {
-						e = this.runtime + ".unique(this, " + this.nextId() + ", function(){return " + e;
-						currentClosing += "})";
-					}
-					this.source.push(e);
-				} else {
-					this.source.push(this.runtime + ".call(this, " + expr + ", function(" + this.element + "){");
-				}
-			} else {
-				this.source.push(this.runtime + ".callElement(this, " + parent + ", function(" + this.element + "){");
-			}
 			this.namespaces.push(currentNamespace);
 			this.inheritance.push(currentInheritance);
 			this.closing.push(currentClosing);
+			this.tags.push(newMode !== undefined);
 			if(newMode !== undefined) {
 				this.currentMode.parser.start();
 			}
@@ -1189,8 +1250,6 @@ Transpiler.prototype.close = function(){
 	var oldMode = closeMode && this.endMode();
 	this.namespaces.pop();
 	this.inheritance.pop();
-	if(closeCode) this.source.push("})");
-	if(oldMode) oldMode.finalize();
 	if(closeCode) {
 		this.source.push(this.closing.pop());
 		this.addSemicolon();
@@ -1217,6 +1276,9 @@ Transpiler.prototype.transpile = function(input, options){
 	this.value = "__v" + this.count % 10;
 	this.index = "__i" + this.count % 10;
 	this.array = "__a" + ++this.count % 4;
+	this.args = "__a" + ++this.count % 40;
+	this.anchors = "__a" + ++this.count % 8;
+	this.anchorsRegistry = "__r" + this.count % 8;
 
 	this.tagNames = {};
 	this.templates = {};
@@ -1225,7 +1287,7 @@ Transpiler.prototype.transpile = function(input, options){
 		"/*! Transpiled" + (this.options.filename ? " from " + this.options.filename : "") + " using Sactory v" +
 		(typeof Sactory != "undefined" ? Sactory.VERSION : version.version) + ". Do not edit manually. */" +
 		"!function(a){if(typeof define=='function'&&define.amd){define(['sactory'], a)}else{a(Sactory)}}" +
-		"(function(" + this.runtime + ", " + this.element + ", " + this.bind + ", " + this.anchor + "){";
+		"(function(" + this.runtime + ", " + this.element + ", " + this.bind + ", " + this.anchor + ", " + this.anchors + "){";
 	this.source = [];
 
 	if(this.options.scope) this.before += this.element + "=" + this.options.scope + ";";
@@ -1247,7 +1309,7 @@ Transpiler.prototype.transpile = function(input, options){
 		this.currentMode.parser.parse(open, close);
 	}
 	
-	this.endMode().finalize();
+	this.endMode();
 	
 	this.after = "})";
 
