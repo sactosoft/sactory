@@ -942,6 +942,23 @@ Transpiler.prototype.addSemicolon = function(){
 };
 
 /**
+ * Closes a scope and optionally ends the current mode and restores the
+ * previous one.
+ * @since 0.29.0
+ */
+Transpiler.prototype.close = function(){
+	var closeCode = !this.parser.eof();
+	var closeMode = this.tags.pop();
+	var oldMode = closeMode && this.endMode();
+	this.namespaces.pop();
+	this.inheritance.pop();
+	if(closeCode) {
+		this.source.push(this.closing.pop());
+		this.addSemicolon();
+	}
+};
+
+/**
  * @since 0.29.0
  */
 Transpiler.prototype.open = function(){
@@ -966,7 +983,7 @@ Transpiler.prototype.open = function(){
 		}
 		var currentIndex = this.source.length;
 		var newMode = undefined;
-		var create = true; // whether a new element is being created or the current element is being scoped
+		var create = true; // whether a new element is being created or the current/given element is being scoped
 		var append = true; // whether the new element should be appended to the current element after its creation
 		var unique = false; // whether the new element should be appended always or only when its not already on the DOM
 		var parent = this.element; // element that the new element will be appended to, if not null
@@ -978,14 +995,13 @@ Transpiler.prototype.open = function(){
 		var currentClosing = "";
 		var createAnchor;
 		var computed = false;
-		var selector, tagName;
+		var selector, tagName = "";
 		var selectorAll = false;
 		var anchorName;
 		this.updateTemplateLiteralParser();
 		if(selector = this.parser.readQueryExpr()) {
 			selector = this.parseCode(selector).source;
 			if(this.parser.peek() == '+') selectorAll = !!this.parser.read();
-			tagName = "";
 			append = false;
 		} else if(tagName = this.parser.readComputedExpr()) {
 			tagName = this.parseCode(tagName).source;
@@ -1013,47 +1029,55 @@ Transpiler.prototype.open = function(){
 				sattributes.push(expr);
 				skip(true);
 			} else {
-				var attr = {
-					attr: undefined,
-					computed: false,
-					value: "\"\""
-				};
-				var add = false;
-				if(attr.attr = this.parser.readComputedExpr()) {
-					attr.attr = this.parseCode(attr.attr).source;
-					attr.computed = add = true;
+				var names = [];
+				var value = "\"\"";
+				if(next == '{') {
+					this.parser.index++;
+					do {
+						skip();
+						names.push(this.nextAttributeName());
+						skip();
+					} while((next = this.parser.read()) == ',');
+					if(next != '}') this.parser.error("Expected '}' after attribute names list.");
 				} else {
-					attr.attr = this.parser.readAttributeName(true);	
+					names.push(this.nextAttributeName());
 				}
+				var add = false;
 				skip(true);
 				if(this.parser.peek() == '=') {
 					this.parser.index++;
 					skip();
 					this.parser.parseTemplateLiteral = null;
-					var value = this.parser.readAttributeValue();
-					if(attr.attr.charAt(0) == '@' || attr.attr.charAt(0) == '+') {
+					var name = names.length == 1 ? names[0].name : "";
+					value = this.parser.readAttributeValue();
+					if(name.charAt(0) == '@' || name.charAt(0) == '+') {
 						value = this.wrapFunction(value, "event");
-					} else if(attr.attr == ":change") {
+					} else if(name == ":change") {
 						value = this.wrapFunction(value, "oldValue", "value");
-					} else if(attr.attr == ":cleanup" || attr.attr == ":condition") {
+					} else if(name == ":cleanup" || name == ":condition") {
 						value = this.wrapFunction(value);
 					}
-					attr.value = this.parseCode(value).toValue();
+					value = this.parseCode(value).toValue();
 					skip(true);
 				}
-				if(!attr.computed) {
-					if(attr.attr == "@") {
-						parent = attr.value;
-					} else if(attr.attr.charAt(0) == '#') {
-						newMode = modeNames[attr.attr.substr(1)];
-					} else if(attr.attr.charAt(0) == ':') {
-						iattributes[attr.attr.substr(1)] = attr.value;
-					} else {
-						add = true;
+				for(var i in names) {
+					var attr = names[i];
+					var add = attr.computed;
+					if(!attr.computed) {
+						if(attr.name == "@") {
+							parent = value;
+						} else if(attr.name.charAt(0) == '#') {
+							newMode = modeNames[attr.name.substr(1)];
+						} else if(attr.name.charAt(0) == ':') {
+							iattributes[attr.name.substr(1)] = value;
+						} else {
+							add = true;
+							attr.value = value;
+						}
 					}
-				}
-				if(add) {
-					rattributes.push(attr);
+					if(add) {
+						rattributes.push(attr);
+					}
 				}
 			}
 			next = false;
@@ -1109,18 +1133,18 @@ Transpiler.prototype.open = function(){
 			if(args) ret += "args:[";
 			for(var i=0; i<rattributes.length; i++) {
 				var attribute = rattributes[i];
-				if(!attribute.computed && attribute.attr.charAt(0) == '~') {
-					var expr = "{key:\"" + attribute.attr.substr(1) + "\",value:" + attribute.value + "},";
+				if(!attribute.computed && attribute.name.charAt(0) == '~') {
+					var expr = "{key:\"" + attribute.name.substr(1) + "\",value:" + attribute.value + "},";
 					currentInheritance += expr;
 					ret += expr;
-				} else if(attribute.attr == "@anchor") {
+				} else if(attribute.name == "@anchor") {
 					createAnchor = attribute.value;
 				} else {
-					ret += "{key:" + (attribute.computed ? attribute.attr : '"' + attribute.attr + '"') + ",value:" + attribute.value + "},";
+					ret += "{key:" + (attribute.computed ? attribute.name : '"' + attribute.name + '"') + ",value:" + attribute.value + "},";
 				}
-				if(!attribute.computed && attribute.attr.charAt(0) == '$') {
-					var index = attribute.attr.indexOf(':');
-					var name = index == -1 ? attribute.attr.substr(1) : attribute.attr.substring(1, index);
+				if(!attribute.computed && attribute.name.charAt(0) == '$') {
+					var index = attribute.name.indexOf(':');
+					var name = index == -1 ? attribute.name.substr(1) : attribute.name.substring(1, index);
 					if(this.templates.hasOwnProperty(name)) this.templates[name]++;
 					else this.templates[name] = 1;
 				}
@@ -1240,20 +1264,18 @@ Transpiler.prototype.open = function(){
 };
 
 /**
- * Closes a scope and optionally ends the current mode and restores the
- * previous one.
- * @since 0.29.0
+ * @since 0.60.0
  */
-Transpiler.prototype.close = function(){
-	var closeCode = !this.parser.eof();
-	var closeMode = this.tags.pop();
-	var oldMode = closeMode && this.endMode();
-	this.namespaces.pop();
-	this.inheritance.pop();
-	if(closeCode) {
-		this.source.push(this.closing.pop());
-		this.addSemicolon();
+Transpiler.prototype.nextAttributeName = function(){
+	var ret = {};
+	if(ret.name = this.parser.readComputedExpr()) {
+		ret.name = this.parseCode(ret.name).source;
+		ret.computed = true;
+	} else {
+		ret.name = this.parser.readAttributeName(true);
+		ret.computed = false;
 	}
+	return ret;
 };
 
 /**

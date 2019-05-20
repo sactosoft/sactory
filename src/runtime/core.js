@@ -112,7 +112,7 @@ Sactory.getComponentsName = function(){
  * @class
  * @since 0.60.0
  */
-function Anchors(name) {
+function AnchorRegistry(name) {
 	this.name = name;
 	this.anchors = {};
 }
@@ -120,8 +120,21 @@ function Anchors(name) {
 /**
  * @since 0.60.0
  */
-Anchors.prototype.add = function(anchor, name, element){
+AnchorRegistry.prototype.add = function(anchor, name, element){
 	this.anchors[name || "__container"] = {element: element, anchor: anchor};
+};
+
+/**
+ * @class
+ * @since 0.60.0
+ */
+Sactory.Component = function(){};
+
+/**
+ * @since 0.60.0
+ */
+Sactory.Component.prototype.render = function(args){
+	throw new Error("'render' function not implemented.");
 };
 
 // init global functions used at runtime
@@ -155,7 +168,7 @@ Sactory.update = function(result, element, bind, anchor, options){
 			var remove = false;
 			if(arg.key.charAt(0) == '$') {
 				var key = arg.key.substr(1);
-				var index = key.indexOf(':');
+				var index = key.lastIndexOf(':');
 				if(index == -1) {
 					templateArgs[key] = Object(arg.value);
 				} else {
@@ -187,8 +200,8 @@ Sactory.update = function(result, element, bind, anchor, options){
 					delete elementArgs[key];
 				}
 			}
-			anchors = new Anchors(component.name);
-			component = component.handler(anchors);
+			anchors = new AnchorRegistry(component.name);
+			component = component.handler(anchors, null, bind, null);
 			element = component.render(attributes, options.namespace);
 			element.__component = component;
 			if(anchors.anchors.__container) container = anchors.anchors.__container.element;
@@ -201,14 +214,14 @@ Sactory.update = function(result, element, bind, anchor, options){
 
 	if(!container) container = element;
 	
+	for(var key in elementArgs) {
+		element.__builder.setImpl(key, elementArgs[key], bind, anchor);
+	}
+	
 	for(var templateName in templateArgs) {
 		var template = definedTemplates[templateName];
 		if(!template) throw new Error("Could not find template '" + templateName + "'.");
 		else template.handler.call(template.context, container, bind, null, templateArgs[templateName]);
-	}
-	
-	for(var key in elementArgs) {
-		element.__builder.setImpl(key, elementArgs[key], bind, anchor);
 	}
 	
 	Polyfill.assign(result, {
@@ -258,7 +271,7 @@ Sactory.call = function(result, anchors, fun){
  * @since 0.60.0
  */
 Sactory.append = function(result, parent, bind, anchor, afterappend, beforeremove){
-	if(parent || typeof parent == "string" && parent.length && (parent = document.querySelector(parent))) {
+	if(parent && parent.nodeType || typeof parent == "string" && (parent = document.querySelector(parent))) {
 		if(anchor && anchor.parentNode === parent) parent.insertBefore(result.element, anchor);
 		else parent.appendChild(result.element);
 		if(afterappend) afterappend.call(result.element);
@@ -282,7 +295,7 @@ Sactory.unique = function(context, id, fun){
 	var className = "__sa" + id;
 	if(!document.querySelector("." + className)) {
 		var element = fun.call(context);
-		element.classList.add(className);
+		element.__builder.addClass(className);
 		return element;
 	}
 };

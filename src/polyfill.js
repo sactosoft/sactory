@@ -11,11 +11,11 @@ Polyfill.endsWith = String.prototype.endsWith || function(search, this_len) {
 };
 
 Polyfill.trimStart = String.prototype.trimStart || function(){
-	return this.replace(/^[\s\uFEFF\xA0]+/g);
+	return this.replace(/^[\s\uFEFF\xA0]+/g, "");
 };
 
 Polyfill.trimEnd = String.prototype.trimEnd || function(){
-	return this.replace(/[\s\uFEFF\xA0]+$/g);
+	return this.replace(/[\s\uFEFF\xA0]+$/g, "");
 };
 
 Polyfill.padStart = String.prototype.padStart || function(target, string){
