@@ -60,7 +60,7 @@ window.onload = function(){
 			<input *value=*file />
 			if(window.localStorage) {
 				<select *value=*file>
-					Object.keys(window.localStorage).forEach(function(key){
+					Object.keys(window.localStorage).sort().forEach(function(key){
 						if(key.substr(0, 8) == "storage.") <option value=key.substr(8) @text=key.substr(8) />
 					});
 				</select>

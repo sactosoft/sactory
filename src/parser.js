@@ -472,7 +472,7 @@ Parser.prototype.readExpression = function(){
  * @since 0.37.0
  */
 Parser.prototype.readAttributeValue = function(){
-	return this.readSingleExpression(false) || this.error("Could not find a valid expression for the attribute's value.");
+	return (this.peek() == '#' ? this.read() : "") + this.readSingleExpression(false) || this.error("Could not find a valid expression for the attribute's value.");
 };
 
 /**

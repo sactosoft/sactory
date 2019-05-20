@@ -256,7 +256,7 @@ JavascriptParser.prototype.next = function(match){
 		case '@':
 			if(this.parser.peek() == '@') {
 				this.parser.index++;
-				this.add(this.element + ".__component");
+				this.add((this.parser.last != '.' ? this.element + "." : "") + "__component");
 				var skipped = this.parser.skipImpl({strings: false});
 				this.add(skipped);
 				if(/[a-zA-Z_$]/.test(this.parser.peek())) this.add(".");
@@ -1050,6 +1050,7 @@ Transpiler.prototype.open = function(){
 					this.parser.parseTemplateLiteral = null;
 					var name = names.length == 1 ? names[0].name : "";
 					value = this.parser.readAttributeValue();
+					if(value.charAt(0) == '#') value = this.runtime + ".functions." + value.substr(1) + "()";
 					if(name.charAt(0) == '@' || name.charAt(0) == '+') {
 						value = this.wrapFunction(value, "event");
 					} else if(name == ":change") {
@@ -1066,6 +1067,8 @@ Transpiler.prototype.open = function(){
 					if(!attr.computed) {
 						if(attr.name == "@") {
 							parent = value;
+						} else if(attr.name == "@anchor") {
+							createAnchor = value;
 						} else if(attr.name.charAt(0) == '#') {
 							newMode = modeNames[attr.name.substr(1)];
 						} else if(attr.name.charAt(0) == ':') {
@@ -1095,6 +1098,10 @@ Transpiler.prototype.open = function(){
 					case "head":
 					case "body":
 						parent = "document." + tagName.substr(1);
+						break;
+					case "fragment":
+					case "shadow":
+						create = true;
 						break;
 				}
 			} else if(tagName.charAt(0) == '#') {
@@ -1188,9 +1195,18 @@ Transpiler.prototype.open = function(){
 		} else if(create) {
 			if(append) {
 				// create the element
-				var hooks = newMode !== undefined ? [this.currentMode.parser.afterappend() || 0, this.currentMode.parser.beforeremove() || 0] : [];
-				before.push(["create", this.bind, this.anchor, computed ? tagName : '"' + tagName + '"', createExprOptions.call(this)]);
-				before.push(["append", parent, this.bind, this.anchor].concat(hooks));
+				if(tagName == ":shadow") {
+					before.push(["set", "element", parent + ".attachShadow({mode: " + (iattributes.mode || "\"open\"") + "})"]);
+					append = false;
+				} else {
+					var hooks = newMode !== undefined ? [this.currentMode.parser.afterappend() || 0, this.currentMode.parser.beforeremove() || 0] : [];
+					if(tagName == ":fragment") {
+						before.push(["set", "element", "document.createDocumentFragment()"]);
+					} else {
+						before.push(["create", this.bind, this.anchor, computed ? tagName : '"' + tagName + '"', createExprOptions.call(this)]);
+					}
+					before.push(["append", parent, this.bind, this.anchor].concat(hooks));
+				}
 			} else {
 				// update the element
 				before.push(["update", this.element, this.bind, this.anchor, createExprOptions.call(this)]);

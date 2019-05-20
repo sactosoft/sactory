@@ -203,8 +203,11 @@ Sactory.update = function(result, element, bind, anchor, options){
 			anchors = new AnchorRegistry(component.name);
 			component = component.handler(anchors, null, bind, null);
 			element = component.render(attributes, options.namespace);
-			element.__component = component;
-			if(anchors.anchors.__container) container = anchors.anchors.__container.element;
+			element.__component = element["@@"] = component;
+			if(anchors.anchors.__container) {
+				container = anchors.anchors.__container.element;
+				result.anchor = anchors.anchors.__container.anchor;
+			}
 		} else if(options.namespace) {
 			element = document.createElementNS(NAMESPACES[options.namespace] || options.namespace, options.tagName);
 		} else {
@@ -263,7 +266,7 @@ Sactory.call = function(result, anchors, fun){
 		anchors = (anchors || []).concat(result.anchors);
 	}
 	var element = result.container || result.element;
-	fun.call(this, element, undefined, anchors);
+	fun.call(this, result.anchor ? result.anchor.parentNode : element, result.anchor, anchors);
 	return element;
 };
 
@@ -272,6 +275,7 @@ Sactory.call = function(result, anchors, fun){
  */
 Sactory.append = function(result, parent, bind, anchor, afterappend, beforeremove){
 	if(parent && parent.nodeType || typeof parent == "string" && (parent = document.querySelector(parent))) {
+		if(result.anchor) anchor = result.anchor;
 		if(anchor && anchor.parentNode === parent) parent.insertBefore(result.element, anchor);
 		else parent.appendChild(result.element);
 		if(afterappend) afterappend.call(result.element);
@@ -335,6 +339,24 @@ Sactory.subscribe = function(bind, observable, callback, type){
 	var subscription = observable.subscribe(callback, type);
 	if(bind) bind.subscribe(subscription);
 	return subscription;
+};
+
+Sactory.functions = {};
+
+var currentId;
+
+/**
+ * @since 0.61.0
+ */
+Sactory.functions.nextId = function(){
+	return currentId = "__sa" + Math.floor(Math.random() * 100000);
+};
+
+/**
+ * @since 0.61.0
+ */
+Sactory.functions.currentId = function(){
+	return currentId;
 };
 
 if(!Sactory.compilecssb) {
