@@ -27,7 +27,7 @@ function uniq(array) {
 function stringify(str) {
 	// that's not very fast
 	return '"' + str.replace(/(\r?\n)|([\\"])/gm, function(_, newline, escaped){
-		if(newline) return "\\n\" +\n\"";
+		if(newline) return "\\n\\\n";
 		else return '\\' + escaped;
 	}) + '"';
 }
@@ -263,7 +263,7 @@ JavascriptParser.prototype.next = function(match){
 			} else {
 				var skip = this.parser.skipImpl({strings: false});
 				var peek = this.parser.peek();
-				if(peek === undefined || /[=,;\.\)\]\}]/.test(peek)) {
+				if(peek === undefined || !/[a-zA-Z0-9_]/.test(peek)) {
 					this.add(this.element);
 					if(skip) this.add(skip);
 				} else {

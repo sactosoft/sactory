@@ -87,6 +87,7 @@ window.onload = function(){
 			<section :append>
 				var container = <iframe style="width:100%;height:calc(100vh - 16px);border:none" />
 				<script @=container.contentWindow.document.head async src="../dist/sactory.js" />.onload = function(){
+					window.sandbox = container.contentWindow;
 					try {
 						container.contentWindow.eval(*result.source.all);
 					} catch(e) {

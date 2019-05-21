@@ -97,7 +97,6 @@ Builder.prototype.attr = function(name, value, bind){
 	
 Builder.prototype.text = function(value, bind, anchor){
 	var textNode;
-	var insertBefore = anchor && anchor.parentNode === this.element;
 	if(SactoryObservable.isObservable(value)) {
 		textNode = document.createTextNode("");
 		this.subscribe(bind, SactoryObservable.observe(value, function(value){
@@ -105,15 +104,9 @@ Builder.prototype.text = function(value, bind, anchor){
 			textNode.observed = true;
 		}));
 	} else {
-		var prev = insertBefore ? anchor.previousSibling : this.element.lastChild;
-		if(prev && prev.nodeType == Node.TEXT_NODE && !prev.observed) {
-			// append to previous text node instead of creating a new one
-			prev.textContent += value;
-			return;
-		}
 		textNode = document.createTextNode(value);
 	}
-	if(insertBefore) this.element.insertBefore(textNode, anchor);
+	if(anchor && anchor.parentNode === this.element) this.element.insertBefore(textNode, anchor);
 	else this.element.appendChild(textNode);
 	if(bind) bind.appendChild(textNode);
 };
