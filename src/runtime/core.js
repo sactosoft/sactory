@@ -112,6 +112,19 @@ Sactory.getComponentsName = function(){
  * @class
  * @since 0.60.0
  */
+Sactory.Component = function(){};
+
+/**
+ * @since 0.60.0
+ */
+Sactory.Component.prototype.render = function(args){
+	throw new Error("'render' function not implemented.");
+};
+
+/**
+ * @class
+ * @since 0.60.0
+ */
 function AnchorRegistry(name) {
 	this.name = name;
 	this.anchors = {};
@@ -122,19 +135,6 @@ function AnchorRegistry(name) {
  */
 AnchorRegistry.prototype.add = function(anchor, name, element){
 	this.anchors[name || "__container"] = {element: element, anchor: anchor};
-};
-
-/**
- * @class
- * @since 0.60.0
- */
-Sactory.Component = function(){};
-
-/**
- * @since 0.60.0
- */
-Sactory.Component.prototype.render = function(args){
-	throw new Error("'render' function not implemented.");
 };
 
 // init global functions used at runtime

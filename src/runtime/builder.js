@@ -2,6 +2,10 @@ var Polyfill = require("../polyfill");
 var SactoryObservable = require("./observable");
 var SactoryBind = require("./bind");
 
+// generate class name for hidden elements
+var hidden = "__sa" + Math.floor(Math.random() * 100000);
+var hiddenAdded = false;
+
 /**
  * @class
  */
@@ -115,14 +119,18 @@ Builder.prototype.text = function(value, bind, anchor){
  * @since 0.46.0
  */
 Builder.prototype.visible = function(value, reversed, bind){
-	var element = this.element;
-	var display = "";
+	if(!hiddenAdded) {
+		hiddenAdded = true;
+		var style = document.createElement("style");
+		style.textContent = "." + hidden + "{display:none !important;}";
+		document.head.appendChild(style);
+	}
+	var builder = this;
 	function update(value) {
 		if(!!value ^ reversed) {
-			element.style.display = display;
+			builder.removeClass(hidden);
 		} else if(element.style.display != "none") {
-			display = element.style.display;
-			element.style.display = "none";
+			builder.addClass(hidden);
 		}
 	}
 	if(SactoryObservable.isObservable(value)) {

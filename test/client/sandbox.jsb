@@ -58,6 +58,12 @@ window.onload = function(){
 
 	<style :head>
 		var fontFamily = "Segoe UI";
+		var color = {
+			red: {
+				background: "#D32F2F",
+				text: "#F44336"
+			}
+		};
 		body {
 			margin: 0;
 			font-family: ${fontFamily};
@@ -100,7 +106,7 @@ window.onload = function(){
 					.has-errors &.error, .has-warnings &.warn {
 						&::before {
 							content: '• ';
-							color: red;
+							color: ${color.red.text};
 							font-weight: bold;
 						}
 					}
@@ -121,11 +127,6 @@ window.onload = function(){
 				height: 50vh;
 			}
 		}
-		.CodeMirror {
-			height: 100%;
-			border-top: 1px solid silver;
-			border-bottom: 1px solid silver;
-		}
 		.text {
 			margin: 8px;
 			width: calc(100% - 16px);
@@ -134,6 +135,25 @@ window.onload = function(){
 			font-family: monospace;
 			&:focus {
 				outline: none;
+			}
+		}
+		.color-red {
+			color: ${color.red.text};
+		}
+
+		.CodeMirror {
+			height: 100%;
+			border-top: 1px solid silver;
+			border-bottom: 1px solid silver;
+			.error::before, .warn::before {
+				position: absolute;
+				font-size: .8em;
+			}
+			.error::before {
+				content: '🛑';
+			}
+			.warn::before {
+				content: '⚠️';
 			}
 		}
 	</style>
@@ -154,6 +174,7 @@ window.onload = function(){
 						</select>
 					}
 				}
+				<span style="float:right;font-weight:bold;color:darkviolet" @text=("Sactory v" + Sactory.VERSION) />
 			</section>
 			<section class="editor">
 				input = <textarea style="width:100%;height:360px;font-family:monospace" *value=*content />
@@ -175,7 +196,7 @@ window.onload = function(){
 			<section class="result" @visible=(*tab == "output") :append>
 				<:bind-if :condition={ !*result.error } >
 					var container = <iframe style="width:100%;height:100%;border:none" />
-					<script @=container.contentWindow.document.head async src="../dist/sactory.js" />.onload = function(){
+					<script @=container.contentWindow.document.head async src=document.querySelector("script[src*='sactory']").src />.onload = function(){
 						window.sandbox = container.contentWindow;
 						try {
 							container.contentWindow.eval(*result.source.all);
@@ -188,7 +209,7 @@ window.onload = function(){
 			</section>
 
 			<section @visible=(*tab == "error")>
-				<textarea class="text" style="color:red" readonly @value=(*result.error || "") />
+				<textarea class="text color-red" readonly @value=(*result.error || "") />
 			</section>
 
 			<section @visible=(*tab == "warn")>
@@ -209,6 +230,8 @@ window.onload = function(){
 
 	</:body>
 
+	var markers = [];
+
 	input = CodeMirror.fromTextArea(input, {
 		lineNumbers: true,
 		indentWithTabs: true,
@@ -216,8 +239,10 @@ window.onload = function(){
 		lineWrapping: true
 	});
 	input.on("change", function(editor){
-		/*<".CodeMirror .error" -class="error" />
-		<".CodeMirror .warn" -class="warn" />*/
+		markers.forEach(function(marker){
+			input.removeLineClass(marker, "gutter", "error");
+			input.removeLineClass(marker, "gutter", "warn");
+		});
 		*content = editor.getValue();
 	});
 
@@ -228,26 +253,31 @@ window.onload = function(){
 	});
 
 	function checkErrors(value) {
-		var error = value.error && value.error.toString().match(/^ParserError: Line (\d+), Column (\d+):/);
-		if(error) {
-			<style :head :unique>
-				.CodeMirror .error {
-					background: red;
-					.CodeMirror-gutter-elt {
-						color: white;
-					}
+		var match = value.error && value.error.toString().match(/^ParserError: Line (\d+), Column (\d+)/);
+		if(match) {
+			markers.push(input.addLineClass(parseInt(match[1]) - 1, "gutter", "error"));
+		}
+	}
+
+	function checkWarnings(value) {
+		if(value.warnings) {
+			value.warnings.forEach(function(message){
+				var match = message.match(/^Line (\d+), Column (\d+)/);
+				if(match) {
+					markers.push(input.addLineClass(parseInt(match[1]) - 1, "gutter", "warn"));
 				}
-			</style>
-			input.addLineClass(parseInt(error[1]) - 1, "gutter", "error");
+			});
 		}
 	}
 
 	result.subscribe(function(value){
 		checkErrors(value);
+		checkWarnings(value);
 		output.setValue(value.source ? value.source.contentOnly : "");
 	});
 
 	checkErrors(*result);
+	checkWarnings(*result);
 
 	// add active class to current tab
 

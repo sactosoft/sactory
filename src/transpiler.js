@@ -1321,7 +1321,7 @@ Transpiler.prototype.nextVar = function(){
  */
 Transpiler.prototype.warn = function(message, position){
 	if(!position) position = this.parser.position;
-	this.warnings.push("Line " + position.line + ", Column " + position.column + ": " + message);
+	this.warnings.push("Line " + (position.line + 1) + ", Column " + position.column + ": " + message);
 };
 
 /**
