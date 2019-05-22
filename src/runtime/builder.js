@@ -161,6 +161,24 @@ Builder.prototype.event = function(name, value){
 	});
 	this.element.addEventListener(event, listener || value, options);
 };
+
+/**
+ * @since 0.62.0
+ */
+Builder.prototype.addClassName = function(className){
+	if(this.element.className.length && !Polyfill.endsWith.call(this.element.className, ' ')) className = ' ' + className;
+	this.element.className += className;
+};
+
+/**
+ * @since 0.62.0
+ */
+Builder.prototype.removeClassName = function(className){
+	var index = this.element.className.indexOf(className);
+	if(index != -1) {
+		this.element.className = this.element.className.substring(0, index) + this.element.className.substr(index + className.length);
+	}
+};
 	
 Builder.prototype.setImpl = function(name, value, bind, anchor){
 	if(name.charAt(0) == '?') {
@@ -184,11 +202,16 @@ Builder.prototype.setImpl = function(name, value, bind, anchor){
 		case '+':
 			name = name.substr(1);
 			if(name == "class") {
-				//TODO observable functionalities
-				var builder = this;
-				value.split(' ').forEach(function(className){
-					builder.addClass(className);
-				});
+				if(SactoryObservable.isObservable(value)) {
+					this.addClassName(value.value);
+					var builder = this;
+					this.subscribe(bind, value.subscribe(function(newValue, oldValue){
+						builder.removeClassName(oldValue);
+						builder.addClassName(newValue);
+					}));
+				} else {
+					this.addClassName(value);
+				}
 			} else if(name == "style") {
 				var style = this.element.getAttribute("style");
 				if(style) {
@@ -200,6 +223,14 @@ Builder.prototype.setImpl = function(name, value, bind, anchor){
 				this.element.setAttribute("style", style);
 			} else {
 				this.event(name, SactoryObservable.unobserve(value));
+			}
+			break;
+		case '-':
+			name = name.substr(1);
+			if(name == "class") {
+				this.removeClassName(value);
+			} else {
+				this.element.removeEventListener(name, SactoryObservable.unobserve(value));
 			}
 			break;
 		default:

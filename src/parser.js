@@ -352,7 +352,7 @@ Parser.prototype.readImpl = function(regex, force, message){
  * @since 0.36.0
  */
 Parser.prototype.readVarName = function(force){
-	return this.readImpl(/^[a-zA-Z_\$][a-zA-Z0-9_\$]*/, force, function(){ return "Could not find a valid variable name."; });
+	return this.readImpl(/^[a-zA-Z_$][a-zA-Z0-9_$]*/, force, function(){ return "Could not find a valid variable name."; });
 };
 
 /**
@@ -362,7 +362,7 @@ Parser.prototype.readVarName = function(force){
  * @since 0.13.0
  */
 Parser.prototype.readTagName = function(force){
-	return this.readImpl(/^(([\#\@]?[a-zA-Z0-9\-\:]+)|@)/, force, function(){ return "Could not find a valid tag name."; });
+	return this.readImpl(/^(([#@]?[a-zA-Z0-9:-]+)|@)/, force, function(){ return "Could not find a valid tag name."; });
 };
 
 /**
@@ -372,7 +372,7 @@ Parser.prototype.readTagName = function(force){
  * @since 0.22.0
  */
 Parser.prototype.readAttributeName = function(force){
-	return this.readImpl(/^((~?\??(\@\@?|\:|\#|\$|\*\*?\*?|\+)?[a-zA-Z_][a-zA-Z0-9_\$\-\.\:]*)|@)/, force, function(){ return "Could not find a valid attribute name."; });
+	return this.readImpl(/^((~?\??(@@?|:|#|\$|\*\*?\*?|\+|-)?[a-zA-Z_][a-zA-Z0-9_$.:-]*)|@)/, force, function(){ return "Could not find a valid attribute name."; });
 };
 
 /**
@@ -427,7 +427,7 @@ Parser.prototype.readSingleExpression = function(skip){
 			index: this.index
 		};
 		if(skip) ret += this.skipImpl({strings: false});
-		var expr = this.readImpl(/^(\.[a-zA-Z0-9_\$]+)/, false);
+		var expr = this.readImpl(/^(\.[a-zA-Z0-9_$]+)/, false);
 		if(expr) {
 			ret += expr;
 			if(skip) ret += this.skipImpl({strings: false});

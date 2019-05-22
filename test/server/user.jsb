@@ -35,7 +35,7 @@ module.exports = function(app){
 				&Delta;
 				&ouml;
 			</:body>
-		</:html>
+		</>
 
 		*value = "changed";
 
@@ -131,7 +131,7 @@ module.exports = function(app){
 					&lt;${user.first_name} ${user.last_name}&gt;
 				</h3>
 				<div>
-					<style scoped>
+					<style :scoped>
 						&, * {
 							background: black;
 							color: white;

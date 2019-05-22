@@ -161,6 +161,7 @@ Sactory.create = function(result, bind, anchor, tagName, options){
  */
 Sactory.update = function(result, element, bind, anchor, options){
 	
+	var args = [];
 	var elementArgs = {};
 	var templateArgs = {};
 	if(options.args) {
@@ -177,6 +178,7 @@ Sactory.update = function(result, element, bind, anchor, options){
 					templateArgs[name][key.substr(index + 1)] = arg.value;
 				}
 			} else {
+				args.push(arg);
 				elementArgs[arg.key] = arg.value;
 			}
 		});
@@ -217,9 +219,13 @@ Sactory.update = function(result, element, bind, anchor, options){
 
 	if(!container) container = element;
 	
-	for(var key in elementArgs) {
+	args.forEach(function(arg){
+		element.__builder.setImpl(arg.key, arg.value, bind, anchor);
+	});
+
+	/*for(var key in elementArgs) {
 		element.__builder.setImpl(key, elementArgs[key], bind, anchor);
-	}
+	}*/
 	
 	for(var templateName in templateArgs) {
 		var template = definedTemplates[templateName];
