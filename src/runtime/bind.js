@@ -11,6 +11,7 @@ function Bind(parent) {
 	this.children = [];
 	this.subscriptions = [];
 	this.elements = [];
+	this.rollbacks = [];
 }
 
 /**
@@ -34,10 +35,16 @@ Bind.prototype.rollback = function(){
 	}
 	if(this.elements.length) {
 		this.elements.forEach(function(element){
-			if(element.__builderInstance && element.__builder.beforeremove) element.__builder.beforeremove.call(element);
+			if(Object.getOwnPropertyDescriptor(element, "__builder") && element.__builder.beforeremove) element.__builder.beforeremove.call(element);
 			if(element.parentNode) element.parentNode.removeChild(element);
 		});
 		this.elements = [];
+	}
+	if(this.rollbacks.length) {
+		this.rollbacks.forEach(function(fun){
+			fun();
+		});
+		this.rollbacks = [];
 	}
 	if(this.children.length) {
 		this.children.forEach(function(child){
@@ -59,6 +66,13 @@ Bind.prototype.subscribe = function(subscription){
  */
 Bind.prototype.appendChild = function(element){
 	this.elements.push(element);
+};
+
+/**
+ * @since 0.64.0
+ */
+Bind.prototype.addRollback = function(fun){
+	this.rollbacks.push(fun);
 };
 
 var factory = new Bind(null);

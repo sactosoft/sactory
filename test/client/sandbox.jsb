@@ -174,7 +174,8 @@ window.onload = function(){
 						</select>
 					}
 				}
-				<span style="float:right;font-weight:bold;color:darkviolet" @text=("Sactory v" + Sactory.VERSION) />
+				var github = <a href="https://github.com/sactory/sactory" target="_blank" @hidden=true />
+				<span style="float:right;font-weight:bold;color:darkviolet;cursor:pointer" @text=("Sactory v" + Sactory.VERSION) +click={ github.click() } />
 			</section>
 			<section class="editor">
 				input = <textarea style="width:100%;height:360px;font-family:monospace" *value=*content />

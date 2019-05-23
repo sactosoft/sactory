@@ -3,9 +3,14 @@ require("../dom");
 
 var Builder = require("./builder");
 
-Object.defineProperty(Element.prototype, "__builder", {
+Object.defineProperty(Node.prototype, "__builder", {
+	configurable: true,
 	get: function(){
-		return this.__builderInstance || (this.__builderInstance = new Builder(this));
+		var instance = new Builder(this);
+		Object.defineProperty(this, "__builder", {
+			value: instance
+		});
+		return instance;
 	}
 });
 

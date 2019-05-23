@@ -1,4 +1,5 @@
 var Polyfill = require("../polyfill");
+var SactoryConfig = require("./config");
 var SactoryObservable = require("./observable");
 var SactoryBind = require("./bind");
 
@@ -188,7 +189,7 @@ Builder.prototype.visible = function(value, reversed, bind){
 /**
  * @since 0.22.0
  */
-Builder.prototype.event = function(name, value){
+Builder.prototype.event = function(name, value, bind){
 	var split = name.split(":");
 	var event = split.shift();
 	var listener = value || function(){};
@@ -220,6 +221,16 @@ Builder.prototype.event = function(name, value){
 				break;
 			case "bubble":
 				useCapture = false;
+				break;
+			case "trusted":
+				listener = function(event){
+					if(event.isTrusted) return prev.call(this, event);
+				};
+				break;
+			case "!trusted":
+				listener = function(event){
+					if(!event.isTrusted) return prev.call(this, event);
+				};
 				break;
 			case "self":
 				listener = function(event){
@@ -256,7 +267,7 @@ Builder.prototype.event = function(name, value){
 					case "key":
 						var keys = dot.slice(1).map(function(a){
 							var ret = a.toLowerCase();
-							if(ret == "space") ret = " ";
+							if(SactoryConfig.config.event.aliases.hasOwnProperty(ret)) ret = SactoryConfig.config.event.aliases[ret];
 							var separated = ret.split('-');
 							if(separated.length == 2) {
 								var range;
@@ -286,8 +297,21 @@ Builder.prototype.event = function(name, value){
 						} else {
 							listener = function(event){
 								for(var i in keys) {
-									if(!keys[i](event)) return prev.call(this, event);
+									if(keys[i](event)) return;
 								}
+								return prev.call(this, event);
+							};
+						}
+						break;
+					case "code":
+						var keys = dot.slice(1).map(function(a){ return a.toLowerCase().replace(/-/g, ""); });
+						if(positive) {
+							listener = function(event){
+								if(keys.indexOf(event.code.toLowerCase()) != -1) return prev.call(this, event);
+							};
+						} else {
+							listener = function(event){
+								if(keys.indexOf(event.code.toLowerCase()) == -1) return prev.call(this, event);
 							};
 						}
 						break;
@@ -337,11 +361,39 @@ Builder.prototype.event = function(name, value){
 							};
 						}
 						break;
+					case "location":
+						var locations = dot.slice(1).map(function(a){
+							switch(a) {
+								case "standard": return 0;
+								case "left": return 1;
+								case "right": return 2;
+								case "numpad": return 3;
+								default: return parseInt(a);
+							}
+						});
+						if(positive) {
+							listener = function(event){
+								if(locations.indexOf(event.location) != -1) return prev.call(this, event);
+							};
+						} else {
+							listener = function(event){
+								if(locations.indexOf(event.location) == -1) return prev.call(this, event);
+							};
+						}
+						break;
+					default:
+						throw new Error("Unknown event modifier '" + mod + "'.");
 				}
 				break;
 		}
 	});
 	this.element.addEventListener(event, listener, options, useCapture);
+	if(bind) {
+		var element = this.element;
+		bind.addRollback(function(){
+			element.removeEventListener(event, listener, useCapture);
+		});
+	}
 };
 
 /**
@@ -366,20 +418,18 @@ Builder.prototype.removeClassName = function(className){
  * @since 0.63.0
  */
 Builder.prototype.setProp = function(name, value, bind, anchor){
-	if(name == "text") {
-		this.text(value, bind, anchor);
-	} else if(name == "html") {
-		this.html(value, bind, anchor);
-	} else if(name == "visible" || name == "hidden") {
-		this.visible(value, name == "hidden", bind);
-	} else if(name == "enabled") {
-		if(SactoryObservable.isObservable(value)) {
-			this.prop("disabled", SactoryObservable.computedObservable(null, bind, [value], function(){ return !value.value; }), bind);
-		} else {
-			this.prop("disabled", !value, bind);
-		}
-	} else {
-		this.prop(name, value, bind);
+	switch(name) {
+		default: return this.prop(name, value, bind);
+		case "text": return this.text(value, bind, anchor);
+		case "html": return this.html(value, bind, anchor);
+		case "visible": return this.visible(value, false, bind);
+		case "hidden": return this.visible(value, true, bind);
+		case "enabled":
+			if(SactoryObservable.isObservable(value)) {
+				this.prop("disabled", SactoryObservable.computedObservable(null, bind, [value], function(){ return !value.value; }), bind);
+			} else {
+				this.prop("disabled", !value, bind);
+			}
 	}
 };
 	
@@ -398,30 +448,33 @@ Builder.prototype.setImpl = function(name, value, bind, anchor){
 		case '+':
 			name = name.substr(1);
 			if(name == "class") {
+				var builder = this;
 				if(SactoryObservable.isObservable(value)) {
-					this.addClassName(value.value);
-					var builder = this;
+					var lastValue = value.value;
 					this.subscribe(bind, value.subscribe(function(newValue, oldValue){
 						builder.removeClassName(oldValue);
-						builder.addClassName(newValue);
+						builder.addClassName(lastValue = newValue);
 					}));
+					this.addClassName(lastValue);
+					if(bind) {
+						bind.addRollback(function(){
+							builder.removeClassName(lastValue);
+						});
+					}
 				} else {
 					this.addClassName(value);
+					if(bind) {
+						bind.addRollback(function(){
+							builder.removeClassName(value);
+						});
+					}
 				}
-			} else if(name == "style") {
-				var style = this.element.getAttribute("style");
-				if(style) {
-					if(!Polyfill.endsWith.call(style, ';')) style += ';';
-					style += value;
-				} else {
-					style = value;
-				}
-				this.element.setAttribute("style", style);
 			} else {
-				this.event(name, SactoryObservable.unobserve(value));
+				this.event(name, SactoryObservable.unobserve(value), bind);
 			}
 			break;
 		case '-':
+			//TODO observable and bind functionalities
 			name = name.substr(1);
 			if(name == "class") {
 				this.removeClassName(value);

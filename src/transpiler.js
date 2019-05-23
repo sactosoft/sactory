@@ -1177,7 +1177,7 @@ Transpiler.prototype.open = function(){
 		}
 
 		if(selector) {
-			this.source.push(this.runtime + ".query(this, " + selector + ", " + selectorAll + ", function(" + this.element + "){");
+			this.source.push(this.runtime + ".query(this, " + parent + ", " + selector + ", " + selectorAll + ", function(" + this.element + "){");
 		}
 		if(iattributes.unique) {
 			this.source.push(this.runtime + ".unique(this, " + this.nextId() + ", function(){return ");

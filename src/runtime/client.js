@@ -11,6 +11,8 @@ function defineBuilder(Class) {
 	});
 }
 
+defineBuilder(Window);
+defineBuilder(Document);
 defineBuilder(Element);
 defineBuilder(DocumentFragment);
 defineBuilder(ShadowRoot);

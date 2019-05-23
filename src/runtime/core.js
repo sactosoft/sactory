@@ -1,5 +1,5 @@
 var Polyfill = require("../polyfill");
-var Pipe = require("./pipe");
+var SactoryConfig = require("./config");
 
 /**
  * @since 0.60.0
@@ -302,7 +302,7 @@ Sactory.comment = function(element, bind, anchor, comment){
  * @since 0.32.0
  */
 Sactory.unique = function(context, id, fun){
-	var className = "__sa" + id;
+	var className = SactoryConfig.config.uniquePrefix + id;
 	if(!document.querySelector("." + className)) {
 		var element = fun.call(context);
 		element.__builder.addClass(className);
@@ -314,24 +314,18 @@ Sactory.unique = function(context, id, fun){
  * @since 0.32.0
  */
 Sactory.query = function(context, doc, selector, all, fun){
-	if(!fun) {
-		fun = all;
-		all = selector;
-		selector = doc;
-		doc = document;
-	}
 	var nodes = false;
 	if(all || (nodes = selector instanceof NodeList)) {
 		if(!nodes) {
-			selector = doc.querySelectorAll(selector);
+			selector = (doc || document).querySelectorAll(selector);
 		}
 		Array.prototype.forEach.call(selector, function(element){
 			fun.call(context, element);
 		});
 		return selector;
 	} else {
-		if(!(selector instanceof Element)) {
-			selector = doc.querySelector(selector);
+		if(typeof selector == "string") {
+			selector = (doc || document).querySelector(selector);
 		}
 		if(selector) fun.call(context, selector);
 		return selector;
@@ -355,7 +349,7 @@ var currentId;
  * @since 0.61.0
  */
 Sactory.functions.nextId = function(){
-	return currentId = "__sa" + Math.floor(Math.random() * 100000);
+	return currentId = SactoryConfig.config.uniquePrefix + Math.floor(Math.random() * 100000);
 };
 
 /**
