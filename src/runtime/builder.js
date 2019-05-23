@@ -63,6 +63,12 @@ Builder.prototype.prop = function(name, value, bind, type){
  * @since 0.46.0
  */
 Builder.prototype.twoway = function(name, value, bind){
+	var event = "input";
+	var index = name.indexOf(':');
+	if(index != -1) {
+		event = name.substr(index + 1);
+		name = name.substring(0, index);
+	}
 	if(["value", "checked"].indexOf(name) == -1) throw new Error("Cannot two-way bind property '" + name + "'.");
 	if(!SactoryObservable.isObservable(value)) throw new Error("Cannot two-way bind property '" + name + "': the given value is not an observable.");
 	var type = 1048576 + Math.floor(Math.random() * 1048576);
@@ -74,7 +80,7 @@ Builder.prototype.twoway = function(name, value, bind){
 	} */else {
 		convert = function(value){ return value; };
 	}
-	this.element.addEventListener("input", function(){
+	this.element.addEventListener(event, function(){
 		value.update(convert(this[name]), type);
 	});
 	this.prop(name, value, bind, type);
@@ -98,6 +104,15 @@ Builder.prototype.attr = function(name, value, bind){
 		attrImpl(name, value);
 	}
 };
+
+/**
+ * @since 0.63.0
+ */
+Builder.prototype.append = function(element, bind, anchor){
+	if(anchor && anchor.parentNode === this.element) this.element.insertBefore(element, anchor);
+	else this.element.appendChild(element);
+	if(bind) bind.appendChild(element);
+};
 	
 Builder.prototype.text = function(value, bind, anchor){
 	var textNode;
@@ -116,6 +131,36 @@ Builder.prototype.text = function(value, bind, anchor){
 };
 
 /**
+ * @since 0.63.0
+ */
+Builder.prototype.html = function(value, bind, anchor){
+	var children, builder = this;
+	var container = document.createElement("div");
+	function parse(value, anchor) {
+		container.innerHTML = value;
+		children = Array.prototype.slice.call(container.childNodes, 0);
+		children.forEach(function(child){
+			builder.append(child, bind, anchor);
+		});
+	}
+	if(SactoryObservable.isObservable(value)) {
+		// create an anchor to maintain the right order
+		var innerAnchor = SactoryBind.createAnchor(this.element, bind, anchor);
+		this.subscribe(bind, value.subscribe(function(value){
+			// removing children from bind context should not be necessary,
+			// as they can't have any sactory-created context
+			children.forEach(function(child){
+				builder.element.removeChild(child);
+			});
+			parse(value, innerAnchor);
+		}));
+		parse(value.value, innerAnchor);
+	} else {
+		parse(value, anchor);
+	}
+};
+
+/**
  * @since 0.46.0
  */
 Builder.prototype.visible = function(value, reversed, bind){
@@ -129,7 +174,7 @@ Builder.prototype.visible = function(value, reversed, bind){
 	function update(value) {
 		if(!!value ^ reversed) {
 			builder.removeClass(hidden);
-		} else if(element.style.display != "none") {
+		} else {
 			builder.addClass(hidden);
 		}
 	}
@@ -144,30 +189,159 @@ Builder.prototype.visible = function(value, reversed, bind){
  * @since 0.22.0
  */
 Builder.prototype.event = function(name, value){
-	var split = name.split(".");
+	var split = name.split(":");
 	var event = split.shift();
-	var listener;
+	var listener = value || function(){};
 	var options = {};
-	split.forEach(function(mod){
+	var useCapture = false;
+	split.reverse().forEach(function(mod){
+		var prev = listener;
 		switch(mod) {
 			case "prevent":
 				listener = function(event){
 					event.preventDefault();
-					if(value) value.call(this, event);
+					return prev.call(this, event);
 				};
 				break;
 			case "stop":
 				listener = function(event){
 					event.stopPropagation();
-					if(value) value.call(this, event);
+					return prev.call(this, event);
 				};
 				break;
 			case "once":
 				options.once = true;
 				break;
+			case "passive":
+				options.passive = true;
+				break;
+			case "capture":
+				useCapture = true;
+				break;
+			case "bubble":
+				useCapture = false;
+				break;
+			case "self":
+				listener = function(event){
+					if(event.target === this) return prev.call(this, event);
+				};
+				break;
+			case "!self":
+				listener = function(event){
+					if(event.target !== this) return prev.call(this, event);
+				};
+				break;
+			case "alt":
+			case "ctrl":
+			case "meta":
+			case "shift":
+				listener = function(event){
+					if(event[mod + "Key"]) return prev.call(this, event);
+				};
+				break;
+			case "!alt":
+			case "!ctrl":
+			case "!meta":
+			case "!shift":
+				mod = mod.substr(1);
+				listener = function(event){
+					if(!event[mod + "Key"]) return prev.call(this, event);
+				};
+				break;
+			default:
+				var positive = mod.charAt(0) != '!';
+				if(!positive) mod = mod.substr(1);
+				var dot = mod.split('.');
+				switch(dot[0]) {
+					case "key":
+						var keys = dot.slice(1).map(function(a){
+							var ret = a.toLowerCase();
+							if(ret == "space") ret = " ";
+							var separated = ret.split('-');
+							if(separated.length == 2) {
+								var range;
+								if(separated[0].length == 1 && separated[1].length == 1) {
+									range = [separated[0].toUpperCase().charCodeAt(0), separated[1].toUpperCase().charCodeAt(0)];
+								} else if(separated[0].charAt(0) == 'f' && separated[1].charAt(0) == 'f') {
+									range = [111 + parseInt(separated[0].substr(1)), 111 + parseInt(separated[1].substr(1))];
+								}
+								if(range) {
+									return function(event){
+										var code = event.keyCode || event.which;
+										return code >= range[0] && code <= range[1];
+									}
+								}
+							}
+							ret = ret.replace(/-/g, "");
+							return function(event){
+								return event.key.toLowerCase() == ret;
+							};
+						});
+						if(positive) {
+							listener = function(event){
+								for(var i in keys) {
+									if(keys[i](event)) return prev.call(this, event);
+								}
+							};
+						} else {
+							listener = function(event){
+								for(var i in keys) {
+									if(!keys[i](event)) return prev.call(this, event);
+								}
+							};
+						}
+						break;
+					case "keyCode":
+					case "key-code":
+						var keys = dot.slice(1).map(function(a){ return parseInt(a); });
+						if(positive) {
+							listener = function(event){
+								if(keys.indexOf(event.keyCode || event.which) != -1) return prev.call(this, event);
+							};
+						} else {
+							listener = function(event){
+								if(keys.indexOf(event.keyCode || event.which) == -1) return prev.call(this, event);
+							};
+						}
+						break;
+					case "button":
+						var buttons = dot.slice(1).map(function(a){
+							switch(a) {
+								case "main":
+								case "left":
+									return 0;
+								case "auxiliary":
+								case "wheel":
+								case "middle":
+									return 1;
+								case "secondary":
+								case "right":
+									return 2;
+								case "fourth":
+								case "back":
+									return 3;
+								case "fifth":
+								case "forward":
+									return 4;
+								default:
+									return parseInt(a);
+							}
+						});
+						if(positive) {
+							listener = function(event){
+								if(buttons.indexOf(event.button) != -1) return prev.call(this, event);
+							};
+						} else {
+							listener = function(event){
+								if(buttons.indexOf(event.button) == -1) return prev.call(this, event);
+							};
+						}
+						break;
+				}
+				break;
 		}
 	});
-	this.element.addEventListener(event, listener || value, options);
+	this.element.addEventListener(event, listener, options, useCapture);
 };
 
 /**
@@ -187,6 +361,27 @@ Builder.prototype.removeClassName = function(className){
 		this.element.className = this.element.className.substring(0, index) + this.element.className.substr(index + className.length);
 	}
 };
+
+/**
+ * @since 0.63.0
+ */
+Builder.prototype.setProp = function(name, value, bind, anchor){
+	if(name == "text") {
+		this.text(value, bind, anchor);
+	} else if(name == "html") {
+		this.html(value, bind, anchor);
+	} else if(name == "visible" || name == "hidden") {
+		this.visible(value, name == "hidden", bind);
+	} else if(name == "enabled") {
+		if(SactoryObservable.isObservable(value)) {
+			this.prop("disabled", SactoryObservable.computedObservable(null, bind, [value], function(){ return !value.value; }), bind);
+		} else {
+			this.prop("disabled", !value, bind);
+		}
+	} else {
+		this.prop(name, value, bind);
+	}
+};
 	
 Builder.prototype.setImpl = function(name, value, bind, anchor){
 	if(name.charAt(0) == '?') {
@@ -195,14 +390,7 @@ Builder.prototype.setImpl = function(name, value, bind, anchor){
 	}
 	switch(name.charAt(0)) {
 		case '@':
-			name = name.substr(1);
-			if(name == "text") {
-				this.text(value, bind, anchor);
-			} else if(name == "visible" || name == "hidden") {
-				this.visible(value, name == "hidden", bind);
-			} else {
-				this.prop(name, value, bind);
-			}
+			this.setProp(name.substr(1), value, bind, anchor);
 			break;
 		case '*':
 			this.twoway(name.substr(1), value, bind);

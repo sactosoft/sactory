@@ -274,11 +274,7 @@ JavascriptParser.prototype.next = function(match){
 							this.parser.index += match[1].length;
 							skip = this.parser.skipImpl({strings: false});
 							if(skip) this.add(skip);
-							var expr = this.parseCodeToValue("readExpression");
-							if(match[2] == "text") this.add("text(" + expr + ", " + this.bind + ", " + this.anchor + ")");
-							else if(match[2] == "visible") this.add("visible(" + expr + ", false, " + this.bind + ")");
-							else if(match[2] == "hidden") this.add("visible(" + expr + ", true, " + this.bind + ")");
-							else this.add("prop(\"" + match[2] + "\", " + expr + ", " + this.bind + ")");
+							this.add("setProp(\"" + match[2] + "\", " + this.parseCodeToValue("readExpression") + ", " + this.bind + ", " + this.anchor + ")");
 						} else {
 							this.parser.index += match[0].length;
 							if(match[4]) {
@@ -1075,7 +1071,8 @@ Transpiler.prototype.open = function(){
 				for(var i in names) {
 					var attr = names[i];
 					var add = attr.computed;
-					if(!attr.computed) {
+					attr.value = value;
+					if(!add) {
 						if(attr.name == "@") {
 							parent = value;
 						} else if(attr.name == "@anchor") {
@@ -1086,7 +1083,6 @@ Transpiler.prototype.open = function(){
 							iattributes[attr.name.substr(1)] = value;
 						} else {
 							add = true;
-							attr.value = value;
 						}
 					}
 					if(add) {
