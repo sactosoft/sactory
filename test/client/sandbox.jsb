@@ -4,16 +4,19 @@ window.onload = function(){
 
 	var file, key, hash = null;
 
+	var tabs = {
+		"output": "Output",
+		"error": "Errors",
+		"warn": "Warnings",
+		"code": "Transpiled Code",
+		"info": "Info"
+	};
+
 	var tab = **("output", "current_tab");
 
 	function switchTab(from, to) {
 		if(*tab == from) *tab = to;
 	}
-
-	tab.subscribe(function(value){
-		<"nav .item.active" -class="active" />
-		<{"nav .item." + value} +class="active" />
-	});
 
 	var input, output;
 
@@ -186,11 +189,9 @@ window.onload = function(){
 
 			<nav>
 				<div style="margin:8px 0 10px">
-					<span class="item output" @text="Output" +click={ *tab = "output"} />
-					<span class="item error" @text="Errors" +click={ *tab = "error"} />
-					<span class="item warn" @text="Warnings" +click={ *tab = "warn"} />
-					<span class="item code" @text="Transpiled Code" +click={ *tab = "code"} />
-					<span class="item info" @text="Info" +click={ *tab = "info"} />
+					Object.keys(tabs).forEach(function(key){
+						<span class="item" @text=tabs[key] +class=(*tab == key ? "active" : "") +click={ *tab = key } />
+					});
 				</div>
 			</nav>
 

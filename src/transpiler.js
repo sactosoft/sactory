@@ -930,7 +930,7 @@ Transpiler.prototype.addSemicolon = function(){
 	if(this.currentMode.options.code) {
 		var skip = this.parser.skip();
 		var peek = this.parser.peek();
-		if(peek != ';' && peek != ':' && peek != ',' && peek != '.' && peek != ')' && peek != ']' && peek != '}') this.source.push(";");
+		if(peek != ';' && peek != ':' && peek != ',' && peek != '.' && peek != ')' && peek != ']' && peek != '}' && peek != '&' && peek != '|') this.source.push(";");
 		if(skip) this.source.push(skip);
 	} else {
 		this.source.push(";");
@@ -1000,7 +1000,7 @@ Transpiler.prototype.open = function(){
 		var currentClosing = "";
 		var createAnchor;
 		var computed = false;
-		var selector, tagName = "";
+		var selector, originalTagName, tagName = "";
 		var selectorAll = false;
 		var anchorName;
 		this.updateTemplateLiteralParser();
@@ -1012,7 +1012,7 @@ Transpiler.prototype.open = function(){
 			tagName = this.parseCode(tagName).source;
 			computed = true;
 		} else {
-			tagName = this.parser.readTagName(true);
+			originalTagName = tagName = this.parser.readTagName(true);
 			var column = tagName.indexOf(':');
 			if(column > 0) {
 				anchorName = tagName.substr(column + 1);
@@ -1096,22 +1096,27 @@ Transpiler.prototype.open = function(){
 		if(iattributes.namespace) currentNamespace = iattributes.namespace;
 		if(!computed) {
 			if(tagName.charAt(0) == ':') {
-				create = false;
 				switch(tagName.substr(1)) {
-					case "anchor":
-						tagName = ":bind";
-						iattributes.to = "[]";
-						break;
+					case "html":
+						element = "document.documentElement";
+						append = false;
 					case "head":
 					case "body":
 						element = "document." + tagName.substr(1);
-						create = true;
 						append = false;
 						break;
+					case "window":
+					case "document":
+						element = tagName.substr(1);
+						append = false;
 					case "fragment":
 					case "shadow":
-						create = true;
 						break;
+					case "anchor":
+						tagName = ":bind";
+						iattributes.to = "[]";
+					default:
+						create = false;
 				}
 			} else if(tagName.charAt(0) == '#') {
 				newMode = modeNames[tagName.substr(1)];
@@ -1234,7 +1239,7 @@ Transpiler.prototype.open = function(){
 				// nothing was created or updated, the container must be set manually
 				before.push(["set", "container", parent]);
 			}
-			before.push(["call", this.anchors, "function(" + this.element + ", " + this.anchor + ", " + this.anchors + "){"]);
+			before.push(["body", this.anchors, "function(" + this.element + ", " + this.anchor + ", " + this.anchors + "){"]);
 			currentClosing += "}";
 		}
 
@@ -1278,7 +1283,7 @@ Transpiler.prototype.open = function(){
 			this.inheritance.push(currentInheritance);
 			this.closing.push(currentClosing);
 			this.tags.push({
-				tagName: !computed ? tagName + (anchorName ? ':' + anchorName : "") : "",
+				tagName: originalTagName,
 				position: position,
 				mode: newMode !== undefined
 			});
@@ -1309,7 +1314,7 @@ Transpiler.prototype.parseAttributeName = function(){
  * @since 0.62.0
  */
 Transpiler.prototype.nextVar = function(){
-	return "__$" + this.count++ % 10;
+	return "$__" + this.count++ % 10;
 };
 
 /**
@@ -1339,14 +1344,14 @@ Transpiler.prototype.transpile = function(input, options){
 	
 	this.runtime = this.nextVar();
 	this.element = this.nextVar();
-	this.bind = "__b" + this.count++ % 12;
-	this.anchor = "__a" + this.count % 4;
-	this.value = "__v" + this.count % 10;
-	this.index = "__i" + this.count % 10;
-	this.array = "__a" + ++this.count % 4;
-	this.args = "__a" + ++this.count % 40;
-	this.anchors = "__a" + ++this.count % 8;
-	this.anchorsRegistry = "__r" + this.count % 8;
+	this.bind = this.nextVar();
+	this.anchor = this.nextVar();
+	this.value = this.nextVar();
+	this.index = this.nextVar();
+	this.array = this.nextVar();
+	this.args = this.nextVar();
+	this.anchors = this.nextVar();
+	this.anchorsRegistry = this.nextVar();
 
 	this.tagNames = {};
 	this.templates = {};
@@ -1391,6 +1396,7 @@ Transpiler.prototype.transpile = function(input, options){
 		element: this.element,
 		bind: this.bind,
 		anchor: this.anchor,
+		scope: this.options.scope,
 		tags: this.tagNames,
 		templates: this.templates,
 		warnings: this.warnings,

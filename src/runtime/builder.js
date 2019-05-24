@@ -64,26 +64,18 @@ Builder.prototype.prop = function(name, value, bind, type){
  * @since 0.46.0
  */
 Builder.prototype.twoway = function(name, value, bind){
-	var event = "input";
-	var index = name.indexOf(':');
-	if(index != -1) {
-		event = name.substr(index + 1);
-		name = name.substring(0, index);
-	}
+	var splitted = name.split("::");
+	var events = splitted.slice(1);
+	name = splitted[0];
 	if(["value", "checked"].indexOf(name) == -1) throw new Error("Cannot two-way bind property '" + name + "'.");
 	if(!SactoryObservable.isObservable(value)) throw new Error("Cannot two-way bind property '" + name + "': the given value is not an observable.");
+	if(!events.length) events.push("input");
 	var type = 1048576 + Math.floor(Math.random() * 1048576);
-	var convert;
-	if(this.element.type == "number") {
-		convert = function(value){ return parseFloat(value); };
-	} /*else if(this.element.type == "date" || this.element.type == "datetime-local") {
-		convert = function(value){ return new Date(value); };
-	} */else {
-		convert = function(value){ return value; };
+	for(var i=0; i<events.length; i++) {
+		this.event(events[i], function(){
+			value.update(this.type == "number" ? parseFloat(this[name]) : this[name], type);
+		}, bind);
 	}
-	this.element.addEventListener(event, function(){
-		value.update(convert(this[name]), type);
-	});
 	this.prop(name, value, bind, type);
 };
 	

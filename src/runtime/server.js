@@ -36,6 +36,22 @@ Sactory.createDocument = function(charset){
 	var meta = document.createElement("meta");
 	meta.setAttribute("charset", charset || "UTF-8");
 	head.appendChild(meta);
+	Object.defineProperty(document, "title", {
+		get: function(){
+			var titles = document.getElementsByTagName("title");
+			return titles.length ? titles[0].textContent : "";
+		},
+		set: function(value){
+			var titles = document.getElementsByTagName("title");
+			if(titles.length) {
+				titles[0].textContent = value;
+			} else {
+				var title = document.createElement("title");
+				title.textContent = value;
+				document.head.appendChild(title);
+			}
+		}
+	});
 	return document;
 };
 

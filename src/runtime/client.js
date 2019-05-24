@@ -1,12 +1,7 @@
 function defineBuilder(Class) {
 	Object.defineProperty(Class.prototype, "__builder", {
-		configurable: true,
 		get: function(){
-			var instance = new Builder(this);
-			Object.defineProperty(this, "__builder", {
-				value: instance
-			});
-			return instance;
+			return this.__builderInstance || (this.__builderInstance = new Builder(this));
 		}
 	});
 }
@@ -15,4 +10,4 @@ defineBuilder(Window);
 defineBuilder(Document);
 defineBuilder(Element);
 defineBuilder(DocumentFragment);
-defineBuilder(ShadowRoot);
+if(typeof ShadowRoot == "function") defineBuilder(ShadowRoot);

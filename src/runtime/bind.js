@@ -35,7 +35,7 @@ Bind.prototype.rollback = function(){
 	}
 	if(this.elements.length) {
 		this.elements.forEach(function(element){
-			if(Object.getOwnPropertyDescriptor(element, "__builder") && element.__builder.beforeremove) element.__builder.beforeremove.call(element);
+			if(element.__builderInstance && element.__builder.beforeremove) element.__builder.beforeremove.call(element);
 			if(element.parentNode) element.parentNode.removeChild(element);
 		});
 		this.elements = [];
@@ -90,7 +90,8 @@ Object.defineProperty(Sactory, "bindFactory", {
  * @since 0.48.0
  */
 Sactory.createAnchor = function(element, bind, anchor){
-	var ret = document.createComment("");
+	//var ret = document.createComment("");
+	var ret = document.createTextNode("");
 	if(anchor) element.insertBefore(ret, anchor);
 	else element.appendChild(ret);
 	if(bind) bind.appendChild(ret);

@@ -267,7 +267,7 @@ Sactory.updateAnchor = function(result, bind, anchor, options, anchors, componen
 /**
  * @since 0.60.0
  */
-Sactory.call = function(result, anchors, fun){
+Sactory.body = function(result, anchors, fun){
 	if(result.anchors && Object.keys(result.anchors.anchors).length) {
 		anchors = (anchors || []).concat(result.anchors);
 	}
