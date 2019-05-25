@@ -66,7 +66,6 @@ function minify(root) {
 				}
 			} else {
 				if(typeof item.value != "string") item.value = item.value + "";
-				if(item.selector == "content" && (item.value.charAt(0) != '"' || item.value.slice(-1) != '"') && (item.value.charAt(0) != '\'' || item.value.slice(-1) != '\'')) item.value = JSON.stringify(item.value);
 				ret += item.selector + ":" + item.value + ";";
 			}
 		});

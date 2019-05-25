@@ -1,6 +1,6 @@
 {
 	"name": "sactory",
-	"version": "0.64.0",
+	"version": "0.66.0",
 	"description": "HTML-spiced javascript for DOM creation and manipulation",
 	"main": "index.js",
 	"scripts": {
@@ -13,7 +13,7 @@
 	},
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/Kripth/sactory.git"
+		"url": "https://github.com/sactory/sactory.git"
 	},
 	"keywords": [
 		"factory",
@@ -23,18 +23,18 @@
 	"author": "Mark White",
 	"license": "MIT",
 	"bugs": {
-		"url": "https://github.com/Kripth/sactory/issues"
+		"url": "https://github.com/sactory/sactory/issues"
 	},
-	"homepage": "https://github.com/Kripth/sactory",
+	"homepage": "https://github.com/sactory/sactory",
 	"devDependencies": {
-		"express": "^4.16.4",
-		"gulp": "^4.0.1",
+		"express": "^4.17.0",
+		"gulp": "^4.0.2",
 		"gulp-concat": "^2.6.1",
 		"gulp-footer": "^2.0.2",
 		"gulp-header": "^2.0.7",
 		"gulp-rename": "^1.4.0",
 		"gulp-replace": "^1.0.0",
 		"gulp-uglify": "^3.0.2",
-		"node-fetch": "^2.4.1"
+		"node-fetch": "^2.6.0"
 	}
 }

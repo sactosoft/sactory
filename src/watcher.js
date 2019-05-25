@@ -41,7 +41,10 @@ var Watcher = {
 						var namespace = folder + filename;
 						var conv;
 						try {
-							conv = new Transpiler().transpile(data.toString(), {filename: namespace, namespace: namespace});
+							conv = new Transpiler({filename: namespace, namespace: namespace}).transpile(data.toString());
+							conv.warnings.forEach(function(message){
+								console.warn(message);
+							});
 						} catch(e) {
 							console.error(e);
 						}

@@ -13,14 +13,41 @@ function Observable(value) {
 	};
 }
 
-Observable.Proxy = typeof Proxy == "function" ? Proxy : null;
-
 Observable.prototype.replace = function(value){
-	if(value && typeof value == "object" && Observable.Proxy) {
-		return new Observable.Proxy(value, new ObservableProxyHandler(this));
+	if(value && typeof value == "object") {
+		if(value.constructor === Object) return this.observeChildren(value);
+		else if(value.constructor === Array || value.constructor === ObservableArray) return new ObservableArray(this, value);
+		else if(value.constructor === Date) return new ObservableDate(this, value);
+		else if(value.constructor === ObservableDate) return new ObservableDate(this, value.date);
+		else return value;
 	} else {
 		return value;
 	}
+};
+
+Observable.prototype.observeChildren = function(value){
+	var $this = this;
+	Object.keys(value).forEach(function(key){
+		var childValue = $this.replace(value[key]);
+		Object.defineProperty(value, key, {
+			enumerable: true,
+			get: function(){
+				return childValue;
+			},
+			set: function(newValue){
+				childValue = $this.replace(newValue);
+				$this.update();
+			}
+		});
+	});
+	return value;
+};
+
+/**
+ * @since 0.42.0
+ */
+Observable.prototype.update = function(value, type){
+	this.updateImpl(arguments.length ? this.replace(value) : this.internal.value, type);
 };
 
 Observable.prototype.updateImpl = function(value, type){
@@ -33,10 +60,21 @@ Observable.prototype.updateImpl = function(value, type){
 };
 
 /**
- * @since 0.42.0
+ * @since 0.66.0
  */
-Observable.prototype.update = function(value, type){
-	this.updateImpl(arguments.length ? this.replace(value) : this.internal.value, type);
+Observable.prototype.merge = function(object){
+	this.mergeImpl(this.internal.value, object);
+	this.update();
+};
+
+Observable.prototype.mergeImpl = function(value, object){
+	for(var key in object) {
+		if(typeof object[key] =="object" && value[key] == "object") {
+			this.mergeImpl(value[key], object[key]);
+		} else {
+			value[key] = object[key];
+		}
+	}
 };
 
 /**
@@ -134,23 +172,82 @@ SavedObservable.prototype.updateImpl = function(value, type){
 
 /**
  * @class
- * @since 0.56.0
+ * @since 0.66.0
  */
-function ObservableProxyHandler(observable) {
-	this.observable = observable;
+function ObservableArray(observable, value) {
+	Array.call(this);
+	Array.prototype.push.apply(this, value);
+	Object.defineProperty(this, "observable", {
+		enumerable: false,
+		value: observable
+	});
 }
 
-ObservableProxyHandler.prototype.set = function(object, property, value){
-	object[property] = value;
-	this.observable.updateImpl(this.observable.internal.value);
-	return value;
-};
+ObservableArray.prototype = Object.create(Array.prototype);
 
-ObservableProxyHandler.prototype.deleteProperty = function(object, property){
-	var ret = delete object[property];
-	this.observable.updateImpl(this.observable.internal.value);
-	return ret;
-};
+Object.defineProperty(ObservableArray.prototype, "length", {
+	configurable: false,
+	enumerable: false,
+	writable: true,
+	value: 0
+});
+
+["copyWithin", "fill", "pop", "push", "reverse", "shift", "sort", "splice", "unshift"].forEach(function(fun){
+	if(Array.prototype[fun]) {
+		Object.defineProperty(ObservableArray.prototype, fun, {
+			enumerable: false,
+			value: function(){
+				var ret = Array.prototype[fun].apply(this, arguments);
+				this.observable.update();
+				return ret;
+			}
+		});
+	}
+});
+
+Object.defineProperty(ObservableArray.prototype, "toJSON", {
+	value: function(){
+		return Array.apply(null, this);
+	}
+});
+
+/**
+ * @class
+ * @since 0.66.0
+ */
+function ObservableDate(observable, value) {
+	Date.call(this);
+	Object.defineProperty(this, "date", {
+		enumerable: false,
+		value: value
+	});
+	Object.defineProperty(this, "observable", {
+		enumerable: false,
+		value: observable
+	});
+}
+
+ObservableDate.prototype = Object.create(Date.prototype);
+
+Object.keys(Object.getOwnPropertyDescriptors(Date.prototype)).forEach(function(fun){
+	if(Polyfill.startsWith.call(fun, "set")) {
+		Object.defineProperty(ObservableDate.prototype, fun, {
+			enumerable: false,
+			value: function(){
+				var ret = Date.prototype[fun].apply(this.date, arguments);
+				this.observable.update();
+				return ret;
+			}
+		});
+	} else {
+		Object.defineProperty(ObservableDate.prototype, fun, {
+			enumerable: false,
+			value: function(){
+				return Date.prototype[fun].apply(this.date, arguments);
+			}
+		});
+	}
+});
 
 /**
  * @class

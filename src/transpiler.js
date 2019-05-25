@@ -8,8 +8,6 @@ var version = require("../version");
 
 var performance = require("perf_hooks").performance;
 
-function Transpiler() {}
-
 function hash(str) {
 	var hash = 0;
 	for(var i=0; i<str.length; i++) {
@@ -152,6 +150,8 @@ BreakpointParser.prototype.parse = function(handle, eof){
 		if(this.parser.options.code && !this.parser.couldStartRegExp()) {
 			// just a comparison
 			this.add("<");
+			this.parser.last = '<';
+			this.parser.lastIndex = this.parser.index;
 		} else {
 			handle();
 		}
@@ -817,6 +817,10 @@ Transpiler.defineMode(["text:logic", "tl"], HTMLLogicParser, {comments: false, s
 Transpiler.defineMode(["css:logic", "cl"], CSSLogicParser, {inlineComments: false, strings: false, children: false});
 Transpiler.defineMode(["cssb", "style"], CSSBParser, {strings: false, children: false, tags: ["style"]});
 
+function Transpiler(options) {
+	this.options = options || {};
+}
+
 /**
  * @since 0.49.0
  */
@@ -954,7 +958,7 @@ Transpiler.prototype.close = function(tagName){
 		this.namespaces.pop();
 		this.inheritance.pop();
 	}
-	if(!this.parser.eof()) {
+	if(this.closing.length) {
 		this.source.push(this.closing.pop());
 		this.addSemicolon();
 	}
@@ -1096,27 +1100,38 @@ Transpiler.prototype.open = function(){
 		if(iattributes.namespace) currentNamespace = iattributes.namespace;
 		if(!computed) {
 			if(tagName.charAt(0) == ':') {
-				switch(tagName.substr(1)) {
-					case "html":
-						element = "document.documentElement";
-						append = false;
-					case "head":
-					case "body":
-						element = "document." + tagName.substr(1);
-						append = false;
-						break;
-					case "window":
-					case "document":
-						element = tagName.substr(1);
-						append = false;
-					case "fragment":
-					case "shadow":
-						break;
-					case "anchor":
-						tagName = ":bind";
-						iattributes.to = "[]";
-					default:
-						create = false;
+				var name = tagName.substr(1);
+				if(this.options.aliases && this.options.aliases.hasOwnProperty(name)) {
+					var alias = this.options.aliases[name];
+					tagName = alias.tagName;
+					if(alias.hasOwnProperty("parent")) parent = alias.parent;
+					if(alias.hasOwnProperty("element")) element = alias.element;
+					if(alias.hasOwnProperty("create")) create = alias.create;
+					if(alias.hasOwnProperty("append")) append = alias.append;
+					if(alias.hasOwnProperty("mode")) newMode = alias.mode;
+				} else {
+					switch(name) {
+						case "html":
+							element = "document.documentElement";
+							append = false;
+						case "head":
+						case "body":
+							element = "document." + name;
+							append = false;
+							break;
+						case "window":
+						case "document":
+							element = name;
+							append = false;
+						case "fragment":
+						case "shadow":
+							break;
+						case "anchor":
+							tagName = ":bind";
+							iattributes.to = "[]";
+						default:
+							create = false;
+					}
 				}
 			} else if(tagName.charAt(0) == '#') {
 				newMode = modeNames[tagName.substr(1)];
@@ -1328,19 +1343,13 @@ Transpiler.prototype.warn = function(message, position){
 /**
  * @since 0.50.0
  */
-Transpiler.prototype.transpile = function(input, options){
+Transpiler.prototype.transpile = function(input){
 
 	var start = performance.now();
 	
 	this.parser = new Parser(input);
 
-	this.options = options || {};
-
 	this.count = hash(this.options.namespace + "") % 100000;
-
-	function next() {
-		return this.count++;
-	}
 	
 	this.runtime = this.nextVar();
 	this.element = this.nextVar();
@@ -1376,8 +1385,8 @@ Transpiler.prototype.transpile = function(input, options){
 	
 	this.startMode(defaultMode, {}).start();
 	
-	var open = this.open.bind(this);
-	var close = this.close.bind(this);
+	var open = Transpiler.prototype.open.bind(this);
+	var close = Transpiler.prototype.close.bind(this);
 
 	while(!this.parser.eof()) {
 		this.updateTemplateLiteralParser();
@@ -1392,10 +1401,18 @@ Transpiler.prototype.transpile = function(input, options){
 	
 	return {
 		time: performance.now() - start,
-		runtime: this.runtime,
-		element: this.element,
-		bind: this.bind,
-		anchor: this.anchor,
+		variables: {
+			runtime: this.runtime,
+			element: this.element,
+			bind: this.bind,
+			anchor: this.anchor,
+			value: this.value,
+			index: this.index,
+			array: this.array,
+			args: this.args,
+			anchors: this.anchors,
+			anchorsRegistry: this.anchorsRegistry
+		},
 		scope: this.options.scope,
 		tags: this.tagNames,
 		templates: this.templates,
@@ -1407,17 +1424,6 @@ Transpiler.prototype.transpile = function(input, options){
 	};
 	
 };
-
-Object.defineProperty(Transpiler, "instance", {
-	configurable: true,
-	get: function(){
-		var instance = new Transpiler();
-		Object.defineProperty(Transpiler, "instance", {
-			value: instance
-		});
-		return instance;
-	}
-});
 
 if(typeof window == "object") {
 
@@ -1437,8 +1443,10 @@ if(typeof window == "object") {
 			var script = document.createElement("script");
 			script.dataset.sactoryTo = id;
 			script.dataset.from = "[data-sactory-from='" + id + "']";
-			var result = new Transpiler().transpile(content || builder.textContent, {namespace: id});
-			result.warnings.forEach(console.warn);
+			var result = new Transpiler({namespace: id}).transpile(content || builder.textContent);
+			result.warnings.forEach(function(message){
+				console.warn(message);
+			});
 			script.textContent = result.source.all;
 			document.head.appendChild(script);
 		});

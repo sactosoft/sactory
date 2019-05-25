@@ -18,16 +18,14 @@ window.onload = function(){
 		if(*tab == from) *tab = to;
 	}
 
-	var input, output;
+	var inputs, output;
 
 	var es6 = true;
 	try {
-		eval("class Test {}");
+		eval("var test = class {}");
 	} catch(e) {
 		es6 = false;
 	}
-
-	var defaultContent = "var name = **\"world\";\n\n<h1 @text=" + (es6 ? "`Hello, ${*name}!`" : "(\"Hello, \" + *name)") + " />\n";
 
 	if(window.location.hash) {
 		hash = JSON.parse(atob(window.location.hash.substr(1)));
@@ -36,11 +34,39 @@ window.onload = function(){
 		key = **("storage." + *file);
 	}
 
+	var defaultContent = {
+		content: {
+			js: "var count = **0;\n",
+			html: "<button +click={ *count++ }>\n\tClicked ${*count} times\n</button>\n\nif(*count > 0) {\n\t<button +click={ *count = 0 }>\n\t\tReset count\n\t</button>\n}\n",
+			css: ""
+		},
+		show: {
+			js: true,
+			html: true,
+			css: false
+		},
+		mode: {
+			js: "code",
+			html: "html:logic",
+			css: "cssb"
+		}
+	};
+
+	var modes = {
+		js: ["code"],
+		html: ["html", "html:logic", "text", "text:logic"],
+		css: ["css", "css:logic", "cssb"]
+	};
+
 	var content = hash ? **(hash.content) : **(defaultContent, ***key);
+	var showCount = **(*content.show.js + *content.show.html + *content.show.css);
 	var result = **((function(){
-		console.clear();
+		//console.clear();
 		try {
-			var ret = new Transpiler().transpile(*content, {scope: "document.body"});
+			var ret = new Transpiler({}).transpile(
+				*content.content.js +
+				(*content.show.html ? "\n\n/* html */\n<:body #" + *content.mode.html + ">\n" + *content.content.html + "\n</:body>" : "") +
+				(*content.show.css ? "\n\n/* css */\n<style :head #" + *content.mode.css + ">\n" + *content.content.css + "\n</style>" : ""));
 			switchTab("error", "output");
 			return ret;
 		} catch(e) {
@@ -48,14 +74,29 @@ window.onload = function(){
 			return {error: e, compileError: true};
 		}
 	})());
-
 	if(!hash) {
-		file.subscribe(function(value){
-			content.internal.storage.key = ***key;
+		if(window.localStorage && window.localStorage.getItem(***key)) {
+			*content = JSON.parse(window.localStorage.getItem(***key));
+		}
+		@subscribe(file, function(value){
+			content.internal.storage.key = *key;
 			var set = content.internal.storage.set;
 			content.internal.storage.set = function(){}; // disable saving
-			input.setValue(*content = content.internal.storage.get(defaultContent));
+			content.merge(content.internal.storage.get(defaultContent));
+			for(var type in *content.content) {
+				inputs[type].setValue(*content.content[type]);
+			}
 			content.internal.storage.set = set; // enable saving
+		});
+	}
+
+	function save() {
+		content.merge({
+			content: {
+				js: inputs.js.getValue(),
+				html: inputs.html.getValue(),
+				css: inputs.css.getValue()
+			}
 		});
 	}
 
@@ -81,8 +122,35 @@ window.onload = function(){
 					padding: 0 8px;
 				}
 			}
-			.editor {
+			.input {
 				height: calc(100% - 34px);
+				.editor {
+					display: inline-block;
+					position: relative;
+					width: calc(100% / ${*showCount});
+					height: 100%;
+					.mode {
+						position: absolute;
+						z-index: 999;
+						top: 8px;
+						right: 8px;
+						padding: 2px 4px;
+						font-size: 12px;
+						line-height: 12px;
+						background: rgba(187, 187, 187, .3);
+						color: #333;
+						border-radius: 1000px;
+						border: none;
+						opacity: .5;
+						transition: opacity .1s linear;
+						&:hover {
+							opacity: 1;
+						}
+						&:focus {
+							outline: none;
+						}
+					}
+				}
 			}
 		}
 		.bottom {
@@ -172,16 +240,36 @@ window.onload = function(){
 					if(window.localStorage) {
 						<select *value=*file>
 							Object.keys(window.localStorage).sort().forEach(function(key){
-								if(key.substr(0, 8) == "storage.") <option value=key.substr(8) @text=key.substr(8) />
+								if(key.substr(0, 8) == "storage.") {
+									var value = key.substr(8);
+									<option value=value @text=value @selected=(value == ***file) />
+								}
 							});
 						</select>
 					}
 				}
+				Object.keys(*content.show).forEach(function(type){
+					<label style="margin-left:12px">
+						//<input type="checkbox" style="vertical-align:middle" *checked=*content.show[type] />
+						<input type="checkbox" style="vertical-align:middle" @checked=*content.show[type] +change={ *content.show[type] = this.checked } />
+						@text = type.toUpperCase();
+					</label>
+				});
 				var github = <a href="https://github.com/sactory/sactory" target="_blank" @hidden=true />
 				<span style="float:right;font-weight:bold;color:darkviolet;cursor:pointer" @text=("Sactory v" + Sactory.VERSION) +click={ github.click() } />
 			</section>
-			<section class="editor">
-				input = <textarea style="width:100%;height:360px;font-family:monospace" *value=*content />
+			<section class="input">
+				inputs = {};
+				["js", "html", "css"].forEach(function(type){
+					<div class="editor" @visible=*content.show[type]>
+						inputs[type] = <textarea @value=*content.content[type] />;
+						<select class="mode" @value=*content.mode[type] +change={ *content.mode[type] = this.value }>
+							modes[type].forEach(function(m){
+								<option value=m @text=m @selected=(***content.mode[type] == m) />
+							});
+						</select>
+					</div>
+				});
 			</section>
 		</section>
 
@@ -198,8 +286,8 @@ window.onload = function(){
 			<section class="result" @visible=(*tab == "output") :append>
 				<:bind-if :condition={ !*result.error } >
 					var container = <iframe style="width:100%;height:100%;border:none" />
-					<script @=container.contentWindow.document.head async src=document.querySelector("script[src*='sactory']").src />.onload = function(){
-						window.sandbox = container.contentWindow;
+					window.sandbox = container.contentWindow;
+					<script @=container.contentWindow.document.head src=document.querySelector("script[src*='sactory']").src />.onload = function(){
 						try {
 							container.contentWindow.eval(*result.source.all);
 						} catch(e) {
@@ -207,6 +295,20 @@ window.onload = function(){
 							*result.error = e;
 						}
 					};
+					/*function retry() {
+						if(container.contentWindow.Sactory) {
+							try {
+								container.contentWindow.eval(*result.source.all);
+							} catch(e) {
+								console.error(e);
+								*result.error = e;
+							}
+						} else {
+							console.log("Retrying in 10 seconds");
+							setTimeout(retry, 100);
+						}
+					}
+					retry();*/
 				</:bind-if>
 			</section>
 
@@ -234,18 +336,22 @@ window.onload = function(){
 
 	var markers = [];
 
-	input = CodeMirror.fromTextArea(input, {
-		lineNumbers: true,
-		indentWithTabs: true,
-		smartIndent: false,
-		lineWrapping: true
-	});
-	input.on("change", function(editor){
-		markers.forEach(function(marker){
-			input.removeLineClass(marker, "gutter", "error");
-			input.removeLineClass(marker, "gutter", "warn");
+	Object.keys(inputs).forEach(function(type){
+		var editor = CodeMirror.fromTextArea(inputs[type], {
+			lineNumbers: true,
+			indentWithTabs: true,
+			smartIndent: false,
+			lineWrapping: true
 		});
-		*content = editor.getValue();
+		editor.on("change", function(editor){
+			/*markers.forEach(function(marker){
+				input.removeLineClass(marker, "gutter", "error");
+				input.removeLineClass(marker, "gutter", "warn");
+			});*/
+			//*content.content[type] = editor.getValue();
+		});
+		<{inputs[type].nextElementSibling} +keydown:ctrl:key.s:prevent=save />
+		inputs[type] = editor;
 	});
 
 	output = CodeMirror.fromTextArea(output, {

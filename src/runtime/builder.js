@@ -66,14 +66,57 @@ Builder.prototype.prop = function(name, value, bind, type){
 Builder.prototype.twoway = function(name, value, bind){
 	var splitted = name.split("::");
 	var events = splitted.slice(1);
-	name = splitted[0];
-	if(["value", "checked"].indexOf(name) == -1) throw new Error("Cannot two-way bind property '" + name + "'.");
+	var modifiers = splitted[0].split(":");
+	name = modifiers[0];
 	if(!SactoryObservable.isObservable(value)) throw new Error("Cannot two-way bind property '" + name + "': the given value is not an observable.");
+	var converters = [];
+	modifiers.slice(1).forEach(function(mod){
+		converters.push(function(){
+			switch(mod) {
+				case "number":
+				case "num":
+				case "float":
+					return parseFloat;
+				case "int":
+				case "integer":
+					return parseInt;
+				case "comma":
+					return function(){
+						return this.replace(/,/g, '.');
+					};
+				case "trim":
+					return String.prototype.trim;
+				case "trim-left":
+				case "trim-start":
+					return Polyfill.trimStart;
+				case "trim-right":
+				case "trim-end":
+					return Polyfill.trimEnd;
+				case "lower":
+				case "lowercase":
+					return String.prototype.toLowerCase;
+				case "upper":
+				case "uppercase":
+					return String.prototype.toUpperCase;
+				case "capital":
+				case "capitalize":
+					return function(){
+						return this.charAt(0).toUpperCase() + this.substr(1);
+					};
+				default:
+					throw new Error("Unknown value modifier '" + mod + "'.");
+			}
+		}());
+	});
 	if(!events.length) events.push("input");
 	var type = 1048576 + Math.floor(Math.random() * 1048576);
 	for(var i=0; i<events.length; i++) {
 		this.event(events[i], function(){
-			value.update(this.type == "number" ? parseFloat(this[name]) : this[name], type);
+			var parsed = this[name];
+			converters.forEach(function(converter){
+				parsed = converter.call(parsed, parsed);
+			});
+			value.update(parsed, type);
 		}, bind);
 	}
 	this.prop(name, value, bind, type);
@@ -182,7 +225,7 @@ Builder.prototype.visible = function(value, reversed, bind){
  * @since 0.22.0
  */
 Builder.prototype.event = function(name, value, bind){
-	var split = name.split(":");
+	var split = name.split(/(?<!\\):/g).map(function(a){ return a.replace(/\\\:/g, ':'); });
 	var event = split.shift();
 	var listener = value || function(){};
 	var options = {};
@@ -254,7 +297,7 @@ Builder.prototype.event = function(name, value, bind){
 			default:
 				var positive = mod.charAt(0) != '!';
 				if(!positive) mod = mod.substr(1);
-				var dot = mod.split('.');
+				var dot = mod.split(/(?<!\\)\./g).map(function(a){ return a.replace(/\\\./g, '.'); });
 				switch(dot[0]) {
 					case "key":
 						var keys = dot.slice(1).map(function(a){
