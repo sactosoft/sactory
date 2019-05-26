@@ -1000,7 +1000,7 @@ Transpiler.prototype.open = function(){
 		var rattributes = []; // attributes used at runtime to modify the element
 		var sattributes = []; // variable name of the attributes passed using the spread syntax
 		var currentNamespace = this.namespaces[this.namespaces.length - 1];
-		var currentInheritance = "";
+		var currentInheritance = null;
 		var currentClosing = "";
 		var createAnchor;
 		var computed = false;
@@ -1170,19 +1170,17 @@ Transpiler.prototype.open = function(){
 		if(iattributes.body) parent = "document.body";
 		function createExprOptions() {
 			var ret = "";
+			currentInheritance = "";
 			var inheritance = this.inheritance.join("");
 			var args = !!(inheritance || rattributes.length);
 			if(currentNamespace) ret += "namespace:" + currentNamespace + ",";
 			if(args) ret += "args:[";
+			if(inheritance) ret += inheritance;
 			for(var i=0; i<rattributes.length; i++) {
 				var attribute = rattributes[i];
-				if(!attribute.computed && attribute.name.charAt(0) == '~') {
-					var expr = "{key:\"" + attribute.name.substr(1) + "\",value:" + attribute.value + "},";
-					currentInheritance += expr;
-					ret += expr;
-				} else {
-					ret += "{key:" + (attribute.computed ? attribute.name : '"' + attribute.name + '"') + ",value:" + attribute.value + "},";
-				}
+				var expr = "{key:" + (attribute.computed ? attribute.name : '"' + attribute.name + '"') + ",value:" + attribute.value + (attribute.optional ? ",optional:1" : "") + "},";
+				if(attribute.inherit) currentInheritance += expr;
+				ret += expr;
 				if(!attribute.computed && attribute.name.charAt(0) == '$') {
 					var index = attribute.name.indexOf(':');
 					var name = index == -1 ? attribute.name.substr(1) : attribute.name.substring(1, index);
@@ -1301,6 +1299,7 @@ Transpiler.prototype.open = function(){
 			this.source.push(currentClosing);
 			this.addSemicolon();
 		} else {
+			if(currentInheritance === null) createExprOptions.call(this); // always call to trigger attribute inheritance
 			this.namespaces.push(currentNamespace);
 			this.inheritance.push(currentInheritance);
 			this.closing.push(currentClosing);
@@ -1321,15 +1320,19 @@ Transpiler.prototype.open = function(){
  * @since 0.60.0
  */
 Transpiler.prototype.parseAttributeName = function(){
+	var attr = {};
+	attr.inherit = !!this.parser.readIf('~');
+	attr.optional = !!this.parser.readIf('?');
+	attr.prefix = this.parser.readAttributeNamePrefix();
+	if(attr.prefix == ':' && (attr.inherit || attr.optional)) this.parser.error("Compile-time attributes cannot be inherited nor optional.");
+	attr.computed = false;
 	var parts = [];
-	var computed = false;
-	var prefix = this.parser.readAttributeNamePrefix();
-	var required = prefix != '@';
+	var required = attr.prefix != '@';
 	while(true) {
 		var ret = {};
 		if(ret.name = this.parser.readComputedExpr()) {
-			if(prefix == ':') this.parser.error("Compile-time attribute names cannot be computed.");
-			computed = ret.computed = true;
+			if(attr.prefix == ':') this.parser.error("Compile-time attribute names cannot be computed.");
+			attr.computed = ret.computed = true;
 			if(ret.name.charAt(0) == '[' && ret.name.charAt(ret.name.length - 1) == ']') {
 				ret.name = this.runtime + ".config.shortcut." + ret.name.slice(1, -1);
 			} else {
@@ -1341,19 +1344,21 @@ Transpiler.prototype.parseAttributeName = function(){
 		parts.push(ret);
 		required = false;
 	}
-	if(computed) {
-		if(prefix) {
-			if(parts[0].computed) parts.unshift({name: prefix});
-			else parts[0].name = prefix + parts[0].name;
+	if(attr.computed) {
+		if(attr.prefix) {
+			if(parts[0].computed) parts.unshift({name: attr.prefix});
+			else parts[0].name = attr.prefix + parts[0].name;
 		}
 		parts.forEach(function(part){
 			if(part.computed) part.name = '(' + part.name + ')';
 			else part.name = JSON.stringify(part.name);
 		});
-		return {name: parts.map(function(part){ return part.name; }).join('+'), computed: true, prefix: prefix};
+		attr.name = parts.map(function(part){ return part.name; }).join('+');
 	} else {
-		return {name: prefix + parts[0].name, prefix: prefix};
+		attr.name = attr.prefix;
+		if(parts.length) attr.name += parts[0].name;
 	}
+	return attr;
 };
 
 /**

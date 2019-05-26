@@ -220,7 +220,9 @@ Sactory.update = function(result, element, bind, anchor, options){
 	if(!container) container = element;
 	
 	args.forEach(function(arg){
-		element.__builder.setImpl(arg.key, arg.value, bind, anchor);
+		if(!arg.optional || arg.value !== undefined) {
+			element.__builder.setImpl(arg.key, arg.value, bind, anchor);
+		}
 	});
 
 	/*for(var key in elementArgs) {

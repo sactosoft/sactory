@@ -99,6 +99,14 @@ Parser.prototype.read = function(){
 };
 
 /**
+ * Reads the next character only if it is equal to the given value.
+ * @since 0.68.0
+ */
+Parser.prototype.readIf = function(value){
+	if(this.peek() === value) return this.read();
+};
+
+/**
  * Asserts that the next character is equal to the given one and increases the
  * current index.
  * @param {string} c - The character that will be compared to the one at the current index.
@@ -367,10 +375,11 @@ Parser.prototype.readTagName = function(force){
 
 /**
  * Reads the prefix of an attribute name.
+ * @returns A prefix or an empty string.
  * @since 0.68.0
  */
 Parser.prototype.readAttributeNamePrefix = function(){
-	return this.readImpl(/^(~?\??(@@?|:|#|\$|\*\*?\*?|\+|-)?)/);
+	return this.readImpl(/^(@@?|:|#|\$|\*|\+|-)/, false) || "";
 };
 
 /**

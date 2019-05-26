@@ -9,7 +9,9 @@
 		"watch": "node ./src/watcher.js watch",
 		"test:compile": "npm run compile -- ./test/ ./test/dist/",
 		"test:run": "node ./test/index.js",
-		"test": "npm run test:compile && npm run test:run"
+		"test": "npm run test:compile && npm run test:run",
+		"unittest": "node ./unittest.js",
+		"unittest-open": "npm run unittest && start ./unittest/index.html"
 	},
 	"repository": {
 		"type": "git",

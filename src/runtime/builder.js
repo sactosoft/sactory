@@ -469,10 +469,6 @@ Builder.prototype.setProp = function(name, value, bind, anchor){
 };
 	
 Builder.prototype.setImpl = function(name, value, bind, anchor){
-	if(name.charAt(0) == '?') {
-		if(value === undefined || value === null) return;
-		else name = name.substr(1);
-	}
 	switch(name.charAt(0)) {
 		case '@':
 			this.setProp(name.substr(1), value, bind, anchor);
