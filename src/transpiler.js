@@ -281,7 +281,7 @@ JavascriptParser.prototype.next = function(match){
 								this.add(this.runtime  + skip + ".subscribe" + match[11] + "(" + this.bind + ", ");
 								this.parentheses.push(false);
 							} else if(match[5]) {
-								this.add(this.transpiler.anchorsRegistry  + skip + ".add" + match[11] + "(" + this.runtime + ".createAnchor(" + this.element + ", " + this.bind + ", " + this.anchor + "), ");
+								this.add(this.transpiler.anchorsRegistry  + skip + ".add" + match[11] + "(" + this.runtime + "." + this.transpiler.feature("createAnchor") + "(" + this.element + ", " + this.bind + ", " + this.anchor + "), ");
 								this.parentheses.push(false);
 							} else {
 								var type = match[6] ? "Template" : "Component";
@@ -335,10 +335,10 @@ JavascriptParser.prototype.next = function(match){
 						this.transpiler.updateTemplateLiteralParser();
 						if(parsed.observables && parsed.observables.length) {
 							// computed
-							this.add(this.runtime + ".computedObservable(this, " + this.bind + ", " + parsed.toSpreadValue() + ")");
+							this.add(this.runtime + "." + this.transpiler.feature("computedObservable") + "(this, " + this.bind + ", " + parsed.toSpreadValue() + ")");
 						} else {
 							if(parsed.source.charAt(0) != '(') parsed.source = '(' + parsed.source + ')';
-							this.add(this.runtime + ".observable" + parsed.source);
+							this.add(this.runtime + "." + this.transpiler.feature("observable") + parsed.source);
 						}
 					}
 				} else {
@@ -526,7 +526,7 @@ function createLogicParser(ParentParser) {
 		var shift = 0;
 		for(var i=0; i<sorted.length; i++) {
 			var popped = sorted[i];
-			this.source.splice(popped.index + shift++, 0, popped.start ? this.runtime + ".bind(this, " + this.element + ", " + this.bind + ", " + this.anchor +
+			this.source.splice(popped.index + shift++, 0, popped.start ? this.runtime + "." + this.transpiler.feature("bind") + "(this, " + this.element + ", " + this.bind + ", " + this.anchor +
 				", [" + uniq(popped.observables).join(", ") + "], 0, 0, function(" + this.element + ", " + this.bind + ", " + this.anchor + "){" : "});");
 		}
 	};
@@ -571,7 +571,7 @@ CSSBParser.prototype.parseCodeImpl = function(source){
 
 CSSBParser.prototype.addScope = function(selector){
 	var scope = "__" + this.transpiler.nextId();
-	this.add("var " + scope + "=" + this.runtime + ".select(" + this.scopes[this.scopes.length - 1] + "," + selector + ");");
+	this.add("var " + scope + "=" + this.runtime + "." + this.transpiler.feature("select") + "(" + this.scopes[this.scopes.length - 1] + "," + selector + ");");
 	this.scopes.push(scope);
 };
 
@@ -585,7 +585,7 @@ CSSBParser.prototype.skip = function(){
 };
 
 CSSBParser.prototype.start = function(){
-	this.add(this.runtime + ".compileAndBindStyle(function(){");
+	this.add(this.runtime + "." + this.transpiler.feature("compileAndBindStyle") + "(function(){");
 	this.add("var " + this.scopes[0] + "=[];");
 	if(this.scope) this.addScope("\".__sa\" + " + this.element + ".__builder.runtimeId");
 };
@@ -720,7 +720,7 @@ CSSBParser.prototype.beforeremove = function(){
 	if(this.scope) return "function(){ this.parentNode.__builder.removeClass(\"__sa\" + this.__builder.runtimeId); }";
 };
 
-CSSBParser.createExprImpl = function(expr, info){
+CSSBParser.createExprImpl = function(expr, info, transpiler){
 	var parser = new Parser(expr);
 	function skip() {
 		var skipped = parser.skipImpl({strings: false, comments: true});
@@ -747,14 +747,14 @@ CSSBParser.createExprImpl = function(expr, info){
 		if(parser.peek() == '(') {
 			info.computed += '(';
 			var start = parser.index + 1;
-			if(!CSSBParser.createExprImpl(parser.skipEnclosedContent().slice(1, -1), info)) return false;
+			if(!CSSBParser.createExprImpl(parser.skipEnclosedContent().slice(1, -1), info, transpiler)) return false;
 			info.computed += ')';
 		} else {
 			var v = parser.readSingleExpression(true);
 			if(/^[a-zA-Z_\$]/.exec(v)) {
 				// it's a variable
 				info.is = true;
-				info.computed += info.runtime + ".unit(" + info.param + "," + v + ")";
+				info.computed += info.runtime + "." + transpiler.feature("unit") + "(" + info.param + "," + v + ")";
 			} else {
 				info.computed += v;
 			}
@@ -773,12 +773,12 @@ CSSBParser.createExpr = function(expr, transpiler){
 	var info = {
 		runtime: transpiler.runtime,
 		param: param,
-		computed: "(function(" + param + "){return " + transpiler.runtime + ".computeUnit(" + param + ",",
+		computed: "(function(" + param + "){return " + transpiler.runtime + "." + transpiler.feature("computeUnit") + "(" + param + ",",
 		is: false,
 		op: 0
 	};
 	var ret = "";
-	var parser = new Parser(CSSBParser.createExprImpl(expr, info) && info.is && info.op && (info.computed + ")})({})") || expr);
+	var parser = new Parser(CSSBParser.createExprImpl(expr, info, transpiler) && info.is && info.op && (info.computed + ")})({})") || expr);
 	parser.options = {comments: true, strings: true};
 	while(true) {
 		var result = parser.find(['#'], false, true);
@@ -887,7 +887,7 @@ Transpiler.prototype.parseCode = function(input, parentParser){
 					// single observable, pass it raw so it can be used in two-way binding
 					return input.substr(1);
 				} else {
-					return $this.runtime + ".computedObservable(this, " + $this.bind + ", " + ret.toSpreadValue() + ")";
+					return $this.runtime + "." + $this.feature("computedObservable") + "(this, " + $this.bind + ", " + ret.toSpreadValue() + ")";
 				}
 			} else {
 				return source;
@@ -976,7 +976,7 @@ Transpiler.prototype.open = function(){
 		this.parser.index++;
 		this.parser.expect('-');
 		this.parser.expect('-');
-		this.source.push(this.runtime + ".comment(" + this.element + ", " + this.bind + ", " + this.anchor + ", " + stringify(this.parser.findSequence("-->", true).slice(0, -3)) + ")");
+		this.source.push(this.runtime + "." + this.feature("comment") + "(" + this.element + ", " + this.bind + ", " + this.anchor + ", " + stringify(this.parser.findSequence("-->", true).slice(0, -3)) + ")");
 		this.addSemicolon();
 	} else if(this.currentMode.options.children === false) {
 		throw new Error("Mode " + this.currentMode.name + " cannot have children");
@@ -1197,10 +1197,10 @@ Transpiler.prototype.open = function(){
 		}
 
 		if(selector) {
-			this.source.push(this.runtime + ".query(this, " + parent + ", " + selector + ", " + selectorAll + ", function(" + this.element + "){");
+			this.source.push(this.runtime + "." + this.feature("query") + "(this, " + parent + ", " + selector + ", " + selectorAll + ", function(" + this.element + "){");
 		}
 		if(iattributes.unique) {
-			this.source.push(this.runtime + ".unique(this, " + this.nextId() + ", function(){return ");
+			this.source.push(this.runtime + "." + this.feature("unique") + "(this, " + this.nextId() + ", function(){return ");
 		}
 
 		var before = [], after = [];
@@ -1210,13 +1210,13 @@ Transpiler.prototype.open = function(){
 		if(tagName == ":bind-if" || tagName == ":if") bindType = "If";
 		else if(tagName == ":bind-each" || tagName == ":each") bindType = "Each";
 		if(!computed && (bindType || tagName == ":bind")) {
-			this.source.push(this.runtime + ".bind" + bindType + "(" + ["this", parent, this.bind, this.anchor, iattributes.to || "0", iattributes.change || "0", iattributes.cleanup || "0"].join(", ") +
+			this.source.push(this.runtime + "." + this.feature("bind" + bindType) + "(" + ["this", parent, this.bind, this.anchor, iattributes.to || "0", iattributes.change || "0", iattributes.cleanup || "0"].join(", ") +
 				(bindType == "If" ? ", " + iattributes.condition : "") + ", function(" + [this.element, this.bind, this.anchor, iattributes.as || this.value, iattributes.index || this.index, iattributes.array || this.array].join(", ") + "){");
 			before = create = false;
 			currentClosing += "})";
 		}
 		if(anchorName) {
-			before.push(["updateAnchor", this.bind, this.anchor, createExprOptions.call(this), this.anchors, '"' + tagName + '"', '"' + anchorName + '"', "function(" + this.element + ", " + this.anchor + "){"]);
+			before.push([this.feature("updateAnchor"), this.bind, this.anchor, createExprOptions.call(this), this.anchors, '"' + tagName + '"', '"' + anchorName + '"', "function(" + this.element + ", " + this.anchor + "){"]);
 			call = false;
 			currentClosing += "}";
 		} else if(create) {
@@ -1230,13 +1230,13 @@ Transpiler.prototype.open = function(){
 					if(tagName == ":fragment") {
 						before.push(["set", "element", "document.createDocumentFragment()"]);
 					} else {
-						before.push(["create", this.bind, this.anchor, computed ? tagName : '"' + tagName + '"', createExprOptions.call(this)]);
+						before.push([this.feature("create"), this.bind, this.anchor, computed ? tagName : '"' + tagName + '"', createExprOptions.call(this)]);
 					}
-					before.push(["append", parent, this.bind, this.anchor].concat(hooks));
+					before.push([this.feature("append"), parent, this.bind, this.anchor].concat(hooks));
 				}
 			} else {
 				// update the element
-				before.push(["update", element, this.bind, this.anchor, createExprOptions.call(this)]);
+				before.push([this.feature("update"), element, this.bind, this.anchor, createExprOptions.call(this)]);
 			}
 		}
 		if(next == '/') {
@@ -1254,7 +1254,7 @@ Transpiler.prototype.open = function(){
 				// nothing was created or updated, the container must be set manually
 				before.push(["set", "container", parent]);
 			}
-			before.push(["body", this.anchors, "function(" + this.element + ", " + this.anchor + ", " + this.anchors + "){"]);
+			before.push([this.feature("body"), this.anchors, "function(" + this.element + ", " + this.anchor + ", " + this.anchors + "){"]);
 			currentClosing += "}";
 		}
 
@@ -1326,6 +1326,14 @@ Transpiler.prototype.parseAttributeName = function(){
 };
 
 /**
+ * @since 0.67.0
+ */
+Transpiler.prototype.feature = function(name){
+	this.features[name] = true;
+	return name;
+};
+
+/**
  * @since 0.62.0
  */
 Transpiler.prototype.nextVar = function(){
@@ -1364,6 +1372,7 @@ Transpiler.prototype.transpile = function(input){
 
 	this.tagNames = {};
 	this.templates = {};
+	var features = this.features = {};
 
 	this.warnings = [];
 	
@@ -1398,6 +1407,17 @@ Transpiler.prototype.transpile = function(input){
 	this.after = "})";
 
 	var source = this.source.join("");
+
+	function addDependencies(feature) {
+		if(dependencies.hasOwnProperty(feature)) {
+			dependencies[feature].forEach(function(f){
+				features[f] = true;
+				addDependencies(f);
+			});
+		}
+	}
+
+	Object.keys(features).forEach(addDependencies);
 	
 	return {
 		time: performance.now() - start,
@@ -1416,6 +1436,7 @@ Transpiler.prototype.transpile = function(input){
 		scope: this.options.scope,
 		tags: this.tagNames,
 		templates: this.templates,
+		features: Object.keys(features),
 		warnings: this.warnings,
 		source: {
 			all: this.before + source + this.after,
@@ -1423,6 +1444,19 @@ Transpiler.prototype.transpile = function(input){
 		}
 	};
 	
+};
+
+var dependencies = {
+	// core
+	create: ["update"],
+	appendAnchor: ["update"],
+	comment: ["append"],
+	// bind
+	bind: ["createAnchor"],
+	bindIf: ["bind"],
+	bindEach: ["bind"],
+	// cssb
+	compileAndBindStyle: ["compileStyle"]
 };
 
 if(typeof window == "object") {

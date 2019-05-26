@@ -1,6 +1,6 @@
 {
 	"name": "sactory",
-	"version": "0.66.0",
+	"version": "0.67.0",
 	"description": "HTML-spiced javascript for DOM creation and manipulation",
 	"main": "index.js",
 	"scripts": {

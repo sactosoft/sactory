@@ -109,9 +109,13 @@ Sactory.compileStyle = function(root){
 					compile(ns, Sactory.select(ret, ns.join(',')), value.value);
 				}
 			} else {
-				var res = {selector: value.key, value: value.value};
-				if(value.key.charAt(0) == '@') ret.push(res);
-				else curr.push(res);
+				if(value.key.charAt(0) == '@') {
+					ret.push({selector: value.key, value: value.value});
+				} else {
+					value.key.split(',').forEach(function(key){
+						curr.push({selector: key.trim(), value: value.value});
+					});
+				}
 			}
 		});
 	}

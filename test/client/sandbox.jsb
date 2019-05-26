@@ -100,6 +100,10 @@ window.onload = function(){
 		});
 	}
 
+	window.export = function(){
+		return window.location + '#' + btoa(JSON.stringify({name: *file, content: *content}));
+	};
+
 	<style :head>
 		var fontFamily = "Segoe UI";
 		var color = {
@@ -133,10 +137,9 @@ window.onload = function(){
 						position: absolute;
 						z-index: 999;
 						top: 8px;
-						right: 8px;
+						right: 22px;
 						padding: 2px 4px;
-						font-size: 12px;
-						line-height: 12px;
+						font-size, line-height: 12px;
 						background: rgba(187, 187, 187, .3);
 						color: #333;
 						border-radius: 1000px;
@@ -163,8 +166,7 @@ window.onload = function(){
 						content: '';
 						position: absolute;
 						bottom: -2px;
-						left: 0;
-						right: 0;
+						left, right: 0;
 						height: 4px;
 					}
 					&:not(.active):hover::after {
@@ -183,7 +185,7 @@ window.onload = function(){
 					}
 				}
 			}
-			.result {
+			section {
 				height: calc(100% - 40px);
 			}
 		}
@@ -199,11 +201,11 @@ window.onload = function(){
 			}
 		}
 		.text {
-			margin: 8px;
-			width: calc(100% - 16px);
-			height: calc(100% - 16px);
+			padding: 8px;
+			width, height: 100%;
 			border: none;
 			font-family: monospace;
+			resize: none;
 			&:focus {
 				outline: none;
 			}
@@ -214,8 +216,7 @@ window.onload = function(){
 
 		.CodeMirror {
 			height: 100%;
-			border-top: 1px solid silver;
-			border-bottom: 1px solid silver;
+			border-top, border-bottom: 1px solid silver;
 			.error::before, .warn::before {
 				position: absolute;
 				font-size: .8em;
@@ -283,32 +284,21 @@ window.onload = function(){
 				</div>
 			</nav>
 
-			<section class="result" @visible=(*tab == "output") :append>
+			<section @visible=(*tab == "output") :append>
 				<:bind-if :condition={ !*result.error } >
 					var container = <iframe style="width:100%;height:100%;border:none" />
 					window.sandbox = container.contentWindow;
-					<script @=container.contentWindow.document.head src=document.querySelector("script[src*='sactory']").src />.onload = function(){
-						try {
-							container.contentWindow.eval(*result.source.all);
-						} catch(e) {
-							console.error(e);
-							*result.error = e;
-						}
-					};
-					/*function retry() {
-						if(container.contentWindow.Sactory) {
-							try {
+					<{container.contentWindow.document.head}>
+						<script src=document.querySelector("script[src*='sactory']").src />.onload = function(){
+							/*try {
 								container.contentWindow.eval(*result.source.all);
 							} catch(e) {
 								console.error(e);
 								*result.error = e;
-							}
-						} else {
-							console.log("Retrying in 10 seconds");
-							setTimeout(retry, 100);
-						}
-					}
-					retry();*/
+							}*/
+							<script @textContent=("var $snippet=" + JSON.stringify(*key) + ";" + *result.source.all) />
+						};
+					</>
 				</:bind-if>
 			</section>
 
@@ -320,7 +310,7 @@ window.onload = function(){
 				<textarea class="text" readonly @value=(*result.warnings ? *result.warnings.join('\n') : "") />
 			</section>
 
-			<section class="result" @visible=(*tab == "code")>
+			<section @visible=(*tab == "code")>
 				output = <textarea style="width:100%;height:180px" @value=(*result.source && *result.source.contentOnly) />
 			</section>
 
@@ -341,7 +331,8 @@ window.onload = function(){
 			lineNumbers: true,
 			indentWithTabs: true,
 			smartIndent: false,
-			lineWrapping: true
+			lineWrapping: true,
+			mode: type == "js" ? "javascript" : (type == "html" ? "htmlmixed" : "css")
 		});
 		editor.on("change", function(editor){
 			/*markers.forEach(function(marker){
@@ -357,7 +348,8 @@ window.onload = function(){
 	output = CodeMirror.fromTextArea(output, {
 		lineNumbers: true,
 		lineWrapping: true,
-		readOnly: true
+		readOnly: true,
+		mode: "javascript"
 	});
 
 	function checkErrors(value) {
