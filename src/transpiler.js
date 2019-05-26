@@ -1057,10 +1057,17 @@ Transpiler.prototype.open = function(){
 					this.parser.index++;
 					skip();
 					this.parser.parseTemplateLiteral = null;
+					var prefix = names[0].prefix;
+					for(var i=1; i<names.length; i++) {
+						if(names[i].prefix != prefix) {
+							prefix = null;
+							break;
+						}
+					}
 					var name = names.length == 1 ? names[0].name : "";
 					value = this.parser.readAttributeValue();
 					if(value.charAt(0) == '#') value = this.runtime + ".functions." + value.substr(1) + "()";
-					if(name.charAt(0) == '@' || name.charAt(0) == '+') {
+					if(names.every(function(a){ return a.prefix == '@' || a.prefix == '+'; })) {
 						value = this.wrapFunction(value, false, "event");
 					} else if(name == ":change") {
 						value = this.wrapFunction(value, true, "oldValue", "value");
@@ -1081,9 +1088,9 @@ Transpiler.prototype.open = function(){
 							parent = value;
 						} else if(attr.name == "@anchor") {
 							createAnchor = value;
-						} else if(attr.name.charAt(0) == '#') {
+						} else if(attr.prefix == '#') {
 							newMode = modeNames[attr.name.substr(1)];
-						} else if(attr.name.charAt(0) == ':') {
+						} else if(attr.prefix == ':') {
 							iattributes[attr.name.substr(1)] = value;
 						} else {
 							add = true;
@@ -1314,15 +1321,39 @@ Transpiler.prototype.open = function(){
  * @since 0.60.0
  */
 Transpiler.prototype.parseAttributeName = function(){
-	var ret = {};
-	if(ret.name = this.parser.readComputedExpr()) {
-		ret.name = this.parseCode(ret.name).source;
-		ret.computed = true;
-	} else {
-		ret.name = this.parser.readAttributeName(true);
-		ret.computed = false;
+	var parts = [];
+	var computed = false;
+	var prefix = this.parser.readAttributeNamePrefix();
+	var required = prefix != '@';
+	while(true) {
+		var ret = {};
+		if(ret.name = this.parser.readComputedExpr()) {
+			if(prefix == ':') this.parser.error("Compile-time attribute names cannot be computed.");
+			computed = ret.computed = true;
+			if(ret.name.charAt(0) == '[' && ret.name.charAt(ret.name.length - 1) == ']') {
+				ret.name = this.runtime + ".config.shortcut." + ret.name.slice(1, -1);
+			} else {
+				ret.name = this.parseCode(ret.name).source;
+			}
+		} else if(!(ret.name = this.parser.readAttributeName(required))) {
+			break;
+		}
+		parts.push(ret);
+		required = false;
 	}
-	return ret;
+	if(computed) {
+		if(prefix) {
+			if(parts[0].computed) parts.unshift({name: prefix});
+			else parts[0].name = prefix + parts[0].name;
+		}
+		parts.forEach(function(part){
+			if(part.computed) part.name = '(' + part.name + ')';
+			else part.name = JSON.stringify(part.name);
+		});
+		return {name: parts.map(function(part){ return part.name; }).join('+'), computed: true, prefix: prefix};
+	} else {
+		return {name: prefix + parts[0].name, prefix: prefix};
+	}
 };
 
 /**

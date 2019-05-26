@@ -230,7 +230,7 @@ window.onload = function(){
 		}
 	</style>
 	
-	<:body +class=*alignment +class=(*result.error ? "has-errors" : "") +class=(*result.warnings && *result.warnings.length ? "has-warnings" : "")>
+	<:body +class=*alignment +class=(*result.error && "has-errors") +class=(*result.warnings && *result.warnings.length && "has-warnings")>
 
 		<section class="top">
 			<section class="filename">
@@ -279,7 +279,7 @@ window.onload = function(){
 			<nav>
 				<div style="margin:8px 0 10px">
 					Object.keys(tabs).forEach(function(key){
-						<span class="item" @text=tabs[key] +class=(*tab == key ? "active" : "") +click={ *tab = key } />
+						<span class="item" +class=key @text=tabs[key] +class=(*tab == key ? "active" : "") +click={ *tab = key } />
 					});
 				</div>
 			</nav>
@@ -289,14 +289,14 @@ window.onload = function(){
 					var container = <iframe style="width:100%;height:100%;border:none" />
 					window.sandbox = container.contentWindow;
 					<{container.contentWindow.document.head}>
-						<script src=document.querySelector("script[src*='sactory']").src />.onload = function(){
+						<script src="../dist/sactory.debug.js" />.onload = function(){
 							/*try {
 								container.contentWindow.eval(*result.source.all);
 							} catch(e) {
 								console.error(e);
 								*result.error = e;
 							}*/
-							<script @textContent=("var $snippet=" + JSON.stringify(*key) + ";" + *result.source.all) />
+							<script @textContent=("var $snippet=" + JSON.stringify('$' + *key) + ";" + *result.source.all) />
 						};
 					</>
 				</:bind-if>
@@ -341,7 +341,7 @@ window.onload = function(){
 			});*/
 			//*content.content[type] = editor.getValue();
 		});
-		<{inputs[type].nextElementSibling} +keydown:ctrl:key.s:prevent=save />
+		<{inputs[type].nextElementSibling} +[[save]]:prevent=save />
 		inputs[type] = editor;
 	});
 
@@ -378,9 +378,5 @@ window.onload = function(){
 
 	checkErrors(*result);
 	checkWarnings(*result);
-
-	// add active class to current tab
-
-	<{"nav .item." + *tab} +class="active" />
 
 };

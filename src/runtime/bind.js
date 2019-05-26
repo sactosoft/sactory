@@ -90,8 +90,10 @@ Object.defineProperty(Sactory, "bindFactory", {
  * @since 0.48.0
  */
 Sactory.createAnchor = function(element, bind, anchor){
-	//var ret = document.createComment("");
 	var ret = document.createTextNode("");
+	/* debug:
+	ret = document.createComment("");
+	*/
 	if(anchor) element.insertBefore(ret, anchor);
 	else element.appendChild(ret);
 	if(bind) bind.appendChild(ret);
@@ -118,6 +120,9 @@ Sactory.bind = function(context, element, bind, anchor, target, change, cleanup,
 	}
 	if(element) {
 		currentAnchor = Sactory.createAnchor(element, bind, anchor);
+		/* debug:
+		currentAnchor.bind = currentBind;
+		*/
 	}
 	change = SactoryObservable.unobserve(change);
 	cleanup = SactoryObservable.unobserve(cleanup);

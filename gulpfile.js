@@ -1,15 +1,20 @@
 var gulp = require("gulp");
+var clone = require("gulp-clone");
 var concat = require("gulp-concat");
 var footer = require("gulp-footer");
 var header = require("gulp-header");
+var nop = require("gulp-nop");
 var rename = require("gulp-rename");
 var replace = require("gulp-replace");
 var uglify = require("gulp-uglify");
+var es = require("event-stream");
 
 var version = require("./version");
 
+var debugExp = /\/\* debug:\r?\n([\s\S]*?)\*\//g;
+
 function make(filename, className, sources) {
-	return gulp.src(sources.map(function(s){
+	var stream = gulp.src(sources.map(function(s){
 		return "src/" + s + ".js";
 	}))
 	.pipe(concat(filename + ".js"))
@@ -23,11 +28,21 @@ function make(filename, className, sources) {
 		"function get(prop, value){ Object.defineProperty(" + className + ", prop, {get: function(){ return value; }}); }\nget('VERSION_MAJOR', " + version.major + ");\nget('VERSION_MINOR', " + version.minor + ");\nget('VERSION_PATCH', " + version.patch + ");\n" +
 		"get('VERSION', '" + version.version + "');\n\n"
 	))
-	.pipe(footer("\nreturn " + className + ";\n\n});"))
-	.pipe(gulp.dest("dist"))
-	.pipe(uglify({mangle: true}))
-	.pipe(rename(filename + ".min.js"))
-	.pipe(gulp.dest("dist"));
+	.pipe(footer("\nreturn " + className + ";\n\n});"));
+
+	var debug = stream.pipe(clone())
+		.pipe(replace(debugExp, "$1"))
+		.pipe(rename(filename + ".debug.js"))
+		.pipe(gulp.dest("dist"));
+	
+	var dist = stream.pipe(clone())
+		.pipe(replace(debugExp, ""))
+		.pipe(gulp.dest("dist"))
+		.pipe(uglify({mangle: true}))
+		.pipe(rename(filename + ".min.js"))
+		.pipe(gulp.dest("dist"));
+
+	return es.merge(debug, dist).pipe(nop());
 }
 
 gulp.task("dist:sactory", function(){
@@ -43,17 +58,6 @@ gulp.task("dist:sactory", function(){
 	]);
 });
 
-gulp.task("dist:sactory-lite", function(){
-	return make("sactory-lite", "Sactory", [
-		"polyfill",
-		"runtime/config",
-		"runtime/core",
-		"runtime/observable",
-		"runtime/builder",
-		"runtime/client"
-	]);
-});
-
 gulp.task("dist:transpiler", function(){
 	return make("transpiler", "Transpiler", [
 		"polyfill",
@@ -62,4 +66,4 @@ gulp.task("dist:transpiler", function(){
 	]);
 });
 
-gulp.task("dist", gulp.parallel("dist:sactory", "dist:sactory-lite", "dist:transpiler"));
+gulp.task("dist", gulp.parallel("dist:sactory", "dist:transpiler"));

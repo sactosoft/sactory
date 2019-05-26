@@ -1,6 +1,6 @@
 {
 	"name": "sactory",
-	"version": "0.67.0",
+	"version": "0.68.0",
 	"description": "HTML-spiced javascript for DOM creation and manipulation",
 	"main": "index.js",
 	"scripts": {
@@ -27,11 +27,14 @@
 	},
 	"homepage": "https://github.com/sactory/sactory",
 	"devDependencies": {
+		"event-stream": "^4.0.1",
 		"express": "^4.17.0",
 		"gulp": "^4.0.2",
+		"gulp-clone": "^2.0.1",
 		"gulp-concat": "^2.6.1",
 		"gulp-footer": "^2.0.2",
 		"gulp-header": "^2.0.7",
+		"gulp-nop": "0.0.3",
 		"gulp-rename": "^1.4.0",
 		"gulp-replace": "^1.0.0",
 		"gulp-uglify": "^3.0.2",

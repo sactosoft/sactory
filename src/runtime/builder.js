@@ -445,7 +445,7 @@ Builder.prototype.addClassName = function(className){
 Builder.prototype.removeClassName = function(className){
 	var index = this.element.className.indexOf(className);
 	if(index != -1) {
-		this.element.className = this.element.className.substring(0, index) + this.element.className.substr(index + className.length);
+		this.element.className = (this.element.className.substring(0, index) + this.element.className.substr(index + className.length)).replace(/\s{2,}/, " ");
 	}
 };
 
@@ -485,10 +485,10 @@ Builder.prototype.setImpl = function(name, value, bind, anchor){
 			if(name == "class") {
 				var builder = this;
 				if(SactoryObservable.isObservable(value)) {
-					var lastValue = value.value;
+					var lastValue = value.value || "";
 					this.subscribe(bind, value.subscribe(function(newValue, oldValue){
-						builder.removeClassName(oldValue);
-						builder.addClassName(lastValue = newValue);
+						builder.removeClassName(oldValue || "");
+						builder.addClassName(lastValue = (newValue || ""));
 					}));
 					this.addClassName(lastValue);
 					if(bind) {
@@ -497,6 +497,7 @@ Builder.prototype.setImpl = function(name, value, bind, anchor){
 						});
 					}
 				} else {
+					if(!value) value = "";
 					this.addClassName(value);
 					if(bind) {
 						bind.addRollback(function(){

@@ -366,13 +366,21 @@ Parser.prototype.readTagName = function(force){
 };
 
 /**
- * Reads an attribute name.
+ * Reads the prefix of an attribute name.
+ * @since 0.68.0
+ */
+Parser.prototype.readAttributeNamePrefix = function(){
+	return this.readImpl(/^(~?\??(@@?|:|#|\$|\*\*?\*?|\+|-)?)/);
+};
+
+/**
+ * Reads an attribute name, without the prefix.
  * @param {boolean=} force - Indicates whether to return false or throw an error when a result could not be found.
  * @throws {ParserError} When the force param is true and a result could not be found.
  * @since 0.22.0
  */
 Parser.prototype.readAttributeName = function(force){
-	return this.readImpl(/^((~?\??(@@?|:|#|\$|\*\*?\*?|\+|-)?[a-zA-Z_][a-zA-Z0-9_$.:!-]*)|@)/, force, function(){ return "Could not find a valid attribute name."; });
+	return this.readImpl(/^[a-zA-Z0-9_$.:!-]+/, force, function(){ return "Could not find a valid attribute name."; });
 };
 
 /**
