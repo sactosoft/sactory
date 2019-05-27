@@ -378,8 +378,22 @@ Parser.prototype.readTagName = function(force){
  * @returns A prefix or an empty string.
  * @since 0.68.0
  */
-Parser.prototype.readAttributeNamePrefix = function(){
-	return this.readImpl(/^(@@?|:|#|\$|\*|\+|-)/, false) || "";
+Parser.prototype.readAttributePrefix = function(){
+	var match = /^(?:([:#$@*+-])|(mode|template|attr|prop|bind|add|remove):)/.exec(this.input.substr(this.index));
+	if(match) {
+		this.index += match[0].length;
+		return match[1] || {
+			mode: '#',
+			template: '$',
+			attr: '',
+			prop: '@',
+			bind: '*',
+			add: '+',
+			remove: '-'
+		}[match[2]];
+	} else {
+		return "";
+	}
 };
 
 /**
@@ -389,7 +403,7 @@ Parser.prototype.readAttributeNamePrefix = function(){
  * @since 0.22.0
  */
 Parser.prototype.readAttributeName = function(force){
-	return this.readImpl(/^[a-zA-Z0-9_$.:!-]+/, force, function(){ return "Could not find a valid attribute name."; });
+	return this.readImpl(/^[a-zA-Z0-9_$@.:!-]+/, force, function(){ return "Could not find a valid attribute name."; });
 };
 
 /**

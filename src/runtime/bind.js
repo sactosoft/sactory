@@ -113,10 +113,9 @@ Sactory.bind = function(context, element, bind, anchor, target, change, cleanup,
 	function record(value) {
 		fun.call(context, element, currentBind, currentAnchor, oldValue = value);
 	}
-	function rollback(value) {
+	function rollback() {
 		currentBind.rollback();
 		if(cleanup) cleanup();
-		record(value);
 	}
 	if(element) {
 		currentAnchor = Sactory.createAnchor(element, bind, anchor);
@@ -131,13 +130,19 @@ Sactory.bind = function(context, element, bind, anchor, target, change, cleanup,
 	if(target.observe) target = target.observe;
 	if(target.forEach) {
 		target.forEach(function(ob){
-			subscribe(ob.subscribe(rollback));
+			subscribe(ob.subscribe(function(){
+				rollback();
+				record();
+			}));
 		});
 		record();
 	} else if(SactoryObservable.isObservable(target)) {
 		subscribe(target.subscribe(function(value){
 			if(!change || change(oldValue, value)) {
-				rollback(value);
+				rollback();
+				record(value);
+			} else {
+				oldValue = value;
 			}
 		}));
 		record(target.value);
@@ -150,7 +155,10 @@ Sactory.bind = function(context, element, bind, anchor, target, change, cleanup,
  * @since 0.40.0
  */
 Sactory.bindIf = function(context, element, bind, anchor, target, change, cleanup, condition, fun){
-	if(!target && SactoryObservable.isObservable(condition) && condition.computed) target = condition.dependencies;
+	if(!target && SactoryObservable.isObservable(condition) && condition.computed) {
+		target = condition.dependencies;
+		if(target.length == 1) target = target[0];
+	}
 	condition = SactoryObservable.unobserve(condition);
 	if(typeof condition != "function") throw new Error("The condition provided to :bind-if is not a function.");
 	Sactory.bind(context, element, bind, anchor, target, change, cleanup, function(element, bind, anchor, value){

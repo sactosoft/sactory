@@ -18,7 +18,8 @@ window.onload = function(){
 		if(*tab == from) *tab = to;
 	}
 
-	var inputs, output;
+	var inputs = {};
+	var outputs = {};
 
 	var es6 = true;
 	try {
@@ -61,18 +62,42 @@ window.onload = function(){
 	var content = hash ? **(hash.content) : **(defaultContent, ***key);
 	var showCount = **(*content.show.js + *content.show.html + *content.show.css);
 	var result = **((function(){
-		//console.clear();
-		try {
-			var ret = new Transpiler({}).transpile(
-				*content.content.js +
-				(*content.show.html ? "\n\n/* html */\n<:body #" + *content.mode.html + ">\n" + *content.content.html + "\n</:body>" : "") +
-				(*content.show.css ? "\n\n/* css */\n<style :head #" + *content.mode.css + ">\n" + *content.content.css + "\n</style>" : ""));
-			switchTab("error", "output");
-			return ret;
-		} catch(e) {
-			switchTab("output", "error");
-			return {error: e, compileError: true};
+		var result = {source: "", before: "", after: "", info: {time: 0, tags: {}, templates: {}, features: []}, errors: [], warnings: []};
+		var transpiler = new Transpiler({});
+		function transpile(type, before, after) {
+			before = before ? before + '\n' : "";
+			after = after ? '\n' + after : "";
+			try {
+				var info = transpiler.transpile(before + *content.content[type] + after);
+				result.info.time += info.time;
+				result.info.variables = info.variables;
+				for(var tag in info.tags) {
+					result.info.tags[tag] = (result.info.tags[tag] || 0) + info.tags[tag];
+				}
+				for(var template in info.templates) {
+					result.info.templates[template] = (result.info.templates[template] || 0) + info.templates[template];
+				}
+				info.features.forEach(function(feature){
+					if(result.info.features.indexOf(feature) == -1) result.info.features.push(feature);
+				});
+				Array.prototype.push.apply(result.warnings, info.warnings);
+				var source = info.source.contentOnly;
+				if(before) source = source.substr(source.indexOf('\n') + 1);
+				if(after) source = source.substring(0, source.lastIndexOf('\n'));
+				result[type] = source;
+				result.before = info.source.before;
+				result.source += info.source.contentOnly;
+				result.after = info.source.after;
+			} catch(e) {
+				result.errors.push(e);
+			}
 		}
+		transpile("js");
+		if(*content.show.html) transpile("html", "<:body #" + *content.mode.html + ">", "</:body>");
+		if(*content.show.css) transpile("css", "<style :head #" + *content.mode.css + ">", "</style>");
+		if(result.errors.length) switchTab("output", "error");
+		else switchTab("error", "output");
+		return result;
 	})());
 	if(!hash) {
 		if(window.localStorage && window.localStorage.getItem(***key)) {
@@ -84,7 +109,7 @@ window.onload = function(){
 			content.internal.storage.set = function(){}; // disable saving
 			content.merge(content.internal.storage.get(defaultContent));
 			for(var type in *content.content) {
-				inputs[type].setValue(*content.content[type]);
+				if(inputs[type]) inputs[type].setValue(*content.content[type]);
 			}
 			content.internal.storage.set = set; // enable saving
 		});
@@ -93,9 +118,9 @@ window.onload = function(){
 	function save() {
 		content.merge({
 			content: {
-				js: inputs.js.getValue(),
-				html: inputs.html.getValue(),
-				css: inputs.css.getValue()
+				js: inputs.js ? inputs.js.getValue() : "",
+				html: inputs.html ? inputs.html.getValue() : "",
+				css: inputs.css ? inputs.css.getValue() : ""
 			}
 		});
 	}
@@ -128,30 +153,24 @@ window.onload = function(){
 			}
 			.input {
 				height: calc(100% - 34px);
-				.editor {
-					display: inline-block;
-					position: relative;
-					width: calc(100% / ${*showCount});
-					height: 100%;
-					.mode {
-						position: absolute;
-						z-index: 999;
-						top: 8px;
-						right: 22px;
-						padding: 2px 4px;
-						font-size, line-height: 12px;
-						background: rgba(187, 187, 187, .3);
-						color: #333;
-						border-radius: 1000px;
-						border: none;
-						opacity: .5;
-						transition: opacity .1s linear;
-						&:hover {
-							opacity: 1;
-						}
-						&:focus {
-							outline: none;
-						}
+				.editor .mode {
+					position: absolute;
+					z-index: 999;
+					top: 8px;
+					right: 22px;
+					padding: 2px 4px;
+					font-size, line-height: 12px;
+					background: rgba(187, 187, 187, .3);
+					color: #333;
+					border-radius: 1000px;
+					border: none;
+					opacity: .5;
+					transition: opacity .1s linear;
+					&:hover {
+						opacity: 1;
+					}
+					&:focus {
+						outline: none;
 					}
 				}
 			}
@@ -188,6 +207,12 @@ window.onload = function(){
 			section {
 				height: calc(100% - 40px);
 			}
+		}
+		.editor {
+			display: inline-block;
+			position: relative;
+			width: calc(100% / ${*showCount});
+			height: 100%;
 		}
 		.x {
 			.top, .bottom {
@@ -230,7 +255,7 @@ window.onload = function(){
 		}
 	</style>
 	
-	<:body +class=*alignment +class=(*result.error && "has-errors") +class=(*result.warnings && *result.warnings.length && "has-warnings")>
+	<:body +class=*alignment +class=(*result.errors.length && "has-errors") +class=(*result.warnings.length && "has-warnings")>
 
 		<section class="top">
 			<section class="filename">
@@ -260,16 +285,28 @@ window.onload = function(){
 				<span style="float:right;font-weight:bold;color:darkviolet;cursor:pointer" @text=("Sactory v" + Sactory.VERSION) +click={ github.click() } />
 			</section>
 			<section class="input">
-				inputs = {};
 				["js", "html", "css"].forEach(function(type){
-					<div class="editor" @visible=*content.show[type]>
-						inputs[type] = <textarea @value=*content.content[type] />;
-						<select class="mode" @value=*content.mode[type] +change={ *content.mode[type] = this.value }>
-							modes[type].forEach(function(m){
-								<option value=m @text=m @selected=(***content.mode[type] == m) />
-							});
-						</select>
-					</div>
+					<:bind-if :condition={ *content.show[type] } :change={ !!document.getElementById(type) != newValue.show[type] }>
+						<div id=type class="editor">
+							var textarea = <textarea @value=*content.content[type] />;
+							// init the next tick so everything is already appended to the DOM
+							setTimeout(function(){
+								inputs[type] = CodeMirror.fromTextArea(textarea, {
+									lineNumbers: true,
+									indentWithTabs: true,
+									smartIndent: false,
+									lineWrapping: true,
+									mode: type == "js" ? "javascript" : (type == "html" ? "htmlmixed" : "css")
+								});
+								<{textarea.nextElementSibling} +[[save]]:prevent=save />
+							}, 0);
+							<select class="mode" @value=*content.mode[type] +change={ *content.mode[type] = this.value }>
+								modes[type].forEach(function(m){
+									<option value=m @text=m @selected=(***content.mode[type] == m) />
+								});
+							</select>
+						</div>
+					</:bind-if>
 				});
 			</section>
 		</section>
@@ -296,28 +333,43 @@ window.onload = function(){
 								console.error(e);
 								*result.error = e;
 							}*/
-							<script @textContent=("var $snippet=" + JSON.stringify('$' + *key) + ";" + *result.source.all) />
+							<script @textContent=("var $snippet=" + JSON.stringify('$' + *key) + ";" + *result.before + *result.source + *result.after) />
 						};
 					</>
 				</:bind-if>
 			</section>
 
 			<section @visible=(*tab == "error")>
-				<textarea class="text color-red" readonly @value=(*result.error || "") />
+				<textarea class="text color-red" readonly @value=*result.errors.join('\n') />
 			</section>
 
 			<section @visible=(*tab == "warn")>
 				<textarea class="text" readonly @value=(*result.warnings ? *result.warnings.join('\n') : "") />
 			</section>
 
-			<section @visible=(*tab == "code")>
-				output = <textarea style="width:100%;height:180px" @value=(*result.source && *result.source.contentOnly) />
-			</section>
+			<:bind-if :condition={ *tab == "code" }>
+				<section>
+					["js", "html", "css"].forEach(function(type){
+						<:bind-if :condition={ *content.show[type] } :change={ !!@.querySelector("#output-" + type) != newValue.show[type] }>
+							<div id=("output-" + type) class="editor">
+								var textarea = <textarea @value=(*result[type] || "") />;
+								// init the next tick so everything is already appended to the DOM
+								setTimeout(function(){
+									outputs[type] = CodeMirror.fromTextArea(textarea, {
+										lineNumbers: true,
+										lineWrapping: true,
+										readOnly: true,
+										mode: "javascript"
+									});
+								}, 0);
+							</div>
+						</:bind-if>
+					});
+				</section>
+			</:bind-if>
 
 			<section @visible=(*tab == "info")>
-				<textarea class="text" readonly @value=(*result.compileError ? "" : JSON.stringify(*result, function(key, value){
-					return key == "source" || key == "error" || key == "warnings" ? undefined : value;
-				}, 4)) />
+				<textarea class="text" readonly @value=(*result.errors.length ? "" : JSON.stringify(*result.info, null, 4)) />
 			</section>
 
 		</section>
@@ -325,32 +377,6 @@ window.onload = function(){
 	</:body>
 
 	var markers = [];
-
-	Object.keys(inputs).forEach(function(type){
-		var editor = CodeMirror.fromTextArea(inputs[type], {
-			lineNumbers: true,
-			indentWithTabs: true,
-			smartIndent: false,
-			lineWrapping: true,
-			mode: type == "js" ? "javascript" : (type == "html" ? "htmlmixed" : "css")
-		});
-		editor.on("change", function(editor){
-			/*markers.forEach(function(marker){
-				input.removeLineClass(marker, "gutter", "error");
-				input.removeLineClass(marker, "gutter", "warn");
-			});*/
-			//*content.content[type] = editor.getValue();
-		});
-		<{inputs[type].nextElementSibling} +[[save]]:prevent=save />
-		inputs[type] = editor;
-	});
-
-	output = CodeMirror.fromTextArea(output, {
-		lineNumbers: true,
-		lineWrapping: true,
-		readOnly: true,
-		mode: "javascript"
-	});
 
 	function checkErrors(value) {
 		var match = value.error && value.error.toString().match(/^ParserError: Line (\d+), Column (\d+)/);
@@ -373,7 +399,9 @@ window.onload = function(){
 	result.subscribe(function(value){
 		checkErrors(value);
 		checkWarnings(value);
-		output.setValue(value.source ? value.source.contentOnly : "");
+		for(var type in outputs) {
+			outputs[type].setValue(value[type] || "");
+		}
 	});
 
 	checkErrors(*result);

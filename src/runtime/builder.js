@@ -29,6 +29,13 @@ function Builder(element) {
 
 }
 
+Builder.TYPE_PROP = 0;
+Builder.TYPE_ATTR = 1;
+Builder.TYPE_TWOWAY = 2;
+Builder.TYPE_ADD = 3;
+Builder.TYPE_REMOVE = 4;
+Builder.TYPE_TEMPLATE = 5;
+
 /**
  * @since 0.42.0
  */
@@ -452,7 +459,7 @@ Builder.prototype.removeClassName = function(className){
 /**
  * @since 0.63.0
  */
-Builder.prototype.setProp = function(name, value, bind, anchor){
+Builder.prototype[Builder.TYPE_PROP] = function(name, value, bind, anchor){
 	switch(name) {
 		default: return this.prop(name, value, bind);
 		case "text": return this.text(value, bind, anchor);
@@ -467,55 +474,62 @@ Builder.prototype.setProp = function(name, value, bind, anchor){
 			}
 	}
 };
-	
-Builder.prototype.setImpl = function(name, value, bind, anchor){
-	switch(name.charAt(0)) {
-		case '@':
-			this.setProp(name.substr(1), value, bind, anchor);
-			break;
-		case '*':
-			this.twoway(name.substr(1), value, bind);
-			break;
-		case '+':
-			name = name.substr(1);
-			if(name == "class") {
-				var builder = this;
-				if(SactoryObservable.isObservable(value)) {
-					var lastValue = value.value || "";
-					this.subscribe(bind, value.subscribe(function(newValue, oldValue){
-						builder.removeClassName(oldValue || "");
-						builder.addClassName(lastValue = (newValue || ""));
-					}));
-					this.addClassName(lastValue);
-					if(bind) {
-						bind.addRollback(function(){
-							builder.removeClassName(lastValue);
-						});
-					}
-				} else {
-					if(!value) value = "";
-					this.addClassName(value);
-					if(bind) {
-						bind.addRollback(function(){
-							builder.removeClassName(value);
-						});
-					}
-				}
-			} else {
-				this.event(name, SactoryObservable.unobserve(value), bind);
+
+/**
+ * @since 0.69.0
+ */
+Builder.prototype[Builder.TYPE_ATTR] = function(name, value, bind){
+	this.attr(name, value, bind);
+};
+
+/**
+ * @since 0.69.0
+ */
+Builder.prototype[Builder.TYPE_TWOWAY] = function(name, value, bind){
+	this.twoway(name, value, bind);
+};
+
+/**
+ * @since 0.69.0
+ */
+Builder.prototype[Builder.TYPE_ADD] = function(name, value, bind){
+	if(name == "class") {
+		var builder = this;
+		if(SactoryObservable.isObservable(value)) {
+			var lastValue = value.value || "";
+			this.subscribe(bind, value.subscribe(function(newValue, oldValue){
+				builder.removeClassName(oldValue || "");
+				builder.addClassName(lastValue = (newValue || ""));
+			}));
+			this.addClassName(lastValue);
+			if(bind) {
+				bind.addRollback(function(){
+					builder.removeClassName(lastValue);
+				});
 			}
-			break;
-		case '-':
-			//TODO observable and bind functionalities
-			name = name.substr(1);
-			if(name == "class") {
-				this.removeClassName(value);
-			} else {
-				this.element.removeEventListener(name, SactoryObservable.unobserve(value));
+		} else {
+			if(!value) value = "";
+			this.addClassName(value);
+			if(bind) {
+				bind.addRollback(function(){
+					builder.removeClassName(value);
+				});
 			}
-			break;
-		default:
-			this.attr(name, value, bind);
+		}
+	} else {
+		this.event(name, SactoryObservable.unobserve(value), bind);
+	}
+};
+
+/**
+ * @since 0.69.0
+ */
+Builder.prototype[Builder.TYPE_REMOVE] = function(name, value, bind){
+	//TODO observable and bind functionalities
+	if(name == "class") {
+		this.removeClassName(value || "");
+	} else {
+		this.element.removeEventListener(name, SactoryObservable.unobserve(value));
 	}
 };
 	

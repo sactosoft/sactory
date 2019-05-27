@@ -149,6 +149,18 @@ Sactory.check = function(major, minor, patch){
 };
 
 /**
+ * @since 0.69.0
+ */
+Sactory.attr = function(type, name, value, optional){
+	return {
+		type: type,
+		name: name,
+		value: arguments.length > 2 ? value : "",
+		optional: !!optional
+	};
+};
+
+/**
  * @since 0.60.0
  */
 Sactory.create = function(result, bind, anchor, tagName, options){
@@ -165,46 +177,42 @@ Sactory.update = function(result, element, bind, anchor, options){
 	var elementArgs = {};
 	var templateArgs = {};
 	if(options.args) {
+		// filter out optional arguments
+		options.args = options.args.filter(function(a){
+			return !a.optional || a.value !== undefined;
+		});
 		options.args.forEach(function(arg){
 			var remove = false;
-			if(arg.key.charAt(0) == '$') {
-				var key = arg.key.substr(1);
-				var index = key.lastIndexOf(':');
+			if(arg.type == Builder.TYPE_TEMPLATE) {
+				var index = arg.name.lastIndexOf(':');
 				if(index == -1) {
-					templateArgs[key] = Object(arg.value);
+					templateArgs[arg.name] = Object(arg.value);
 				} else {
-					var name = key.substring(0, index);
+					var name = arg.name.substring(0, index);
 					if(!templateArgs.hasOwnProperty(name)) templateArgs[name] = {};
-					templateArgs[name][key.substr(index + 1)] = arg.value;
+					templateArgs[name][arg.name.substr(index + 1)] = arg.value;
 				}
 			} else {
 				args.push(arg);
-				elementArgs[arg.key] = arg.value;
+				if(arg.type == Builder.TYPE_ATTR) elementArgs[arg.name] = arg.value;
 			}
 		});
 	}
 
-	if(options.spread) {
+	/*if(options.spread) {
 		options.spread.forEach(function(spread){
 			Polyfill.assign(elementArgs, spread);
 		});
-	}
+	}*/
 
 	var container, anchors;
 	
 	if(!element) {
 		var component = definedComponents[options.tagName];
 		if(component) {
-			var attributes = {};
-			for(var key in elementArgs) {
-				if(!/[@*+-]/.test(key.charAt(0))) {
-					attributes[key] = elementArgs[key];
-					delete elementArgs[key];
-				}
-			}
 			anchors = new AnchorRegistry(component.name);
 			component = component.handler(anchors, null, bind, null);
-			element = component.render(attributes, options.namespace);
+			element = component.render(elementArgs, options.namespace);
 			element.__component = element["@@"] = component;
 			if(anchors.anchors.__container) {
 				container = anchors.anchors.__container.element;
@@ -220,14 +228,8 @@ Sactory.update = function(result, element, bind, anchor, options){
 	if(!container) container = element;
 	
 	args.forEach(function(arg){
-		if(!arg.optional || arg.value !== undefined) {
-			element.__builder.setImpl(arg.key, arg.value, bind, anchor);
-		}
+		element.__builder[arg.type](arg.name, arg.value, bind, anchor);
 	});
-
-	/*for(var key in elementArgs) {
-		element.__builder.setImpl(key, elementArgs[key], bind, anchor);
-	}*/
 	
 	for(var templateName in templateArgs) {
 		var template = definedTemplates[templateName];
