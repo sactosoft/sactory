@@ -65,8 +65,8 @@ window.onload = function(){
 		var result = {source: "", before: "", after: "", info: {time: 0, tags: {}, templates: {}, features: []}, errors: [], warnings: []};
 		var transpiler = new Transpiler({});
 		function transpile(type, before, after) {
-			before = before ? before + '\n' : "";
-			after = after ? '\n' + after : "";
+			before = before ? before + '<!COMMENT start>' : "";
+			after = after ? '<!COMMENT end>' + after : "";
 			try {
 				var info = transpiler.transpile(before + *content.content[type] + after);
 				result.info.time += info.time;
@@ -82,8 +82,8 @@ window.onload = function(){
 				});
 				Array.prototype.push.apply(result.warnings, info.warnings);
 				var source = info.source.contentOnly;
-				if(before) source = source.substr(source.indexOf('\n') + 1);
-				if(after) source = source.substring(0, source.lastIndexOf('\n'));
+				if(before) source = source.substr(source.indexOf("/*start*/") + 9);
+				if(after) source = source.substring(0, source.lastIndexOf("/*end*/"));
 				result[type] = source;
 				result.before = info.source.before;
 				result.source += info.source.contentOnly;

@@ -35,7 +35,7 @@ Bind.prototype.rollback = function(){
 	}
 	if(this.elements.length) {
 		this.elements.forEach(function(element){
-			if(element.__builderInstance && element.__builder.beforeremove) element.__builder.beforeremove.call(element);
+			if(element.__builderInstance && element.dispatchEvent) element.dispatchEvent(new Event("remove"));
 			if(element.parentNode) element.parentNode.removeChild(element);
 		});
 		this.elements = [];
@@ -94,6 +94,9 @@ Sactory.createAnchor = function(element, bind, anchor){
 	/* debug:
 	ret = document.createComment("");
 	*/
+	Object.defineProperty(ret, "nodeType", {
+		value: Node.ANCHOR_NODE
+	});
 	if(anchor) element.insertBefore(ret, anchor);
 	else element.appendChild(ret);
 	if(bind) bind.appendChild(ret);

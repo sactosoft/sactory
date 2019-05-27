@@ -200,20 +200,6 @@ TextParser.prototype.addCurrent = function(){
 		}
 		current.push(curr);
 	});
-	if(current.length) {
-		var start = current[0];
-		var end = current[current.length - 1];
-		if(start.text) {
-			var trimmed = Polyfill.trimStart.call(start.value);
-			before = start.value.substring(0, start.value.length - trimmed.length);
-			start.value = trimmed;
-		}
-		if(end.text) {
-			var trimmed = Polyfill.trimEnd.call(end.value);
-			after = end.value.substr(trimmed.length);
-			end.value = trimmed;
-		}
-	}
 	for(var i in current) {
 		var curr = current[i];
 		if(curr.text) {
@@ -240,6 +226,15 @@ TextParser.prototype.pushText = function(value){
 
 TextParser.prototype.pushExpr = function(value){
 	this.current.push({text: false, value: value});
+};
+
+TextParser.prototype.trimEnd = function(){
+	var end = this.current[this.current.length - 1];
+	if(end.text) {
+		var trimmed = Polyfill.trimEnd.call(end.value);
+		after = end.value.substr(trimmed.length);
+		end.value = trimmed;
+	}
 };
 
 TextParser.prototype.replaceText = function(text){
@@ -495,7 +490,7 @@ function createLogicParser(ParentParser) {
 			!/[a-zA-Z0-9_$]/.test(this.parser.input.charAt(this.parser.index + expected.length - 1)) // when is an exact keyword
 		) {
 			this.parser.index += expected.length - 1;
-			//this.currentText = Polyfill.trimEnd.call(this.currentText);
+			this.trimEnd();
 			this.addCurrent();
 			this.add(line);
 			var statement = Polyfill.startsWith.call(expected, "else") ? this.popped.pop() : {
@@ -547,7 +542,7 @@ function createLogicParser(ParentParser) {
 					curr.value = curr.value.slice(0, -1) + '}';
 				} else if(this.statements.length) {
 					var line = this.getLineText();
-					//this.currentText = Polyfill.trimEnd.call(this.currentText);
+					this.trimEnd();
 					this.addCurrent();
 					this.add(line + '}');
 					var statement = this.statements.pop();
@@ -559,7 +554,7 @@ function createLogicParser(ParentParser) {
 				break;
 			case '\n':
 				if(this.statements.length && this.statements[this.statements.length - 1].inline) {
-					//this.currentText = Polyfill.trimEnd.call(this.currentText);
+					this.trimEnd();
 					this.addCurrent();
 					var statement = this.statements.pop();
 					statement.endIndex = this.source.length;
@@ -1038,10 +1033,15 @@ Transpiler.prototype.open = function(){
 		this.close(result.pre);
 	} else if(this.parser.peek() == '!') {
 		this.parser.index++;
-		this.parser.expect('-');
-		this.parser.expect('-');
-		this.source.push(this.runtime + "." + this.feature("comment") + "(" + this.element + ", " + this.bind + ", " + this.anchor + ", " + stringify(this.parser.findSequence("-->", true).slice(0, -3)) + ")");
-		this.addSemicolon();
+		if(this.parser.input.substr(this.parser.index, 8) == "COMMENT ") {
+			this.parser.index += 8;
+			this.source.push("/*" + this.parser.findSequence(">", true).slice(0, -1) + "*/");
+		} else {
+			this.parser.expect('-');
+			this.parser.expect('-');
+			this.source.push(this.runtime + "." + this.feature("comment") + "(" + this.element + ", " + this.bind + ", " + this.anchor + ", " + stringify(this.parser.findSequence("-->", true).slice(0, -3)) + ")");
+			this.addSemicolon();
+		}
 	} else if(this.currentMode.options.children === false) {
 		throw new Error("Mode " + this.currentMode.name + " cannot have children");
 	} else {
@@ -1065,7 +1065,7 @@ Transpiler.prototype.open = function(){
 		var sattributes = []; // variable name of the attributes passed using the spread syntax
 		var currentNamespace = this.namespaces[this.namespaces.length - 1];
 		var currentInheritance = null;
-		var currentClosing = "";
+		var currentClosing = [];
 		var createAnchor;
 		var computed = false;
 		var selector, originalTagName, tagName = "";
@@ -1136,7 +1136,7 @@ Transpiler.prototype.open = function(){
 					} else if(names.length == 1 && names[0].prefix == ':') {
 						if(name == "change") {
 							value = this.wrapFunction(value, true, "oldValue", "newValue");
-						} else if(name == "condition") {
+						} else if(name == "condition" || name == "if") {
 							value = this.wrapFunction(value, true);
 						} else if(name == "cleanup") {
 							value = this.wrapFunction(value, false);
@@ -1157,7 +1157,16 @@ Transpiler.prototype.open = function(){
 						} else if(attr.prefix == '#') {
 							newMode = modeNames[attr.name];
 						} else if(attr.prefix == ':') {
-							iattributes[attr.name] = value;
+							var prev;
+							if(Polyfill.startsWith.call(attr.name, "next-") || (prev = Polyfill.startsWith.call(attr.name, "prev-"))) {
+								attr.prefix = "";
+								attr.name = attr.name.substr(5);
+								attr.value = this.runtime + "." + this.feature((prev ? "prev" : "next") + "Id") + "()";
+								if(value != "\"\"") attr.value = value + " + " + attr.value;
+								add = true;
+							} else {
+								iattributes[attr.name] = value;
+							}
 						} else {
 							add = true;
 						}
@@ -1279,21 +1288,37 @@ Transpiler.prototype.open = function(){
 		}
 
 		var before = [], after = [];
+		var beforeClosing = "";
 		var call = true;
 		var inline = false;
 		var bindType = "";
 		if(tagName == ":bind-if" || tagName == ":if") bindType = "If";
 		else if(tagName == ":bind-each" || tagName == ":each") bindType = "Each";
-		if(!computed && (bindType || tagName == ":bind")) {
+		else if(iattributes["if"]) {
+			bindType = "If";
+			iattributes.condition = iattributes["if"];
+		} else if(iattributes.each) {
+			bindType = "Each";
+			iattributes.to = iattributes.each;
+		}
+		if(bindType || tagName == ":bind") {
 			this.source.push(this.runtime + "." + this.feature("bind" + bindType) + "(" + ["this", parent, this.bind, this.anchor, iattributes.to || "0", iattributes.change || "0", iattributes.cleanup || "0"].join(", ") +
 				(bindType == "If" ? ", " + iattributes.condition : "") + ", function(" + [this.element, this.bind, this.anchor, iattributes.as || this.value, iattributes.index || this.index, iattributes.array || this.array].join(", ") + "){");
-			before = create = false;
-			currentClosing += "})";
+			if(tagName.charAt(0) == ':') before = create = false;
+			currentClosing.unshift("})");
 		}
+
+		if(selector) {
+			currentClosing.unshift("})");
+		}
+		if(iattributes.unique) {
+			currentClosing.unshift("})");
+		}
+
 		if(anchorName) {
 			before.push([this.feature("updateAnchor"), this.bind, this.anchor, createExprOptions.call(this), this.anchors, '"' + tagName + '"', '"' + anchorName + '"', "function(" + this.element + ", " + this.anchor + "){"]);
 			call = false;
-			currentClosing += "}";
+			currentClosing.unshift("}");
 		} else if(create) {
 			if(append) {
 				// create the element
@@ -1330,7 +1355,7 @@ Transpiler.prototype.open = function(){
 				before.push(["set", "container", parent]);
 			}
 			before.push([this.feature("body"), this.anchors, "function(" + this.element + ", " + this.anchor + ", " + this.anchors + "){"]);
-			currentClosing += "}";
+			beforeClosing += "}";
 		}
 
 		var runtime = this.runtime;
@@ -1345,7 +1370,7 @@ Transpiler.prototype.open = function(){
 		if(before) {
 			if(before.length) {
 				this.source.push(this.runtime + "(this)" + before.map(mapNext).join("").slice(0, -1));
-				currentClosing += ")" + after.map(mapNext).join("") + ".close()";
+				currentClosing.unshift(")" + after.map(mapNext).join("") + ".close()");
 			} else {
 				this.source.push(parent);
 			}
@@ -1355,12 +1380,7 @@ Transpiler.prototype.open = function(){
 			this.source.push(this.anchorsRegistry + ".add(null, " + createAnchor + ", " + this.element + ");");
 		}
 
-		if(selector) {
-			currentClosing += "})";
-		}
-		if(iattributes.unique) {
-			currentClosing += "})";
-		}
+		currentClosing = beforeClosing + currentClosing.join("");
 
 		if(inline) {
 			if(newMode !== undefined) {

@@ -1,6 +1,13 @@
 var Polyfill = require("../polyfill");
 var SactoryConfig = require("./config");
 
+Object.defineProperty(Node, "ANCHOR_NODE", {
+	writable: false,
+	enumerable: true,
+	configurable: false,
+	value: 99
+});
+
 /**
  * @since 0.60.0
  */
@@ -214,6 +221,8 @@ Sactory.update = function(result, element, bind, anchor, options){
 			component = component.handler(anchors, null, bind, null);
 			element = component.render(elementArgs, options.namespace);
 			element.__component = element["@@"] = component;
+			if(typeof component.onappend == "function") element.__builder.event("append", function(){ component.onappend(element); }, bind);
+			if(typeof component.onremove == "function") element.__builder.event("remove", function(){ component.onremove(element); }, bind);
 			if(anchors.anchors.__container) {
 				container = anchors.anchors.__container.element;
 				result.anchor = anchors.anchors.__container.anchor;
@@ -289,7 +298,8 @@ Sactory.append = function(result, parent, bind, anchor, afterappend, beforeremov
 		if(anchor && anchor.parentNode === parent) parent.insertBefore(result.element, anchor);
 		else parent.appendChild(result.element);
 		if(afterappend) afterappend.call(result.element);
-		if(beforeremove) result.element.__builder.beforeremove = beforeremove;
+		if(result.element.dispatchEvent) result.element.dispatchEvent(new Event("append"));
+		if(beforeremove) result.element.__builder.event("remove", beforeremove, bind);
 		if(bind) bind.appendChild(result.element);
 	}
 	return result.element;
@@ -306,7 +316,7 @@ Sactory.comment = function(element, bind, anchor, comment){
  * @since 0.32.0
  */
 Sactory.unique = function(context, id, fun){
-	var className = SactoryConfig.config.uniquePrefix + id;
+	var className = SactoryConfig.config.prefix + id;
 	if(!document.querySelector("." + className)) {
 		var element = fun.call(context);
 		element.__builder.addClass(className);
@@ -345,21 +355,19 @@ Sactory.subscribe = function(bind, observable, callback, type){
 	return subscription;
 };
 
-Sactory.functions = {};
-
 var currentId;
 
 /**
- * @since 0.61.0
+ * @since 0.70.0
  */
-Sactory.functions.nextId = function(){
-	return currentId = SactoryConfig.config.uniquePrefix + Math.floor(Math.random() * 100000);
+Sactory.nextId = function(){
+	return currentId = SactoryConfig.config.prefix + Math.floor(Math.random() * 100000);
 };
 
 /**
- * @since 0.61.0
+ * @since 0.70.0
  */
-Sactory.functions.currentId = function(){
+Sactory.prevId = function(){
 	return currentId;
 };
 
