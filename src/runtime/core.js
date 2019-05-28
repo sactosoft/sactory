@@ -170,14 +170,6 @@ Sactory.attr = function(type, name, value, optional){
 /**
  * @since 0.60.0
  */
-Sactory.create = function(result, bind, anchor, tagName, options){
-	options.tagName = tagName;
-	return Sactory.update(result, null, bind, anchor, options);
-};
-
-/**
- * @since 0.60.0
- */
 Sactory.update = function(result, element, bind, anchor, options){
 	
 	var args = [];
@@ -259,6 +251,21 @@ Sactory.update = function(result, element, bind, anchor, options){
 /**
  * @since 0.60.0
  */
+Sactory.create = function(result, bind, anchor, tagName, options){
+	options.tagName = tagName;
+	return Sactory.update(result, null, bind, anchor, options);
+};
+
+/**
+ * @since 0.71.0
+ */
+Sactory.clone = function(result, element, bind, anchor, options){
+	return Sactory.update(result, element.cloneNode(true), bind, anchor, options);
+};
+
+/**
+ * @since 0.60.0
+ */
 Sactory.updateAnchor = function(result, bind, anchor, options, anchors, component, anchorName, fun){
 	var componentAnchor = (function(){
 		if(anchors) {
@@ -329,7 +336,7 @@ Sactory.unique = function(context, id, fun){
  */
 Sactory.query = function(context, parent, selector, all, fun){
 	var nodes = false;
-	if(all || (nodes = selector instanceof NodeList) || (nodes = selector instanceof HTMLCollection) || (nodes = selector instanceof Array)) {
+	if(all || (nodes = typeof selector == "object" && typeof selector.length == "number")) {
 		if(!nodes) {
 			selector = (parent || document).querySelectorAll(selector);
 		}

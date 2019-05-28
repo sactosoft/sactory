@@ -52,6 +52,7 @@ Object.defineProperty(Parser.prototype, "position", {
 		}
 		return {
 			absolute: this.index + (this.from && this.from.absolute - this.input.length || 0),
+			index: this.index,
 			line: line + (this.from && this.from.line - (this.input.match(/\n/g) || []).length || 0),
 			column: Math.max(0, column) + (this.from && this.from.column - this.input.length || 0)
 		};
@@ -64,12 +65,20 @@ Object.defineProperty(Parser.prototype, "position", {
  * @since 0.33.0
  */
 Parser.prototype.error = function(message){
-	var position = this.position;
-	var endIndex = this.input.substr(this.index).indexOf('\n');
-	var start = this.input.substring(0, this.index).lastIndexOf('\n') + 1;
-	var end = endIndex == -1 ? this.input.length : this.index + endIndex;
+	this.errorAt(this.position, message);
+};
+
+/**
+ * Throws an error at the given position.
+ * @throws {ParserError}
+ * @since 0.71.0
+ */
+Parser.prototype.errorAt = function(position, message){
+	var endIndex = this.input.substr(position.index).indexOf('\n');
+	var start = this.input.substring(0, position.index).lastIndexOf('\n') + 1;
+	var end = endIndex == -1 ? this.input.length : position.index + endIndex;
 	message += '\n' + this.input.substring(start, end) + '\n';
-	for(var i=start; i<end; i++) message += i == this.index ? '^' : (this.input.charAt(i) == '\t' ? '\t' : ' ');
+	for(var i=start; i<end; i++) message += i == position.index ? '^' : (this.input.charAt(i) == '\t' ? '\t' : ' ');
 	throw new ParserError("Line " + (position.line + 1) + ", Column " + position.column + ": " + message);
 };
 
@@ -184,7 +193,7 @@ Parser.prototype.skipImpl = function(options){
 	while(!this.eof()) {
 		var next = this.peek();
 		var comment;
-		if(/\s/.test(next)) {
+		if(options.whitespaces !== false && /\s/.test(next)) {
 			ret += this.read();
 		} else if(options.comments !== false && next == '/' && ((comment = this.input[this.index + 1]) == '/' && options.inlineComments !== false || comment == '*')) {
 			ret += this.read() + this.read() + (comment == '/' ? this.findSequence("\n", false) : this.findSequence("*/", false));

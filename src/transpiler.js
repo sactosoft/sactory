@@ -185,23 +185,10 @@ TextParser.prototype.addText = function(expr){
 };
 
 TextParser.prototype.addCurrent = function(){
-	var before = "";
-	var after = "";
 	var expr = [];
 	var observables = [];
-	var current = [];
-	this.current.forEach(function(curr){
-		if(curr.text) {
-			var prev = current[current.length - 1];
-			if(prev && prev.text) {
-				prev.value += curr.value;
-				return;
-			}
-		}
-		current.push(curr);
-	});
-	for(var i in current) {
-		var curr = current[i];
+	for(var i in this.current) {
+		var curr = this.current[i];
 		if(curr.text) {
 			if(curr.value.length) expr.push(stringify(this.replaceText(curr.value)));
 		} else {
@@ -214,14 +201,14 @@ TextParser.prototype.addCurrent = function(){
 		joined = this.runtime + "." + this.transpiler.feature("computedObservable") + "(this, " + this.bind + ", [" +
 			uniq(observables).join(", ") + "], function(){return " + joined + "})";
 	}
-	if(before.length) this.add(before);
 	if(joined.length) this.addText(joined);
-	if(after.length) this.add(after);
 	this.current = [];
 };
 
 TextParser.prototype.pushText = function(value){
-	this.current.push({text: true, value: value});
+	var last = this.current[this.current.length - 1];
+	if(last && last.text) last.value += value;
+	else this.current.push({text: true, value: value});
 };
 
 TextParser.prototype.pushExpr = function(value){
@@ -232,7 +219,7 @@ TextParser.prototype.trimEnd = function(){
 	var end = this.current[this.current.length - 1];
 	if(end.text) {
 		var trimmed = Polyfill.trimEnd.call(end.value);
-		after = end.value.substr(trimmed.length);
+		this.add(end.value.substr(trimmed.length));
 		end.value = trimmed;
 	}
 };
@@ -492,13 +479,12 @@ function createLogicParser(ParentParser) {
 			this.parser.index += expected.length - 1;
 			this.trimEnd();
 			this.addCurrent();
-			this.add(line);
 			var statement = Polyfill.startsWith.call(expected, "else") ? this.popped.pop() : {
 				startIndex: this.source.length,
 				observables: []
 			};
 			if(args) {
-				var skipped = this.parser.skip();
+				var skipped = this.parser.skipImpl({});
 				if(this.parser.peek() != '(') this.parser.error("Expected '(' after '" + expected + "'.");
 				var parsed = this.transpiler.parseCode(this.parser.skipEnclosedContent(), this.parser);
 				Array.prototype.push.apply(statement.observables, parsed.observables);
@@ -506,7 +492,7 @@ function createLogicParser(ParentParser) {
 			} else {
 				this.add(expected);
 			}
-			var skipped = this.parser.skip();
+			var skipped = this.parser.skipImpl({});
 			if(!(statement.inline = (this.parser.peek() != '{'))) skipped += this.parser.read();
 			this.add(skipped);
 			this.statements.push(statement);
@@ -541,10 +527,9 @@ function createLogicParser(ParentParser) {
 					var curr = this.current[this.current.length - 1];
 					curr.value = curr.value.slice(0, -1) + '}';
 				} else if(this.statements.length) {
-					var line = this.getLineText();
 					this.trimEnd();
 					this.addCurrent();
-					this.add(line + '}');
+					this.add('}');
 					var statement = this.statements.pop();
 					statement.endIndex = this.source.length;
 					this.popped.push(statement);
@@ -871,9 +856,9 @@ Transpiler.defineMode(["html"], HTMLParser, {comments: false, strings: false});
 Transpiler.defineMode(["text"], HTMLParser, {comments: false, strings: false, children: false});
 Transpiler.defineMode(["script"], ScriptParser, {comments: false, strings: false, children: false, tags: ["script"]});
 Transpiler.defineMode(["css"], CSSParser, {comments: true, inlineComments: false, strings: true, children: false});
-Transpiler.defineMode(["html:logic", "hl"], HTMLLogicParser, {comments: false, strings: false});
-Transpiler.defineMode(["text:logic", "tl"], HTMLLogicParser, {comments: false, strings: false, children: false});
-Transpiler.defineMode(["css:logic", "cl"], CSSLogicParser, {comments: true, inlineComments: false, strings: true, children: false});
+Transpiler.defineMode(["html:logic", "hl"], HTMLLogicParser, {whitespaces: false, comments: false, strings: false});
+Transpiler.defineMode(["text:logic", "tl"], HTMLLogicParser, {whitespaces: false, comments: false, strings: false, children: false});
+Transpiler.defineMode(["css:logic", "cl"], CSSLogicParser, {whitespaces: false, comments: true, inlineComments: false, strings: true, children: false});
 Transpiler.defineMode(["cssb", "style"], CSSBParser, {strings: true, children: false, tags: ["style"]});
 
 function Transpiler(options) {
@@ -1179,8 +1164,9 @@ Transpiler.prototype.open = function(){
 			}
 			next = false;
 		}
-		if(!next) throw new Error("Tag was not closed"); //TODO throw error from the start of the tag
+		if(!next) this.parser.errorAt(position, "Tag was not closed.");
 		if(iattributes.namespace) currentNamespace = iattributes.namespace;
+
 		if(!computed) {
 			if(tagName.charAt(0) == ':') {
 				var name = tagName.substr(1);
@@ -1195,18 +1181,24 @@ Transpiler.prototype.open = function(){
 					if(alias.hasOwnProperty("mode")) newMode = alias.mode;
 				} else {
 					switch(name) {
+						case "window":
+						case "document":
+							element = name;
+							create = append = false;
+							break;
+						case "root":
+							element = element + ".getRootNode({composed: " + (iattributes.composed || "false") + "})";
+							create = append = false;
+							break;
 						case "html":
 							element = "document.documentElement";
 							create = append = false;
+							break;
 						case "head":
 						case "body":
 							element = "document." + name;
 							create = append = false;
 							break;
-						case "window":
-						case "document":
-							element = name;
-							create = append = false;
 						case "fragment":
 						case "shadow":
 							break;
@@ -1234,6 +1226,7 @@ Transpiler.prototype.open = function(){
 				}
 			}
 		}
+
 		if(newMode === undefined) {
 			for(var i=0; i<modeRegistry.length; i++) {
 				var info = modeRegistry[i];
@@ -1243,8 +1236,10 @@ Transpiler.prototype.open = function(){
 				}
 			}
 		}
+
 		if(iattributes.window) parent = "window";
 		else if(iattributes.document) parent = "document";
+		else if(iattributes.root) parent = parent + ".getRootNode({composed: " + (iattributes.composed || "false") + "})";
 		else if(iattributes.html) parent = "document.documentElement";
 		else if(iattributes.head) parent = "document.head";
 		else if(iattributes.body) parent = "document.body";
@@ -1277,9 +1272,10 @@ Transpiler.prototype.open = function(){
 			return "{" + ret.slice(0, -1) + "}";
 		}
 		parser.index++;
-		if(parent == "\"\"") {
+		if(parent == "\"\"" || iattributes.orphan) {
 			// an empty string and null have the same behaviour but null is faster as it avoids the query selector controls when appending
 			parent = "null";
+			append = false;
 		}
 		if(newMode !== undefined) {
 			this.startMode(newMode, iattributes);
@@ -1287,7 +1283,7 @@ Transpiler.prototype.open = function(){
 
 		if(selector) {
 			this.source.push(this.runtime + "." + this.feature("query") + "(this, " + parent + ", " + selector + ", " + selectorAll + ", function(" + this.element + ", " + this.parentElement + "){");
-			if(iattributes.adopt) {
+			if(iattributes.adopt || iattributes.clone) {
 				parent = this.parentElement;
 				create = false;
 				update = append = true;
@@ -1316,7 +1312,7 @@ Transpiler.prototype.open = function(){
 		if(bindType || tagName == ":bind") {
 			this.source.push(this.runtime + "." + this.feature("bind" + bindType) + "(" + ["this", parent, this.bind, this.anchor, iattributes.to || "0", iattributes.change || "0", iattributes.cleanup || "0"].join(", ") +
 				(bindType == "If" ? ", " + iattributes.condition : "") + ", function(" + [this.element, this.bind, this.anchor, iattributes.as || this.value, iattributes.index || this.index, iattributes.array || this.array].join(", ") + "){");
-			if(tagName.charAt(0) == ':') before = false;
+			if(!create) before = false;
 			currentClosing.unshift("})");
 		}
 
@@ -1325,8 +1321,9 @@ Transpiler.prototype.open = function(){
 			call = false;
 			append = false;
 			currentClosing.unshift("}");
+		} else if(iattributes.clone) {
+			before.push([this.feature("clone"), element, this.bind, this.anchor, createExprOptions.call(this)]);
 		} else if(create) {
-			// create the element
 			if(tagName == ":shadow") {
 				before.push(["set", "element", parent + ".attachShadow({mode: " + (iattributes.mode || "\"open\"") + "})"]);
 				append = false;
