@@ -327,21 +327,21 @@ Sactory.unique = function(context, id, fun){
 /**
  * @since 0.32.0
  */
-Sactory.query = function(context, doc, selector, all, fun){
+Sactory.query = function(context, parent, selector, all, fun){
 	var nodes = false;
-	if(all || (nodes = selector instanceof NodeList)) {
+	if(all || (nodes = selector instanceof NodeList) || (nodes = selector instanceof HTMLCollection) || (nodes = selector instanceof Array)) {
 		if(!nodes) {
-			selector = (doc || document).querySelectorAll(selector);
+			selector = (parent || document).querySelectorAll(selector);
 		}
 		Array.prototype.forEach.call(selector, function(element){
-			fun.call(context, element);
+			fun.call(context, element, parent);
 		});
 		return selector;
 	} else {
 		if(typeof selector == "string") {
-			selector = (doc || document).querySelector(selector);
+			selector = (parent || document).querySelector(selector);
 		}
-		if(selector) fun.call(context, selector);
+		if(selector) fun.call(context, selector, parent);
 		return selector;
 	}
 };

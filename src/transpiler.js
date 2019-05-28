@@ -269,7 +269,7 @@ TextParser.prototype.parseImpl = function(pre, match, handle, eof){
 };
 
 TextParser.prototype.parse = function(handle, eof){
-	var result = this.parser.find(['<', '$'], false, false);
+	var result = this.parser.find(['<', '$'], false, true);
 	this.pushText(result.pre);
 	this.parseImpl(result.pre, result.match, handle, eof);
 };
@@ -521,7 +521,7 @@ function createLogicParser(ParentParser) {
 	};
 
 	LogicParser.prototype.parse = function(handle, eof){
-		var result = this.parser.find(['$', '<', 'i', 'e', 'f', 'w', '}', '\n'], false, false);
+		var result = this.parser.find(['$', '<', 'i', 'e', 'f', 'w', '}', '\n'], false, true);
 		this.pushText(result.pre);
 		switch(result.match) {
 			case 'i':
@@ -870,11 +870,11 @@ Transpiler.defineMode(["code", "javascript", "js"], JavascriptParser, {isDefault
 Transpiler.defineMode(["html"], HTMLParser, {comments: false, strings: false});
 Transpiler.defineMode(["text"], HTMLParser, {comments: false, strings: false, children: false});
 Transpiler.defineMode(["script"], ScriptParser, {comments: false, strings: false, children: false, tags: ["script"]});
-Transpiler.defineMode(["css"], CSSParser, {inlineComments: false, strings: false, children: false});
+Transpiler.defineMode(["css"], CSSParser, {comments: true, inlineComments: false, strings: true, children: false});
 Transpiler.defineMode(["html:logic", "hl"], HTMLLogicParser, {comments: false, strings: false});
 Transpiler.defineMode(["text:logic", "tl"], HTMLLogicParser, {comments: false, strings: false, children: false});
-Transpiler.defineMode(["css:logic", "cl"], CSSLogicParser, {inlineComments: false, strings: false, children: false});
-Transpiler.defineMode(["cssb", "style"], CSSBParser, {strings: false, children: false, tags: ["style"]});
+Transpiler.defineMode(["css:logic", "cl"], CSSLogicParser, {comments: true, inlineComments: false, strings: true, children: false});
+Transpiler.defineMode(["cssb", "style"], CSSBParser, {strings: true, children: false, tags: ["style"]});
 
 function Transpiler(options) {
 	this.options = options || {};
@@ -1055,8 +1055,9 @@ Transpiler.prototype.open = function(){
 		}
 		var currentIndex = this.source.length;
 		var newMode = undefined;
-		var create = true; // whether a new element is being created or the current/given element is being scoped
-		var append = true; // whether the new element should be appended to the current element after its creation
+		var create = true; // whether a new element is being created
+		var update = true; // whether the element is being updated, only considered if create is false
+		var append = true; // whether the element should be appended to the current element after its creation
 		var unique = false; // whether the new element should be appended always or only when its not already on the DOM
 		var parent = this.element; // element that the new element will be appended to, if not null
 		var element = this.element; // element that will be updated
@@ -1074,8 +1075,8 @@ Transpiler.prototype.open = function(){
 		this.updateTemplateLiteralParser();
 		if(selector = this.parser.readQueryExpr()) {
 			selector = this.parseCode(selector).source;
-			if(this.parser.peek() == '+') selectorAll = !!this.parser.read();
-			append = false;
+			selectorAll = !!this.parser.readIf('+');
+			create = append = false;
 		} else if(tagName = this.parser.readComputedExpr()) {
 			tagName = this.parseCode(tagName).source;
 			computed = true;
@@ -1085,7 +1086,7 @@ Transpiler.prototype.open = function(){
 			if(column > 0) {
 				anchorName = tagName.substr(column + 1);
 				tagName = tagName.substring(0, column);
-				append = false;
+				create = append = false;
 			}
 		}
 		skip(true);
@@ -1158,7 +1159,7 @@ Transpiler.prototype.open = function(){
 							newMode = modeNames[attr.name];
 						} else if(attr.prefix == ':') {
 							var prev;
-							if(Polyfill.startsWith.call(attr.name, "next-") || (prev = Polyfill.startsWith.call(attr.name, "prev-"))) {
+							if(Polyfill.startsWith.call(attr.name, "next:") || (prev = Polyfill.startsWith.call(attr.name, "prev:"))) {
 								attr.prefix = "";
 								attr.name = attr.name.substr(5);
 								attr.value = this.runtime + "." + this.feature((prev ? "prev" : "next") + "Id") + "()";
@@ -1189,22 +1190,23 @@ Transpiler.prototype.open = function(){
 					if(alias.hasOwnProperty("parent")) parent = alias.parent;
 					if(alias.hasOwnProperty("element")) element = alias.element;
 					if(alias.hasOwnProperty("create")) create = alias.create;
+					if(alias.hasOwnProperty("update")) update = alias.update;
 					if(alias.hasOwnProperty("append")) append = alias.append;
 					if(alias.hasOwnProperty("mode")) newMode = alias.mode;
 				} else {
 					switch(name) {
 						case "html":
 							element = "document.documentElement";
-							append = false;
+							create = append = false;
 						case "head":
 						case "body":
 							element = "document." + name;
-							append = false;
+							create = append = false;
 							break;
 						case "window":
 						case "document":
 							element = name;
-							append = false;
+							create = append = false;
 						case "fragment":
 						case "shadow":
 							break;
@@ -1212,14 +1214,14 @@ Transpiler.prototype.open = function(){
 							tagName = ":bind";
 							iattributes.to = "[]";
 						default:
-							create = false;
+							create = update = append = false;
 					}
 				}
 			} else if(tagName.charAt(0) == '#') {
 				newMode = modeNames[tagName.substr(1)];
-				if(newMode !== undefined) create = false; // behave as a scope
+				if(newMode !== undefined) create = update = append = false; // behave as a scope
 			} else if(tagName.charAt(0) == '@') {
-				append = false;
+				create = append = false;
 				tagName = tagName.substr(1);
 			} else {
 				if(tagName) {
@@ -1241,8 +1243,11 @@ Transpiler.prototype.open = function(){
 				}
 			}
 		}
-		if(iattributes.head) parent = "document.head";
-		if(iattributes.body) parent = "document.body";
+		if(iattributes.window) parent = "window";
+		else if(iattributes.document) parent = "document";
+		else if(iattributes.html) parent = "document.documentElement";
+		else if(iattributes.head) parent = "document.head";
+		else if(iattributes.body) parent = "document.body";
 		function createExprOptions() {
 			var ret = "";
 			currentInheritance = "";
@@ -1281,10 +1286,17 @@ Transpiler.prototype.open = function(){
 		}
 
 		if(selector) {
-			this.source.push(this.runtime + "." + this.feature("query") + "(this, " + parent + ", " + selector + ", " + selectorAll + ", function(" + this.element + "){");
+			this.source.push(this.runtime + "." + this.feature("query") + "(this, " + parent + ", " + selector + ", " + selectorAll + ", function(" + this.element + ", " + this.parentElement + "){");
+			if(iattributes.adopt) {
+				parent = this.parentElement;
+				create = false;
+				update = append = true;
+			}
+			currentClosing.unshift("})");
 		}
 		if(iattributes.unique) {
 			this.source.push(this.runtime + "." + this.feature("unique") + "(this, " + this.nextId() + ", function(){return ");
+			currentClosing.unshift("})");
 		}
 
 		var before = [], after = [];
@@ -1304,40 +1316,33 @@ Transpiler.prototype.open = function(){
 		if(bindType || tagName == ":bind") {
 			this.source.push(this.runtime + "." + this.feature("bind" + bindType) + "(" + ["this", parent, this.bind, this.anchor, iattributes.to || "0", iattributes.change || "0", iattributes.cleanup || "0"].join(", ") +
 				(bindType == "If" ? ", " + iattributes.condition : "") + ", function(" + [this.element, this.bind, this.anchor, iattributes.as || this.value, iattributes.index || this.index, iattributes.array || this.array].join(", ") + "){");
-			if(tagName.charAt(0) == ':') before = create = false;
-			currentClosing.unshift("})");
-		}
-
-		if(selector) {
-			currentClosing.unshift("})");
-		}
-		if(iattributes.unique) {
+			if(tagName.charAt(0) == ':') before = false;
 			currentClosing.unshift("})");
 		}
 
 		if(anchorName) {
 			before.push([this.feature("updateAnchor"), this.bind, this.anchor, createExprOptions.call(this), this.anchors, '"' + tagName + '"', '"' + anchorName + '"', "function(" + this.element + ", " + this.anchor + "){"]);
 			call = false;
+			append = false;
 			currentClosing.unshift("}");
 		} else if(create) {
-			if(append) {
-				// create the element
-				if(tagName == ":shadow") {
-					before.push(["set", "element", parent + ".attachShadow({mode: " + (iattributes.mode || "\"open\"") + "})"]);
-					append = false;
-				} else {
-					var hooks = newMode !== undefined ? [this.currentMode.parser.afterappend() || 0, this.currentMode.parser.beforeremove() || 0] : [];
-					if(tagName == ":fragment") {
-						before.push(["set", "element", "document.createDocumentFragment()"]);
-					} else {
-						before.push([this.feature("create"), this.bind, this.anchor, computed ? tagName : '"' + tagName + '"', createExprOptions.call(this)]);
-					}
-					before.push([this.feature("append"), parent, this.bind, this.anchor].concat(hooks));
-				}
+			// create the element
+			if(tagName == ":shadow") {
+				before.push(["set", "element", parent + ".attachShadow({mode: " + (iattributes.mode || "\"open\"") + "})"]);
+				append = false;
 			} else {
-				// update the element
-				before.push([this.feature("update"), element, this.bind, this.anchor, createExprOptions.call(this)]);
+				if(tagName == ":fragment") {
+					before.push(["set", "element", "document.createDocumentFragment()"]);
+				} else {
+					before.push([this.feature("create"), this.bind, this.anchor, computed ? tagName : '"' + tagName + '"', createExprOptions.call(this)]);
+				}
 			}
+		} else if(update) {
+			before.push([this.feature("update"), element, this.bind, this.anchor, createExprOptions.call(this)]);
+		}
+		if(append) {
+			var hooks = newMode !== undefined ? [this.currentMode.parser.afterappend() || 0, this.currentMode.parser.beforeremove() || 0] : [];
+			before.push([this.feature("append"), parent, this.bind, this.anchor].concat(hooks));
 		}
 		if(next == '/') {
 			this.parser.expect('>');
@@ -1460,7 +1465,7 @@ Transpiler.prototype.feature = function(name){
  * @since 0.62.0
  */
 Transpiler.prototype.nextVar = function(){
-	return "$__" + this.count++ % 10;
+	return "$__" + this.count++ % 100;
 };
 
 /**
@@ -1484,6 +1489,7 @@ Transpiler.prototype.transpile = function(input){
 	
 	this.runtime = this.nextVar();
 	this.element = this.nextVar();
+	this.parentElement = this.nextVar();
 	this.bind = this.nextVar();
 	this.anchor = this.nextVar();
 	this.value = this.nextVar();
