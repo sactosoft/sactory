@@ -63,7 +63,7 @@ window.onload = function(){
 	var showCount = **(*content.show.js + *content.show.html + *content.show.css);
 	var result = **((function(){
 		var result = {source: "", before: "", after: "", info: {time: 0, tags: {}, templates: {}, features: []}, errors: [], warnings: []};
-		var transpiler = new Transpiler({});
+		var transpiler = new Transpiler({namespace: file.value});
 		function transpile(type, before, after) {
 			before = before ? before + '<!COMMENT start>' : "";
 			after = after ? '<!COMMENT end>' + after : "";

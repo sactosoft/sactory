@@ -16,6 +16,13 @@ function Sactory(context) {
 }
 
 /**
+ * @since 0.72.0
+ */
+Sactory.cond = function(context){
+	return new ConditionalPipe(context);
+};
+
+/**
  * @class
  * @since 0.60.0
  */
@@ -48,6 +55,31 @@ Pipe.prototype.set = function(key, value){
  */
 Pipe.prototype.close = function(){
 	return this.ret;
+};
+
+/**
+ * @since 0.72.0
+ */
+function ConditionalPipe(context) {
+	Pipe.call(this, context);
+	this.prev = true;
+}
+
+ConditionalPipe.prototype = Object.create(Pipe.prototype);
+
+ConditionalPipe.prototype.nextIf = function(condition){
+	if(this.prev = condition) Pipe.prototype.apply(this, Array.prototype.slice.call(arguments, 1));
+	return this;
+};
+
+ConditionalPipe.prototype.nextElseIf = function(condition){
+	if(this.prev = !this.prev && condition) Pipe.prototype.apply(this, Array.prototype.slice.call(arguments, 1));
+	return this;
+};
+
+ConditionalPipe.prototype.nextElse = function(){
+	if(!this.prev) Pipe.prototype.apply(this, arguments);
+	return this;
 };
 
 // constants
@@ -92,27 +124,17 @@ Sactory.getTemplatesName = function(){
 };
 
 /**
- * @since 0.58.0
+ * @since 0.72.0
  */
-Sactory.defineComponent = function(name, handler){
-	definedComponents[name] = {
-		name: name,
-		handler: handler
-	};
-};
-
-/**
- * @since 0.58.0
- */
-Sactory.undefineComponent = function(name){
-	delete definedComponents[name];
-};
-
-/**
- * @since 0.59.0
- */
-Sactory.getComponentsName = function(){
-	return Object.keys(definedComponents);
+Sactory.use = function(name, args, element, bind, anchor){
+	if(!definedTemplates.hasOwnProperty(name)) throw new Error("Template '" + name + "' does not exist.");
+	var template = definedTemplates[name](element, bind, anchor);
+	if(template.prototype && template.prototype.render) {
+		var component = new template();
+		return component.render(args);
+	} else {
+		return template(args);
+	}
 };
 
 /**
@@ -125,7 +147,7 @@ Sactory.Component = function(){};
  * @since 0.60.0
  */
 Sactory.Component.prototype.render = function(args){
-	throw new Error("'render' function not implemented.");
+	throw new Error("Component's 'render' prototype function not implemented.");
 };
 
 /**

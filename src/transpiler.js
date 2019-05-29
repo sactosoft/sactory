@@ -1054,6 +1054,7 @@ Transpiler.prototype.open = function(){
 		var currentClosing = [];
 		var createAnchor;
 		var computed = false;
+		var optional = false;
 		var selector, originalTagName, tagName = "";
 		var selectorAll = false;
 		var anchorName;
@@ -1062,16 +1063,19 @@ Transpiler.prototype.open = function(){
 			selector = this.parseCode(selector).source;
 			selectorAll = !!this.parser.readIf('+');
 			create = append = false;
-		} else if(tagName = this.parser.readComputedExpr()) {
-			tagName = this.parseCode(tagName).source;
-			computed = true;
 		} else {
-			originalTagName = tagName = this.parser.readTagName(true);
-			var column = tagName.indexOf(':');
-			if(column > 0) {
-				anchorName = tagName.substr(column + 1);
-				tagName = tagName.substring(0, column);
-				create = append = false;
+			optional = !!this.parser.readIf('?');
+			if(tagName = this.parser.readComputedExpr()) {
+				tagName = this.parseCode(tagName).source;
+				computed = true;
+			} else {
+				originalTagName = tagName = this.parser.readTagName(true);
+				var column = tagName.indexOf(':');
+				if(column > 0) {
+					anchorName = tagName.substr(column + 1);
+					tagName = tagName.substring(0, column);
+					create = append = false;
+				}
 			}
 		}
 		skip(true);
@@ -1299,6 +1303,8 @@ Transpiler.prototype.open = function(){
 		var beforeClosing = "";
 		var call = true;
 		var inline = false;
+		var conditional = false;
+
 		var bindType = "";
 		if(tagName == ":bind-if" || tagName == ":if") bindType = "If";
 		else if(tagName == ":bind-each" || tagName == ":each") bindType = "Each";
@@ -1324,6 +1330,7 @@ Transpiler.prototype.open = function(){
 		} else if(iattributes.clone) {
 			before.push([this.feature("clone"), element, this.bind, this.anchor, createExprOptions.call(this)]);
 		} else if(create) {
+			update = false;
 			if(tagName == ":shadow") {
 				before.push(["set", "element", parent + ".attachShadow({mode: " + (iattributes.mode || "\"open\"") + "})"]);
 				append = false;
@@ -1334,7 +1341,8 @@ Transpiler.prototype.open = function(){
 					before.push([this.feature("create"), this.bind, this.anchor, computed ? tagName : '"' + tagName + '"', createExprOptions.call(this)]);
 				}
 			}
-		} else if(update) {
+		}
+		if(update) {
 			before.push([this.feature("update"), element, this.bind, this.anchor, createExprOptions.call(this)]);
 		}
 		if(append) {
@@ -1371,7 +1379,7 @@ Transpiler.prototype.open = function(){
 
 		if(before) {
 			if(before.length) {
-				this.source.push(this.runtime + "(this)" + before.map(mapNext).join("").slice(0, -1));
+				this.source.push(this.runtime + (conditional ? "." + this.feature("cond") : "") + "(this)" + before.map(mapNext).join("").slice(0, -1));
 				currentClosing.unshift(")" + after.map(mapNext).join("") + ".close()");
 			} else {
 				this.source.push(parent);
@@ -1462,7 +1470,7 @@ Transpiler.prototype.feature = function(name){
  * @since 0.62.0
  */
 Transpiler.prototype.nextVar = function(){
-	return "$__" + this.count++ % 100;
+	return "$_" + this.count++ % 100;
 };
 
 /**
