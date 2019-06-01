@@ -92,78 +92,63 @@ var NAMESPACES = {
 	"xbl": "http://www.mozilla.org/xbl"
 };
 
-// templates
+// widgets
 
-var definedTemplates = {};
-var definedComponents = {};
+var widgets = {};
 
 /**
- * Defines or replaces a template.
- * @param {string} name - The case-sensitive name of the template.
- * @param {function} handler - The modifier called when a template is used.
+ * Defines or replaces a widget.
+ * @param {string} name - The case-sensitive name of the widget.
+ * @param {class} widget - The widget class.
+ * @since 0.73.0
  */
-Sactory.defineTemplate = function(name, context, handler){
-	definedTemplates[name] = {
-		context: context,
-		handler: handler
-	};
+Sactory.defineWidget = function(name, widget){
+	widgets[name] = widget;
 };
 
 /**
- * @since 0.58.0
+ * Removes a widget by its name.
+ * @since 0.73.0
  */
-Sactory.undefineTemplate = function(name){
-	delete definedTemplates[name];
+Sactory.undefineWidget = function(name){
+	delete widgets[name];
 };
 
 /**
- * @since 0.59.0
+ * Gets a list with the names of every registered widget.
+ * @since 0.73.0
  */
-Sactory.getTemplatesName = function(){
-	return Object.keys(definedTemplates);
-};
-
-/**
- * @since 0.72.0
- */
-Sactory.use = function(name, args, element, bind, anchor){
-	if(!definedTemplates.hasOwnProperty(name)) throw new Error("Template '" + name + "' does not exist.");
-	var template = definedTemplates[name](element, bind, anchor);
-	if(template.prototype && template.prototype.render) {
-		var component = new template();
-		return component.render(args);
-	} else {
-		return template(args);
-	}
+Sactory.getWidgetsName = function(){
+	return Object.keys(widgets);
 };
 
 /**
  * @class
- * @since 0.60.0
+ * @since 0.73.0
  */
-Sactory.Component = function(){};
+Sactory.Widget = function(){};
 
 /**
- * @since 0.60.0
+ * @since 0.73.0
  */
-Sactory.Component.prototype.render = function(args){
-	throw new Error("Component's 'render' prototype function not implemented.");
+Sactory.Widget.prototype.render = function(args){
+	throw new Error("Widget's 'render' prototype function not implemented.");
 };
 
 /**
  * @class
- * @since 0.60.0
+ * @since 0.73.0
  */
-function AnchorRegistry(name) {
+function SlotRegistry(name) {
 	this.name = name;
-	this.anchors = {};
+	this.slots = {};
 }
 
 /**
- * @since 0.60.0
+ * @since 0.73.0
  */
-AnchorRegistry.prototype.add = function(anchor, name, element){
-	this.anchors[name || "__container"] = {element: element, anchor: anchor};
+SlotRegistry.prototype.add = function(anchor, name, element){
+	this.slots[name || "__container"] = {element: element, anchor: anchor};
 };
 
 // init global functions used at runtime
@@ -195,27 +180,21 @@ Sactory.attr = function(type, name, value, optional){
 Sactory.update = function(result, element, bind, anchor, options){
 	
 	var args = [];
-	var elementArgs = {};
-	var templateArgs = {};
+	var widgetArgs = {};
 	if(options.args) {
 		// filter out optional arguments
 		options.args = options.args.filter(function(a){
 			return !a.optional || a.value !== undefined;
 		});
 		options.args.forEach(function(arg){
-			var remove = false;
-			if(arg.type == Builder.TYPE_TEMPLATE) {
-				var index = arg.name.lastIndexOf(':');
-				if(index == -1) {
-					templateArgs[arg.name] = Object(arg.value);
+			if(arg.type == Builder.TYPE_WIDGET) {
+				if(arg.name.length) {
+					widgetArgs[arg.name] = arg.value;
 				} else {
-					var name = arg.name.substring(0, index);
-					if(!templateArgs.hasOwnProperty(name)) templateArgs[name] = {};
-					templateArgs[name][arg.name.substr(index + 1)] = arg.value;
+					widgetArgs = arg.value;
 				}
 			} else {
 				args.push(arg);
-				if(arg.type == Builder.TYPE_ATTR) elementArgs[arg.name] = arg.value;
 			}
 		});
 	}
@@ -226,20 +205,20 @@ Sactory.update = function(result, element, bind, anchor, options){
 		});
 	}*/
 
-	var container, anchors;
+	var container, slots;
 	
 	if(!element) {
-		var component = definedComponents[options.tagName];
-		if(component) {
-			anchors = new AnchorRegistry(component.name);
-			component = component.handler(anchors, null, bind, null);
-			element = component.render(elementArgs, options.namespace);
-			element.__component = element["@@"] = component;
-			if(typeof component.onappend == "function") element.__builder.event("append", function(){ component.onappend(element); }, bind);
-			if(typeof component.onremove == "function") element.__builder.event("remove", function(){ component.onremove(element); }, bind);
-			if(anchors.anchors.__container) {
-				container = anchors.anchors.__container.element;
-				result.anchor = anchors.anchors.__container.anchor;
+		var widget = widgets[options.tagName];
+		if(widget) {
+			slots = new SlotRegistry(options.tagName);
+			var instance = new widget(widgetArgs, options.namespace);
+			element = instance.render(slots, null, bind, null);
+			element.__widget = element["@@"] = instance;
+			if(typeof instance.onappend == "function") element.__builder.event("append", function(){ instance.onappend(element); }, bind);
+			if(typeof instance.onremove == "function") element.__builder.event("remove", function(){ instance.onremove(element); }, bind);
+			if(slots.slots.__container) {
+				container = slots.slots.__container.element;
+				result.anchor = slots.slots.__container.anchor;
 			}
 		} else if(options.namespace) {
 			element = document.createElementNS(NAMESPACES[options.namespace] || options.namespace, options.tagName);
@@ -254,16 +233,10 @@ Sactory.update = function(result, element, bind, anchor, options){
 		element.__builder[arg.type](arg.name, arg.value, bind, anchor);
 	});
 	
-	for(var templateName in templateArgs) {
-		var template = definedTemplates[templateName];
-		if(!template) throw new Error("Could not find template '" + templateName + "'.");
-		else template.handler.call(template.context, container, bind, null, templateArgs[templateName]);
-	}
-	
 	Polyfill.assign(result, {
 		element: element,
 		container: container,
-		anchors: anchors
+		slots: slots
 	});
 
 	return element;
@@ -286,35 +259,35 @@ Sactory.clone = function(result, element, bind, anchor, options){
 };
 
 /**
- * @since 0.60.0
+ * @since 0.73.0
  */
-Sactory.updateAnchor = function(result, bind, anchor, options, anchors, component, anchorName, fun){
-	var componentAnchor = (function(){
-		if(anchors) {
-			for(var i=anchors.length-1; i>=0; i--) {
-				if(anchors[i].name == component) {
-					for(var name in anchors[i].anchors) {
-						if(name == anchorName) return anchors[i].anchors[name];
+Sactory.updateSlot = function(result, bind, anchor, options, slots, widget, slotName, fun){
+	var componentSlot = (function(){
+		if(slots) {
+			for(var i=slots.length-1; i>=0; i--) {
+				if(slots[i].name == widget) {
+					for(var name in slots[i].slots) {
+						if(name == slotName) return slots[i].slots[name];
 					}
 				}
 			}
 		}
 	})();
-	if(!componentAnchor) throw new Error("Could not find anchor '" + anchorName + "' for component '" + component + "'.");
-	var element = componentAnchor.element && Sactory.update(result, componentAnchor.element, bind, anchor, options);
-	fun.call(this, element || componentAnchor.anchor.parentNode, componentAnchor.anchor);
+	if(!componentSlot) throw new Error("Could not find slot '" + slotName + "' for widget '" + widget + "'.");
+	var element = componentSlot.element && Sactory.update(result, componentSlot.element, bind, anchor, options);
+	fun.call(this, element || componentSlot.anchor.parentNode, componentSlot.anchor);
 	return element;
 };
 
 /**
  * @since 0.60.0
  */
-Sactory.body = function(result, anchors, fun){
-	if(result.anchors && Object.keys(result.anchors.anchors).length) {
-		anchors = (anchors || []).concat(result.anchors);
+Sactory.body = function(result, slots, fun){
+	if(result.slots && Object.keys(result.slots.slots).length) {
+		slots = (slots || []).concat(result.slots);
 	}
 	var element = result.container || result.element;
-	fun.call(this, result.anchor ? result.anchor.parentNode : element, result.anchor, anchors);
+	fun.call(this, result.anchor ? result.anchor.parentNode : element, result.anchor, slots);
 	return element;
 };
 

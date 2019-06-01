@@ -1,0 +1,5 @@
+<card>
+	<card:header>Hello</card:header>
+	This is the card's content
+	<card:footer>(c) 2019 Sactory</card:footer>
+</card>

@@ -34,7 +34,7 @@ Builder.TYPE_ATTR = 1;
 Builder.TYPE_TWOWAY = 2;
 Builder.TYPE_ADD = 3;
 Builder.TYPE_REMOVE = 4;
-Builder.TYPE_TEMPLATE = 5;
+Builder.TYPE_WIDGET = 5;
 
 /**
  * @since 0.42.0
