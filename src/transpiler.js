@@ -311,7 +311,7 @@ JavascriptParser.prototype.next = function(match){
 						if(match[3]) {
 							this.parser.index += match[0].length;
 							this.add(this.element + skip + ".__builder" + this.parser.skipImpl({strings: false}) +
-								"[0](\"" + match[1] + match[2] + "\", " + this.parseCodeToValue("readExpression") + ", " + this.bind + ", " + this.anchor + ")");
+								"[0](\"" + match[1] + "\"" + match[2] + ", " + this.parseCodeToValue("readExpression") + ", " + this.bind + ", " + this.anchor + ")");
 						} else {
 							var add = function(runtime, fun, args){
 								this.parser.index += match[0].length;
@@ -1182,6 +1182,15 @@ Transpiler.prototype.open = function(){
 								attr.value = this.runtime + "." + this.feature((prev ? "prev" : "next") + "Id") + "()";
 								if(value != "\"\"") attr.value = value + " + " + attr.value;
 								add = true;
+							} else if(iattributes.hasOwnProperty(attr.name)) {
+								if(iattributes[attr.name] instanceof Array) {
+									iattributes[attr.name].push(value);
+								} else {
+									var a = iattributes[attr.name] = [iattributes[attr.name], value];
+									a.toString = function(){
+										return '[' + this.join(", ") + ']';
+									};
+								}
 							} else {
 								iattributes[attr.name] = value;
 							}
@@ -1408,9 +1417,13 @@ Transpiler.prototype.open = function(){
 		}
 
 		if(iattributes.slot) {
-			var slots = Array(iattributes.slot);
-			for(var i=0; i<slots.length; i++) {
-				this.source.push(this.slotsRegistry + ".add(null, " + slots[i] + ", " + this.element + ");");
+			var add = function(slot){
+				this.source.push(this.slotsRegistry + ".add(null, " + slot + ", " + this.element + ");");
+			}.bind(this);
+			if(iattributes.slot instanceof Array) {
+				iattributes.slot.forEach(add);
+			} else {
+				add(iattributes.slot);
 			}
 		}
 

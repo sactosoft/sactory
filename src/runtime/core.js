@@ -373,16 +373,4 @@ Sactory.prevId = function(){
 	return currentId;
 };
 
-if(!Sactory.compilecssb) {
-	Sactory.compilecssb = function(){
-		throw new Error("CSSB runtime is not loaded. Either load it by using the full version of the runtime or use normal css by using the '#css' attribute.");
-	};
-}
-
-if(!Sactory.bind) {
-	Sactory.bind = Sactory.bindIf = Sactory.bindEach = function(){
-		throw new Error("Bind runtime is not loaded. Load it by using the full version of the runtime.");
-	};
-}
-
 module.exports = Sactory;

@@ -20,7 +20,7 @@ window.addEventListener("load", function(){
 			}
 			// computed tag name, computed attribute name and spread syntax
 			var transparent = "background";
-			<[*tagName] ["@style." + transparent]="transparent" ...spread>
+			<[*tagName] @["style." + transparent]="transparent" ...spread>
 				var type = **"text";
 				<input type="text" *value=*type />
 				<input type=*type @value="placeholder text" />
