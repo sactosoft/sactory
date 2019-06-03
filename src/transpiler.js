@@ -1048,14 +1048,28 @@ Transpiler.prototype.open = function(){
 		this.close(result.pre);
 	} else if(this.parser.peek() == '!') {
 		this.parser.index++;
-		if(this.parser.input.substr(this.parser.index, 8) == "COMMENT ") {
+		var rest = this.parser.input.substr(this.parser.index);
+		if(Polyfill.startsWith.call(rest, "COMMENT ")) {
 			this.parser.index += 8;
 			this.source.push("/*" + this.parser.findSequence(">", true).slice(0, -1) + "*/");
 		} else {
-			this.parser.expect('-');
-			this.parser.expect('-');
-			this.source.push(this.runtime + "." + this.feature("comment") + "(" + this.element + ", " + this.bind + ", " + this.anchor + ", " + stringify(this.parser.findSequence("-->", true).slice(0, -3)) + ")");
-			this.addSemicolon();
+			var types = ["runtime", "element", "bind", "anchor"];
+			var match = false;
+			for(var i in types) {
+				if(Polyfill.startsWith.call(rest, types[i].toUpperCase() + '>')) {
+					this.parser.index += types[i].length + 1;
+					this.source.push(this[types[i]]);
+					this.addSemicolon();
+					match = true;
+					break;
+				}
+			}
+			if(!match) {
+				this.parser.expect('-');
+				this.parser.expect('-');
+				this.source.push(this.runtime + "." + this.feature("comment") + "(" + this.element + ", " + this.bind + ", " + this.anchor + ", " + stringify(this.parser.findSequence("-->", true).slice(0, -3)) + ")");
+				this.addSemicolon();
+			}
 		}
 	} else if(this.currentMode.options.children === false) {
 		throw new Error("Mode " + this.currentMode.name + " cannot have children");
@@ -1076,6 +1090,7 @@ Transpiler.prototype.open = function(){
 		var unique = false; // whether the new element should be appended always or only when its not already on the DOM
 		var parent = this.element; // element that the new element will be appended to, if not null
 		var element = this.element; // element that will be updated
+		var queryElement;
 		var iattributes = {}; // attributes used to give instructions to the transpiler, not used at runtime
 		var rattributes = []; // attributes used at runtime to modify the element
 		var sattributes = []; // variable name of the attributes passed using the spread syntax
@@ -1091,6 +1106,7 @@ Transpiler.prototype.open = function(){
 		if(selector = this.parser.readQueryExpr()) {
 			selector = this.parseCode(selector).source;
 			selectorAll = !!this.parser.readIf('+');
+			if(this.parser.readIf('*')) queryElement = "document";
 			create = append = false;
 		} else {
 			if(tagName = this.parser.readComputedExpr()) {
@@ -1317,7 +1333,7 @@ Transpiler.prototype.open = function(){
 		}
 
 		if(selector) {
-			this.source.push(this.runtime + "." + this.feature("query") + "(this, " + parent + ", " + selector + ", " + selectorAll + ", function(" + this.element + ", " + this.parentElement + "){");
+			this.source.push(this.runtime + "." + this.feature("query") + "(this, " + (queryElement || parent) + ", " + parent + ", " + selector + ", " + selectorAll + ", function(" + this.element + ", " + this.parentElement + "){");
 			if(iattributes.adopt || iattributes.clone) {
 				parent = this.parentElement;
 				create = false;
@@ -1537,7 +1553,6 @@ Transpiler.prototype.transpile = function(input){
 	this.value = this.nextVar();
 	this.index = this.nextVar();
 	this.array = this.nextVar();
-	this.args = this.nextVar();
 	this.slots = this.nextVar();
 	this.slotsRegistry = this.nextVar();
 
@@ -1599,7 +1614,6 @@ Transpiler.prototype.transpile = function(input){
 			value: this.value,
 			index: this.index,
 			array: this.array,
-			args: this.args,
 			slots: this.slots,
 			slotsRegistry: this.slotsRegistry
 		},

@@ -329,11 +329,11 @@ Sactory.unique = function(context, id, fun){
 /**
  * @since 0.32.0
  */
-Sactory.query = function(context, parent, selector, all, fun){
+Sactory.query = function(context, doc, parent, selector, all, fun){
 	var nodes = false;
 	if(all || (nodes = typeof selector == "object" && typeof selector.length == "number")) {
 		if(!nodes) {
-			selector = (parent || document).querySelectorAll(selector);
+			selector = doc.querySelectorAll(selector);
 		}
 		Array.prototype.forEach.call(selector, function(element){
 			fun.call(context, element, parent);
@@ -341,7 +341,7 @@ Sactory.query = function(context, parent, selector, all, fun){
 		return selector;
 	} else {
 		if(typeof selector == "string") {
-			selector = (parent || document).querySelector(selector);
+			selector = doc.querySelector(selector);
 		}
 		if(selector) fun.call(context, selector, parent);
 		return selector;
