@@ -124,7 +124,25 @@ Parser.prototype.readIf = function(value){
  */
 Parser.prototype.expect = function(c){
 	var curr = this.input[this.index++];
-	if(curr !== c) this.error("Expected '" + c + "' but got '" + curr + "'.");
+	if(curr !== c) {
+		this.index--;
+		this.error("Expected '" + c + "' but got '" + curr + "'.");
+	}
+};
+
+/**
+ * Asserts that the next n characters are equals to the given sequence. If they are,
+ * the current index is increased by the given sequence's length.
+ * @param {string} seq - A string of any length.
+ * @throws {ParserError} When the sequence is different from the remaining input.
+ * @since 0.74.0
+ */
+Parser.prototype.expectSequence = function(seq){
+	if(seq != this.input.substr(this.index, seq.length)) {
+		this.error("Expected '" + seq + "'.");
+	} else {
+		this.index += seq.length;
+	}
 };
 
 /**

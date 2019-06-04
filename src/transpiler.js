@@ -307,14 +307,25 @@ LogicParser.prototype.parseLogic = function(expected, args){
 		this.addCurrent();
 		var statement = Polyfill.startsWith.call(expected, "else") ? this.popped.pop() : {
 			startIndex: this.source.length,
-			observables: []
+			observables: [],
+			end: ""
 		};
 		if(args) {
 			var skipped = this.parser.skipImpl({});
 			if(this.parser.peek() != '(') this.parser.error("Expected '(' after '" + expected + "'.");
+			var position = this.parser.position;
 			var parsed = this.transpiler.parseCode(this.parser.skipEnclosedContent(), this.parser);
 			Array.prototype.push.apply(statement.observables, parsed.observables);
-			this.add(expected + skipped + parsed.source);
+			if(expected == "foreach") {
+				var parser = new Parser(parsed.source.slice(1, -1), position);
+				parser.options = {comments: true, strings: true, regexp: true};
+				var expr = parser.readExpression();
+				parser.expectSequence("as ");
+				this.add(expr + skipped + ".forEach(function(" + parser.input.substr(parser.index) + ")");
+				statement.end = ")";
+			} else {
+				this.add(expected + skipped + parsed.source);
+			}
 		} else {
 			this.add(expected);
 		}
@@ -343,7 +354,7 @@ LogicParser.prototype.parse = function(handle, eof){
 			if(!this.parseLogic("else if", true) && !this.parseLogic("else", false)) this.pushText('e');
 			break;
 		case 'f':
-			if(!this.parseLogic("for", true)) this.pushText('f');
+			if(!this.parseLogic("foreach", true) && !this.parseLogic("for", true)) this.pushText('f');
 			break;
 		case 'w':
 			if(!this.parseLogic("while", true)) this.pushText('w');
@@ -386,7 +397,7 @@ LogicParser.prototype.end = function(){
 		if(popped.observables) {
 			sorted.push(
 				{index: popped.startIndex, start: true, observables: popped.observables},
-				{index: popped.endIndex, start: false}
+				{index: popped.endIndex, start: false, end: popped.end}
 			);
 		}
 	});
@@ -397,7 +408,7 @@ LogicParser.prototype.end = function(){
 	for(var i=0; i<sorted.length; i++) {
 		var popped = sorted[i];
 		this.source.splice(popped.index + shift++, 0, popped.start ? this.runtime + "." + this.transpiler.feature("bind") + "(this, " + this.element + ", " + this.bind + ", " + this.anchor +
-			", [" + uniq(popped.observables).join(", ") + "], 0, 0, function(" + this.element + ", " + this.bind + ", " + this.anchor + "){" : "});");
+			", [" + uniq(popped.observables).join(", ") + "], 0, 0, function(" + this.element + ", " + this.bind + ", " + this.anchor + "){" : popped.end + "});");
 	}
 };
 
