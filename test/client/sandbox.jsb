@@ -48,15 +48,15 @@ window.onload = function(){
 		},
 		mode: {
 			js: "code",
-			html: "html:logic",
+			html: "html :logic",
 			css: "cssb"
 		}
 	};
 
 	var modes = {
 		js: ["code"],
-		html: ["html", "html:logic", "text", "text:logic"],
-		css: ["css", "css:logic", "cssb"]
+		html: ["html", "html :logic", "html :trimmed", "html :logic :trimmed", "text", "text :logic"],
+		css: ["css", "css :logic", "cssb"]
 	};
 
 	var content = hash ? **(hash.content) : **(defaultContent, ***key);

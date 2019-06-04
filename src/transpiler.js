@@ -102,6 +102,7 @@ function SourceParser(transpiler, parser, source, attributes) {
 	this.element = transpiler.element;
 	this.bind = transpiler.bind;
 	this.anchor = transpiler.anchor;
+	this.attributes = attributes;
 }
 
 SourceParser.prototype.add = function(text){
@@ -185,23 +186,29 @@ TextParser.prototype.addText = function(expr){
 };
 
 TextParser.prototype.addCurrent = function(){
-	var expr = [];
-	var observables = [];
-	for(var i in this.current) {
-		var curr = this.current[i];
-		if(curr.text) {
-			if(curr.value.length) expr.push(stringify(this.replaceText(curr.value)));
-		} else {
-			Array.prototype.push.apply(observables, curr.value.observables);
-			expr.push(curr.value.source); 
+	if(this.attributes.trimmed && this.current.length == 1 && this.current[0].text && /^\s*$/.test(this.current[0].value)) {
+		this.add(this.current[0].value);
+	} else {
+		var expr = [];
+		var observables = [];
+		for(var i in this.current) {
+			var curr = this.current[i];
+			if(curr.text) {
+				if(curr.value.length) expr.push(stringify(this.replaceText(curr.value)));
+			} else {
+				Array.prototype.push.apply(observables, curr.value.observables);
+				expr.push(curr.value.source); 
+			}
+		}
+		if(expr.length) {
+			var joined = expr.join(" + ");
+			if(observables.length) {
+				joined = this.runtime + "." + this.transpiler.feature("computedObservable") + "(this, " + this.bind + ", [" +
+					uniq(observables).join(", ") + "], function(){return " + joined + "})";
+			}
+			this.addText(joined);
 		}
 	}
-	var joined = expr.join(" + ");
-	if(observables.length) {
-		joined = this.runtime + "." + this.transpiler.feature("computedObservable") + "(this, " + this.bind + ", [" +
-			uniq(observables).join(", ") + "], function(){return " + joined + "})";
-	}
-	if(joined.length) this.addText(joined);
 	this.current = [];
 };
 
@@ -259,6 +266,139 @@ TextParser.prototype.parse = function(handle, eof){
 	var result = this.parser.find(['<', '$'], false, true);
 	this.pushText(result.pre);
 	this.parseImpl(result.pre, result.match, handle, eof);
+};
+
+/**
+ * @class
+ * @since 0.53.0
+ */
+function LogicParser(transpiler, parser, source, attributes) {
+	TextParser.call(this, transpiler, parser, source, attributes);
+	this.count = 0;
+	this.statements = [];
+	this.popped = [];
+	if(!attributes.logic) {
+		this.parse = TextParser.prototype.parse.bind(this);
+	}
+}
+
+LogicParser.prototype = Object.create(TextParser.prototype);
+
+LogicParser.prototype.getLineText = function(){
+	var last = this.current[this.current.length - 1];
+	if(last.text) {
+		var index = last.value.lastIndexOf('\n');
+		if(index > 0) return last.value.substr(index);
+		else return last.value;
+	} else {
+		return "";
+	}
+};
+
+LogicParser.prototype.parseLogic = function(expected, args){
+	var line;
+	if(
+		this.parser.input.substr(this.parser.index, expected.length - 1) == expected.substr(1) && // when the expected keyword is found
+		!/\S/.test(line = this.getLineText()) && // when is start of line
+		!/[a-zA-Z0-9_$]/.test(this.parser.input.charAt(this.parser.index + expected.length - 1)) // when is an exact keyword
+	) {
+		this.parser.index += expected.length - 1;
+		this.trimEnd();
+		this.addCurrent();
+		var statement = Polyfill.startsWith.call(expected, "else") ? this.popped.pop() : {
+			startIndex: this.source.length,
+			observables: []
+		};
+		if(args) {
+			var skipped = this.parser.skipImpl({});
+			if(this.parser.peek() != '(') this.parser.error("Expected '(' after '" + expected + "'.");
+			var parsed = this.transpiler.parseCode(this.parser.skipEnclosedContent(), this.parser);
+			Array.prototype.push.apply(statement.observables, parsed.observables);
+			this.add(expected + skipped + parsed.source);
+		} else {
+			this.add(expected);
+		}
+		var skipped = this.parser.skipImpl({});
+		if(!(statement.inline = (this.parser.peek() != '{'))) skipped += this.parser.read();
+		this.add(skipped);
+		this.statements.push(statement);
+		return true;
+	} else {
+		if(line && line.slice(-1) == '\\') {
+			var curr = this.current[this.current.length - 1];
+			curr.value = curr.value.slice(0, -1);
+		}
+		return false;
+	}
+};
+
+LogicParser.prototype.parse = function(handle, eof){
+	var result = this.parser.find(['$', '<', 'i', 'e', 'f', 'w', '}', '\n'], false, true);
+	this.pushText(result.pre);
+	switch(result.match) {
+		case 'i':
+			if(!this.parseLogic("if", true)) this.pushText('i');
+			break;
+		case 'e':
+			if(!this.parseLogic("else if", true) && !this.parseLogic("else", false)) this.pushText('e');
+			break;
+		case 'f':
+			if(!this.parseLogic("for", true)) this.pushText('f');
+			break;
+		case 'w':
+			if(!this.parseLogic("while", true)) this.pushText('w');
+			break;
+		case '}':
+			if(result.pre.slice(-1) == '\\') {
+				var curr = this.current[this.current.length - 1];
+				curr.value = curr.value.slice(0, -1) + '}';
+			} else if(this.statements.length) {
+				this.trimEnd();
+				this.addCurrent();
+				this.add('}');
+				var statement = this.statements.pop();
+				statement.endIndex = this.source.length;
+				this.popped.push(statement);
+			} else {
+				this.pushText('}');
+			}
+			break;
+		case '\n':
+			if(this.statements.length && this.statements[this.statements.length - 1].inline) {
+				this.trimEnd();
+				this.addCurrent();
+				var statement = this.statements.pop();
+				statement.endIndex = this.source.length;
+				this.popped.push(statement);
+				this.add('\n');
+			} else {
+				this.pushText('\n');
+			}
+			break;
+		default:
+			this.parseImpl(result.pre, result.match, handle, eof);
+	}
+};
+
+LogicParser.prototype.end = function(){
+	var sorted = [];
+	this.popped.forEach(function(popped){
+		if(popped.observables) {
+			sorted.push(
+				{index: popped.startIndex, start: true, observables: popped.observables},
+				{index: popped.endIndex, start: false}
+			);
+		}
+	});
+	sorted.sort(function(a, b){
+		return a.index - b.index;
+	});
+	var shift = 0;
+	for(var i=0; i<sorted.length; i++) {
+		var popped = sorted[i];
+		this.source.splice(popped.index + shift++, 0, popped.start ? this.runtime + "." + this.transpiler.feature("bind") + "(this, " + this.element + ", " + this.bind + ", " + this.anchor +
+			", [" + uniq(popped.observables).join(", ") + "], 0, 0, function(" + this.element + ", " + this.bind + ", " + this.anchor + "){" : "});");
+	}
 };
 
 /**
@@ -431,10 +571,10 @@ JavascriptParser.prototype.next = function(match){
  * @since 0.15.0
  */
 function HTMLParser(transpiler, parser, source, attributes) {
-	TextParser.call(this, transpiler, parser, source, attributes);
+	LogicParser.call(this, transpiler, parser, source, attributes);
 }
 
-HTMLParser.prototype = Object.create(TextParser.prototype);
+HTMLParser.prototype = Object.create(LogicParser.prototype);
 
 HTMLParser.prototype.replaceText = Text.replaceEntities || (function(){
 	var converter;
@@ -464,162 +604,10 @@ ScriptParser.prototype.handle = function(){
  * @since 0.15.0
  */
 function CSSParser(transpiler, parser, source, attributes) {
-	TextParser.call(this, transpiler, parser, source, attributes);
+	LogicParser.call(this, transpiler, parser, source, attributes);
 }
 
-CSSParser.prototype = Object.create(TextParser.prototype);
-
-/**
- * @param {class} ParentParser - A class that extends TextParser.
- * @since 0.55.0
- */
-function createLogicParser(ParentParser) {
-
-	/**
-	 * @class
-	 * @since 0.53.0
-	 */
-	function LogicParser(transpiler, parser, source, attributes) {
-		ParentParser.call(this, transpiler, parser, source, attributes);
-		this.count = 0;
-		this.statements = [];
-		this.popped = [];
-	}
-
-	LogicParser.prototype = Object.create(ParentParser.prototype);
-
-	LogicParser.prototype.getLineText = function(){
-		var last = this.current[this.current.length - 1];
-		if(last.text) {
-			var index = last.value.lastIndexOf('\n');
-			if(index > 0) return last.value.substr(index);
-			else return last.value;
-		} else {
-			return "";
-		}
-	};
-
-	LogicParser.prototype.parseLogic = function(expected, args){
-		var line;
-		if(
-			this.parser.input.substr(this.parser.index, expected.length - 1) == expected.substr(1) && // when the expected keyword is found
-			!/\S/.test(line = this.getLineText()) && // when is start of line
-			!/[a-zA-Z0-9_$]/.test(this.parser.input.charAt(this.parser.index + expected.length - 1)) // when is an exact keyword
-		) {
-			this.parser.index += expected.length - 1;
-			this.trimEnd();
-			this.addCurrent();
-			var statement = Polyfill.startsWith.call(expected, "else") ? this.popped.pop() : {
-				startIndex: this.source.length,
-				observables: []
-			};
-			if(args) {
-				var skipped = this.parser.skipImpl({});
-				if(this.parser.peek() != '(') this.parser.error("Expected '(' after '" + expected + "'.");
-				var parsed = this.transpiler.parseCode(this.parser.skipEnclosedContent(), this.parser);
-				Array.prototype.push.apply(statement.observables, parsed.observables);
-				this.add(expected + skipped + parsed.source);
-			} else {
-				this.add(expected);
-			}
-			var skipped = this.parser.skipImpl({});
-			if(!(statement.inline = (this.parser.peek() != '{'))) skipped += this.parser.read();
-			this.add(skipped);
-			this.statements.push(statement);
-			return true;
-		} else {
-			if(line && line.slice(-1) == '\\') {
-				var curr = this.current[this.current.length - 1];
-				curr.value = curr.value.slice(0, -1);
-			}
-			return false;
-		}
-	};
-
-	LogicParser.prototype.parse = function(handle, eof){
-		var result = this.parser.find(['$', '<', 'i', 'e', 'f', 'w', '}', '\n'], false, true);
-		this.pushText(result.pre);
-		switch(result.match) {
-			case 'i':
-				if(!this.parseLogic("if", true)) this.pushText('i');
-				break;
-			case 'e':
-				if(!this.parseLogic("else if", true) && !this.parseLogic("else", false)) this.pushText('e');
-				break;
-			case 'f':
-				if(!this.parseLogic("for", true)) this.pushText('f');
-				break;
-			case 'w':
-				if(!this.parseLogic("while", true)) this.pushText('w');
-				break;
-			case '}':
-				if(result.pre.slice(-1) == '\\') {
-					var curr = this.current[this.current.length - 1];
-					curr.value = curr.value.slice(0, -1) + '}';
-				} else if(this.statements.length) {
-					this.trimEnd();
-					this.addCurrent();
-					this.add('}');
-					var statement = this.statements.pop();
-					statement.endIndex = this.source.length;
-					this.popped.push(statement);
-				} else {
-					this.pushText('}');
-				}
-				break;
-			case '\n':
-				if(this.statements.length && this.statements[this.statements.length - 1].inline) {
-					this.trimEnd();
-					this.addCurrent();
-					var statement = this.statements.pop();
-					statement.endIndex = this.source.length;
-					this.popped.push(statement);
-					this.add('\n');
-				} else {
-					this.pushText('\n');
-				}
-				break;
-			default:
-				this.parseImpl(result.pre, result.match, handle, eof);
-		}
-	};
-
-	LogicParser.prototype.end = function(){
-		var sorted = [];
-		this.popped.forEach(function(popped){
-			if(popped.observables) {
-				sorted.push(
-					{index: popped.startIndex, start: true, observables: popped.observables},
-					{index: popped.endIndex, start: false}
-				);
-			}
-		});
-		sorted.sort(function(a, b){
-			return a.index - b.index;
-		});
-		var shift = 0;
-		for(var i=0; i<sorted.length; i++) {
-			var popped = sorted[i];
-			this.source.splice(popped.index + shift++, 0, popped.start ? this.runtime + "." + this.transpiler.feature("bind") + "(this, " + this.element + ", " + this.bind + ", " + this.anchor +
-				", [" + uniq(popped.observables).join(", ") + "], 0, 0, function(" + this.element + ", " + this.bind + ", " + this.anchor + "){" : "});");
-		}
-	};
-
-	return LogicParser;
-
-}
-
-/**
- * @class
- * @since 0.53.0
- */
-var HTMLLogicParser = createLogicParser(HTMLParser);
-
-/**
- * @class
- * @since 0.55.0
- */
-var CSSLogicParser = createLogicParser(CSSParser);
+CSSParser.prototype = Object.create(LogicParser.prototype);
 
 /**
  * @class
@@ -870,12 +858,11 @@ Transpiler.Internal = {
 	SourceParser: SourceParser,
 	BreakpointParser: BreakpointParser,
 	TextParser: TextParser,
+	LogicParser: LogicParser,
 	JavascriptParser: JavascriptParser,
 	HTMLParser: HTMLParser,
-	HTMLLogicParser: HTMLLogicParser,
 	SourceParser: SourceParser,
 	CSSParser: CSSParser,
-	CSSLogicParser: CSSLogicParser,
 	CSSBParser: CSSBParser
 };
 
@@ -886,9 +873,6 @@ Transpiler.defineMode(["html"], HTMLParser, {comments: false, strings: false});
 Transpiler.defineMode(["text"], HTMLParser, {comments: false, strings: false, children: false});
 Transpiler.defineMode(["script"], ScriptParser, {comments: false, strings: false, children: false, tags: ["script"]});
 Transpiler.defineMode(["css"], CSSParser, {comments: true, inlineComments: false, strings: true, children: false});
-Transpiler.defineMode(["html:logic", "hl"], HTMLLogicParser, {whitespaces: false, comments: false, strings: false});
-Transpiler.defineMode(["text:logic", "tl"], HTMLLogicParser, {whitespaces: false, comments: false, strings: false, children: false});
-Transpiler.defineMode(["css:logic", "cl"], CSSLogicParser, {whitespaces: false, comments: true, inlineComments: false, strings: true, children: false});
 Transpiler.defineMode(["cssb", "style"], CSSBParser, {strings: true, children: false, tags: ["style"]});
 
 function Transpiler(options) {
@@ -1071,7 +1055,7 @@ Transpiler.prototype.open = function(){
 				this.addSemicolon();
 			}
 		}
-	} else if(this.currentMode.options.children === false) {
+	} else if(this.currentMode.options.children === false && this.parser.peek() != '#') {
 		throw new Error("Mode " + this.currentMode.name + " cannot have children");
 	} else {
 		var position = this.parser.position;
@@ -1329,7 +1313,14 @@ Transpiler.prototype.open = function(){
 			append = false;
 		}
 		if(newMode !== undefined) {
-			this.startMode(newMode, iattributes);
+			// the attributes need to be converted to booleans as they are strings.
+			// every attribute is evaluated to true except the `false` and `0` expressions, without quotes.
+			var attributes = {};
+			for(var key in iattributes) {
+				var value = iattributes[key];
+				attributes[key] = value != "false" && value != "0";
+			}
+			this.startMode(newMode, attributes);
 		}
 
 		if(selector) {
