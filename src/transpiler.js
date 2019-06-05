@@ -1096,18 +1096,23 @@ Transpiler.prototype.open = function(){
 		var computed = false;
 		var selector, originalTagName, tagName = "";
 		var selectorAll = false;
+		var noWidget = false;
 		var slotName;
 		this.updateTemplateLiteralParser();
 		if(selector = this.parser.readQueryExpr()) {
 			selector = this.parseCode(selector).source;
 			selectorAll = !!this.parser.readIf('+');
-			if(this.parser.readIf('*')) queryElement = "document";
+			if(this.parser.readIf('*')) {
+				queryElement = "document";
+				if(!selectorAll) selectorAll = !!this.parser.readIf('+');
+			}
 			create = append = false;
 		} else {
 			if(tagName = this.parser.readComputedExpr()) {
 				tagName = this.parseCode(tagName).source;
 				computed = true;
 			} else {
+				noWidget = !!this.parser.readIf('*');
 				originalTagName = tagName = this.parser.readTagName(true);
 				var column = tagName.indexOf(':');
 				if(column > 0) {
@@ -1300,6 +1305,7 @@ Transpiler.prototype.open = function(){
 			currentInheritance = "";
 			var inheritance = this.inheritance.join("");
 			var args = !!(inheritance || rattributes.length);
+			if(noWidget) ret += "widget:false,";
 			if(currentNamespace) ret += "namespace:" + currentNamespace + ",";
 			if(args) ret += "args:[";
 			if(inheritance) ret += inheritance;

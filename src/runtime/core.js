@@ -209,7 +209,7 @@ Sactory.update = function(result, element, bind, anchor, options){
 	
 	if(!element) {
 		var widget = widgets[options.tagName];
-		if(widget) {
+		if(widget && options.widget !== false) {
 			slots = new SlotRegistry(options.tagName);
 			var instance = new widget(widgetArgs, options.namespace);
 			element = instance.render(slots, null, bind, null);

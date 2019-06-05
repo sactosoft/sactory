@@ -11,7 +11,7 @@ fs.readdirSync("./unittest/").forEach(name => {
 		},
 		mode: {
 			js: "code",
-			html: "html:logic",
+			html: "html :logic",
 			css: "cssb"
 		},
 		show: {
