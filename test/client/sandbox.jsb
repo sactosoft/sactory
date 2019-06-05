@@ -12,7 +12,7 @@ window.onload = function(){
 		"info": "Info"
 	};
 
-	var tab = **("output", "current_tab");
+	var tab = @watch("output", "current_tab");
 
 	function switchTab(from, to) {
 		if(*tab == from) *tab = to;
@@ -21,18 +21,11 @@ window.onload = function(){
 	var inputs = {};
 	var outputs = {};
 
-	var es6 = true;
-	try {
-		eval("var test = class {}");
-	} catch(e) {
-		es6 = false;
-	}
-
 	if(window.location.hash) {
 		hash = JSON.parse(atob(window.location.hash.substr(1)));
 	} else {
-		file = **("snippet", "current_snippet");
-		key = **("storage." + *file);
+		file = @watch("snippet", "current_snippet");
+		key = @watch("storage." + *file);
 	}
 
 	var defaultContent = {
@@ -59,9 +52,9 @@ window.onload = function(){
 		css: ["css", "css :logic", "cssb"]
 	};
 
-	var content = hash ? **(hash.content) : **(defaultContent, ***key);
-	var showCount = **(*content.show.js + *content.show.html + *content.show.css);
-	var result = **((function(){
+	var content = hash ? @watch(hash.content) : @watch(defaultContent, *key);
+	var showCount = @watch(*content.show.js + *content.show.html + *content.show.css);
+	var result = @watch((function(){
 		var result = {source: "", before: "", after: "", info: {time: 0, tags: {}, templates: {}, features: []}, errors: [], warnings: []};
 		var transpiler = new Transpiler({namespace: file.value});
 		function transpile(type, before, after) {
@@ -100,8 +93,8 @@ window.onload = function(){
 		return result;
 	})());
 	if(!hash) {
-		if(window.localStorage && window.localStorage.getItem(***key)) {
-			*content = JSON.parse(window.localStorage.getItem(***key));
+		if(window.localStorage && window.localStorage.getItem(*key)) {
+			*content = JSON.parse(window.localStorage.getItem(*key));
 		}
 		@subscribe(file, function(value){
 			content.internal.storage.key = *key;
@@ -268,7 +261,7 @@ window.onload = function(){
 							Object.keys(window.localStorage).sort().forEach(function(key){
 								if(key.substr(0, 8) == "storage.") {
 									var value = key.substr(8);
-									<option value=value @text=value @selected=(value == ***file) />
+									<option value=value @text=value @selected=(value == ^file) />
 								}
 							});
 						</select>
@@ -302,7 +295,7 @@ window.onload = function(){
 							}, 0);
 							<select class="mode" @value=*content.mode[type] +change={ *content.mode[type] = this.value }>
 								modes[type].forEach(function(m){
-									<option value=m @text=m @selected=(***content.mode[type] == m) />
+									<option value=m @text=m @selected=(^content.mode[type] == m) />
 								});
 							</select>
 						</div>

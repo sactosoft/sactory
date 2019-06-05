@@ -191,12 +191,14 @@ TextParser.prototype.addCurrent = function(){
 	} else {
 		var expr = [];
 		var observables = [];
+		var snaps = [];
 		for(var i in this.current) {
 			var curr = this.current[i];
 			if(curr.text) {
 				if(curr.value.length) expr.push(stringify(this.replaceText(curr.value)));
 			} else {
 				Array.prototype.push.apply(observables, curr.value.observables);
+				Array.prototype.push.apply(snaps, curr.value.snaps);
 				expr.push(curr.value.source); 
 			}
 		}
@@ -204,7 +206,7 @@ TextParser.prototype.addCurrent = function(){
 			var joined = expr.join(" + ");
 			if(observables.length) {
 				joined = this.runtime + "." + this.transpiler.feature("computedObservable") + "(this, " + this.bind + ", [" +
-					uniq(observables).join(", ") + "], function(){return " + joined + "})";
+					uniq(observables).join(", ") + "], function(){return " + joined + "}" + (snaps.length ? ", " + snaps.join(", ") : "") + ")";
 			}
 			this.addText(joined);
 		}
@@ -417,7 +419,7 @@ LogicParser.prototype.end = function(){
  * @since 0.15.0
  */
 function JavascriptParser(transpiler, parser, source, attributes) {
-	BreakpointParser.call(this, transpiler, parser, source, attributes, ['(', ')', '@', '*']);
+	BreakpointParser.call(this, transpiler, parser, source, attributes, ['(', ')', '@', '*', '^']);
 	this.observables = [];
 	this.snaps = [];
 	this.parentheses = [];
@@ -431,6 +433,15 @@ JavascriptParser.prototype.handleParenthesis = function(match){
 };
 
 JavascriptParser.prototype.next = function(match){
+	function getName() {
+		var skipped = this.parser.skip();
+		if(skipped) this.add(skipped);
+		if(this.parser.peek() == '(') {
+			return this.parseCodeToSource("skipEnclosedContent");
+		} else {
+			return this.parseCodeToSource("readVarName", true);
+		}
+	}
 	switch(match) {
 		case '(':
 			this.parentheses.push(false);
@@ -473,11 +484,19 @@ JavascriptParser.prototype.next = function(match){
 								case "subscribe":
 									add(true, "subscribe", this.bind + ", ");
 									break;
-								case "observe":
-									add(true, "observable"); //TODO computed
-									break;
-								case "observe.deep":
-
+								case "watch":
+									// new observable
+									this.parser.index += match[0].length;
+									this.parser.parseTemplateLiteral = null;
+									var parsed = this.transpiler.parseCode(this.parser.readExpression());
+									this.transpiler.updateTemplateLiteralParser();
+									if(parsed.observables && parsed.observables.length) {
+										// computed
+										this.add(this.runtime + "." + this.transpiler.feature("computedObservable") + "(this, " + this.bind + ", " + parsed.toSpreadValue());
+									} else {
+										this.add(this.runtime + "." + this.transpiler.feature("observable") + "(" + parsed.source);
+									}
+									this.parentheses.push(false);
 									break;
 								case "widgets.add":
 									add(true, "defineWidget");
@@ -528,18 +547,10 @@ JavascriptParser.prototype.next = function(match){
 			break;
 		case '*':
 			if(this.parser.couldStartRegExp()) {
-				function getName() {
-					var skipped = this.parser.skip();
-					if(skipped) this.add(skipped);
-					if(this.parser.peek() == '(') {
-						return this.parseCodeToSource("skipEnclosedContent");
-					} else {
-						return this.parseCodeToSource("readVarName", true);
-					}
-				}
 				if(this.parser.peek() == '*') {
 					this.parser.index++;
 					if(this.parser.peek() == '*') {
+						this.transpiler.warn("The `***` syntax for snapped observables is deprecated. Use `^` instead.", this.parser.position);
 						this.parser.index++;
 						// spreading an observable
 						var name = getName.call(this);
@@ -548,16 +559,15 @@ JavascriptParser.prototype.next = function(match){
 						this.snaps.push(name + ".snap(" + id + ")");
 					} else {
 						// new observable
+						var position = this.parser.position;
 						this.parser.parseTemplateLiteral = null;
 						var parsed = this.transpiler.parseCode(this.parser.readSingleExpression(true));
 						this.transpiler.updateTemplateLiteralParser();
 						if(parsed.observables && parsed.observables.length) {
-							// computed
-							this.add(this.runtime + "." + this.transpiler.feature("computedObservable") + "(this, " + this.bind + ", " + parsed.toSpreadValue() + ")");
-						} else {
-							if(parsed.source.charAt(0) != '(') parsed.source = '(' + parsed.source + ')';
-							this.add(this.runtime + "." + this.transpiler.feature("observable") + parsed.source);
+							// should be computed
+							this.transpiler.warn("The observable syntax `**` cannot be used to create computed observables, use `@watch` instead.", position);
 						}
+						this.add(this.runtime + "." + this.transpiler.feature("observable") + "(" + parsed.source + ")");
 					}
 				} else {
 					// get/set observable
@@ -570,8 +580,20 @@ JavascriptParser.prototype.next = function(match){
 			} else {
 				// just a multiplication or exponentiation
 				this.add('*');
-				if(this.parser.peek() == '*') this.add(this.parser.read());
+				if(this.parser.peek() == '*') this.add(this.parser.read()); // exponentiation, skip to avoid trying to trat it as observable
 				this.parser.last = '*';
+			}
+			break;
+		case '^':
+			if(this.parser.couldStartRegExp()) {
+				var name = getName.call(this);
+				var id = this.transpiler.nextId();
+				this.add(name + ".snapped(" + id + ")");
+				this.snaps.push(name + ".snap(" + id + ")");
+			} else {
+				// xor operator
+				this.add('^');
+				this.parser.last = '^';
 			}
 			break;
 	}
