@@ -469,7 +469,7 @@ Parser.prototype.readQueryExpr = function(){
  * @returns The expression read or an empty string if no expression could be found.
  */
 Parser.prototype.readSingleExpression = function(skip){
-	var ret = this.readImpl(/^([-+~!]*((new|delete|typeof)\s+)?\*{0,3}@{0,2})/) || "";
+	var ret = this.readImpl(/^([-+~!]*((new|delete|typeof)\s+)?\*{0,3}\^?@{0,2})/) || "";
 	if(skip) ret += this.skipImpl({strings: false});
 	var peek = this.peek();
 	if(peek == '"' || peek == '\'' || peek == '`') {
@@ -485,7 +485,7 @@ Parser.prototype.readSingleExpression = function(skip){
 			index: this.index
 		};
 		if(skip) ret += this.skipImpl({strings: false});
-		var expr = this.readImpl(/^(\.[a-zA-Z0-9_$]+)/, false);
+		var expr = this.readImpl(/^(\.#?[a-zA-Z0-9_$]+)/, false);
 		if(expr) {
 			ret += expr;
 			if(skip) ret += this.skipImpl({strings: false});
@@ -530,7 +530,7 @@ Parser.prototype.readExpression = function(){
  * @since 0.37.0
  */
 Parser.prototype.readAttributeValue = function(){
-	return (this.peek() == '#' ? this.read() : "") + this.readSingleExpression(false) || this.error("Could not find a valid expression for the attribute's value.");
+	return this.readSingleExpression(false) || this.error("Could not find a valid expression for the attribute's value.");
 };
 
 /**

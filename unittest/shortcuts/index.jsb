@@ -4,4 +4,4 @@ var action = **"";
 <:body +[[copy]]:prevent={ *action = "copy" } />
 <:body +[[paste]]:prevent={ *action = "paste" } />
 
-<p :body @text=*action />
+<p :body +text=*action />

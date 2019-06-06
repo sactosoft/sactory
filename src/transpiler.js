@@ -297,7 +297,7 @@ LogicParser.prototype.getLineText = function(){
 	}
 };
 
-LogicParser.prototype.parseLogic = function(expected, args){
+LogicParser.prototype.parseLogic = function(expected, type){
 	var line;
 	if(
 		this.parser.input.substr(this.parser.index, expected.length - 1) == expected.substr(1) && // when the expected keyword is found
@@ -307,34 +307,70 @@ LogicParser.prototype.parseLogic = function(expected, args){
 		this.parser.index += expected.length - 1;
 		this.trimEnd();
 		this.addCurrent();
-		var statement = Polyfill.startsWith.call(expected, "else") ? this.popped.pop() : {
-			startIndex: this.source.length,
-			observables: [],
-			end: ""
-		};
-		if(args) {
-			var skipped = this.parser.skipImpl({});
-			if(this.parser.peek() != '(') this.parser.error("Expected '(' after '" + expected + "'.");
-			var position = this.parser.position;
-			var parsed = this.transpiler.parseCode(this.parser.skipEnclosedContent(), this.parser);
-			Array.prototype.push.apply(statement.observables, parsed.observables);
-			if(expected == "foreach") {
-				var parser = new Parser(parsed.source.slice(1, -1), position);
-				parser.options = {comments: true, strings: true, regexp: true};
-				var expr = parser.readExpression();
-				parser.expectSequence("as ");
-				this.add(expr + skipped + ".forEach(function(" + parser.input.substr(parser.index) + ")");
-				statement.end = ")";
-			} else {
-				this.add(expected + skipped + parsed.source);
-			}
+		if(type === 0) {
+			// variable
+			var semicolon = this.parser.find([';'], true, {comments: true, strings: false});
+			this.add(expected + semicolon.pre + semicolon.match);
 		} else {
-			this.add(expected);
+			// statement
+			var statement = Polyfill.startsWith.call(expected, "else") ? this.popped.pop() : {
+				startIndex: this.source.length,
+				observables: [],
+				end: ""
+			};
+			if(type === 1) {
+				var transpiler = this.transpiler;
+				function reparse(source, parser) {
+					var parsed = transpiler.parseCode(source, parser);
+					Array.prototype.push.apply(statement.observables, parsed.observables);
+					return parsed.source;
+				}
+				// with condition
+				var skipped = this.parser.skipImpl({});
+				if(this.parser.peek() != '(') this.parser.error("Expected '(' after '" + expected + "'.");
+				var position = this.parser.position;
+				var source = reparse(this.parser.skipEnclosedContent(), this.parser);
+				var reverse = expected == "foreach_reverse";
+				if(reverse || expected == "foreach") {
+					var parser = new Parser(source.slice(1, -1), position);
+					parser.options = {comments: true, strings: true, regexp: true};
+					skipped += parser.skipImpl({comments: true, strings: false});
+					var expr, from, to;
+					// `from` and `to` need to be reparsed searching for observables as `from` and `to`
+					// are only keywords in this specific context
+					if(Polyfill.startsWith.call(parser.input.substr(parser.index), "from ")) {
+						parser.index += 5;
+						from = reparse(parser.readExpression());
+						parser.expectSequence("to ");
+						to = reparse(parser.readExpression());
+					} else if(Polyfill.startsWith.call(parser.input.substr(parser.index), "to ")) {
+						parser.index += 3;
+						from = "0";
+						to = reparse(parser.readExpression());
+					} else {
+						expr = parser.readExpression();
+					}
+					parser.expectSequence("as ");
+					var rest = parser.input.substr(parser.index);
+					if(expr) {
+						this.add(expr + skipped + (reverse ? ".slice(0).reverse()" : "") + ".forEach(function(" + rest + ")");
+						statement.end = ")";
+					} else {
+						this.add("for(var " + rest + "=" + from + ";" + rest + (reverse ? ">" : "<") + to + ";" + rest + (reverse ? "--" : "++") + "){!function(" + rest + ")");
+						statement.end = "(" + rest + ")}";
+					}
+				} else {
+					this.add(expected + skipped + source);
+				}
+			} else {
+				// without condition
+				this.add(expected);
+			}
+			var skipped = this.parser.skipImpl({});
+			if(!(statement.inline = (this.parser.peek() != '{'))) skipped += this.parser.read();
+			this.add(skipped);
+			this.statements.push(statement);
 		}
-		var skipped = this.parser.skipImpl({});
-		if(!(statement.inline = (this.parser.peek() != '{'))) skipped += this.parser.read();
-		this.add(skipped);
-		this.statements.push(statement);
 		return true;
 	} else {
 		if(line && line.slice(-1) == '\\') {
@@ -346,20 +382,29 @@ LogicParser.prototype.parseLogic = function(expected, args){
 };
 
 LogicParser.prototype.parse = function(handle, eof){
-	var result = this.parser.find(['$', '<', 'i', 'e', 'f', 'w', '}', '\n'], false, true);
+	var result = this.parser.find(['$', '<', 'v', 'c', 'l', 'i', 'e', 'f', 'w', '}', '\n'], false, true);
 	this.pushText(result.pre);
 	switch(result.match) {
+		case 'c':
+			if(!this.parseLogic("const", 0)) this.pushText('c');
+			break;
+		case 'l':
+			if(!this.parseLogic("let", 0)) this.pushText('l');
+			break;
+		case 'v':
+			if(!this.parseLogic("var", 0)) this.pushText('v');
+			break;
 		case 'i':
-			if(!this.parseLogic("if", true)) this.pushText('i');
+			if(!this.parseLogic("if", 1)) this.pushText('i');
 			break;
 		case 'e':
-			if(!this.parseLogic("else if", true) && !this.parseLogic("else", false)) this.pushText('e');
+			if(!this.parseLogic("else if", 1) && !this.parseLogic("else", 2)) this.pushText('e');
 			break;
 		case 'f':
-			if(!this.parseLogic("foreach", true) && !this.parseLogic("for", true)) this.pushText('f');
+			if(!this.parseLogic("foreach_reverse", 1) && !this.parseLogic("foreach", 1) && !this.parseLogic("for", 1)) this.pushText('f');
 			break;
 		case 'w':
-			if(!this.parseLogic("while", true)) this.pushText('w');
+			if(!this.parseLogic("while", 1)) this.pushText('w');
 			break;
 		case '}':
 			if(result.pre.slice(-1) == '\\') {
@@ -482,7 +527,7 @@ JavascriptParser.prototype.next = function(match){
 							}.bind(this);
 							switch(match[1]) {
 								case "subscribe":
-									add(true, "subscribe", this.bind + ", ");
+									add(true, this.transpiler.feature("subscribe"), this.bind + ", ");
 									break;
 								case "watch":
 									// new observable
@@ -499,13 +544,13 @@ JavascriptParser.prototype.next = function(match){
 									this.parentheses.push(false);
 									break;
 								case "widgets.add":
-									add(true, "defineWidget");
+									add(true, this.transpiler.feature("defineWidget"));
 									break;
 								case "widgets.remove":
-									add(true, "undefineWidget");
+									add(true, this.transpiler.feature("undefineWidget"));
 									break;
 								case "widgets.names":
-									add(true, "getWidgetsNames");
+									add(true, this.transpiler.feature("getWidgetsNames"));
 									break;
 								case "render":
 									add(false, "render", this.transpiler.slotsRegistry + ", " + this.element + ", " + this.bind + ", " + this.anchor + ", ");
@@ -590,6 +635,8 @@ JavascriptParser.prototype.next = function(match){
 				var id = this.transpiler.nextId();
 				this.add(name + ".snapped(" + id + ")");
 				this.snaps.push(name + ".snap(" + id + ")");
+				this.parser.last = ')';
+				this.parser.lastIndex = this.parser.index;
 			} else {
 				// xor operator
 				this.add('^');

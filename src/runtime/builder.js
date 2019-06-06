@@ -459,11 +459,9 @@ Builder.prototype.removeClassName = function(className){
 /**
  * @since 0.63.0
  */
-Builder.prototype[Builder.TYPE_PROP] = function(name, value, bind, anchor){
+Builder.prototype[Builder.TYPE_PROP] = function(name, value, bind){
 	switch(name) {
 		default: return this.prop(name, value, bind);
-		case "text": return this.text(value, bind, anchor);
-		case "html": return this.html(value, bind, anchor);
 		case "visible": return this.visible(value, false, bind);
 		case "hidden": return this.visible(value, true, bind);
 		case "enabled":
@@ -492,32 +490,36 @@ Builder.prototype[Builder.TYPE_TWOWAY] = function(name, value, bind){
 /**
  * @since 0.69.0
  */
-Builder.prototype[Builder.TYPE_ADD] = function(name, value, bind){
-	if(name == "class") {
-		var builder = this;
-		if(SactoryObservable.isObservable(value)) {
-			var lastValue = value.value || "";
-			this.subscribe(bind, value.subscribe(function(newValue, oldValue){
-				builder.removeClassName(oldValue || "");
-				builder.addClassName(lastValue = (newValue || ""));
-			}));
-			this.addClassName(lastValue);
-			if(bind) {
-				bind.addRollback(function(){
-					builder.removeClassName(lastValue);
-				});
+Builder.prototype[Builder.TYPE_ADD] = function(name, value, bind, anchor){
+	switch(name) {
+		case "text": return this.text(value, bind, anchor);
+		case "html": return this.html(value, bind, anchor);
+		case "class":
+			var builder = this;
+			if(SactoryObservable.isObservable(value)) {
+				var lastValue = value.value || "";
+				this.subscribe(bind, value.subscribe(function(newValue, oldValue){
+					builder.removeClassName(oldValue || "");
+					builder.addClassName(lastValue = (newValue || ""));
+				}));
+				this.addClassName(lastValue);
+				if(bind) {
+					bind.addRollback(function(){
+						builder.removeClassName(lastValue);
+					});
+				}
+			} else {
+				if(!value) value = "";
+				this.addClassName(value);
+				if(bind) {
+					bind.addRollback(function(){
+						builder.removeClassName(value);
+					});
+				}
 			}
-		} else {
-			if(!value) value = "";
-			this.addClassName(value);
-			if(bind) {
-				bind.addRollback(function(){
-					builder.removeClassName(value);
-				});
-			}
-		}
-	} else {
-		this.event(name, SactoryObservable.unobserve(value), bind);
+			break;
+		default:
+			this.event(name, SactoryObservable.unobserve(value), bind);
 	}
 };
 

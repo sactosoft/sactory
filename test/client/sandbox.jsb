@@ -248,59 +248,61 @@ window.onload = function(){
 		}
 	</style>
 	
-	<:body +class=*alignment +class=(*result.errors.length && "has-errors") +class=(*result.warnings.length && "has-warnings")>
+	<:body +class=*alignment +class=(*result.errors.length && "has-errors") +class=(*result.warnings.length && "has-warnings") #html :logic :trimmed>
 
 		<section class="top">
 			<section class="filename">
 				if(hash) {
-					<span @text=hash.name />
+					<span +text=hash.name />
 				} else {
 					<input *value=*file />
 					if(window.localStorage) {
 						<select *value=*file>
-							Object.keys(window.localStorage).sort().forEach(function(key){
+							foreach(Object.keys(window.localStorage).sort() as key) {
 								if(key.substr(0, 8) == "storage.") {
 									var value = key.substr(8);
-									<option value=value @text=value @selected=(value == ^file) />
+									<option value=value +text=value @selected=(value == ^file) />
 								}
-							});
+							}
 						</select>
 					}
 				}
-				Object.keys(*content.show).forEach(function(type){
+				foreach(Object.keys(*content.show) as type) {
 					<label style="margin-left:12px">
-						//<input type="checkbox" style="vertical-align:middle" *checked=*content.show[type] />
+						<!--<input type="checkbox" style="vertical-align:middle" *checked=*content.show[type] />-->
 						<input type="checkbox" style="vertical-align:middle" @checked=*content.show[type] +change={ *content.show[type] = this.checked } />
-						@text = type.toUpperCase();
+						${type.toUpperCase()}
 					</label>
-				});
-				var github = <a href="https://github.com/sactory/sactory" target="_blank" @hidden=true />
-				<span style="float:right;font-weight:bold;color:darkviolet;cursor:pointer" @text=("Sactory v" + Sactory.VERSION) +click={ github.click() } />
+				}
+				<a id="github" href="https://github.com/sactory/sactory" target="_blank" @hidden=true />
+				<span style="float:right;font-weight:bold;color:darkviolet;cursor:pointer" +text=("Sactory v" + Sactory.VERSION) +click={ this.previousElementSibling.click() } />
 			</section>
 			<section class="input">
-				["js", "html", "css"].forEach(function(type){
+				foreach(["js", "html", "css"] as type) {
 					<:bind-if :condition={ *content.show[type] } :change={ !!document.getElementById(type) != newValue.show[type] }>
 						<div id=type class="editor">
-							var textarea = <textarea @value=*content.content[type] />;
-							// init the next tick so everything is already appended to the DOM
-							setTimeout(function(){
-								inputs[type] = CodeMirror.fromTextArea(textarea, {
-									lineNumbers: true,
-									indentWithTabs: true,
-									smartIndent: false,
-									lineWrapping: true,
-									mode: type == "js" ? "javascript" : (type == "html" ? "htmlmixed" : "css")
-								});
-								<{textarea.nextElementSibling} +[[save]]:prevent=save />
-							}, 0);
+							<#code>
+								var textarea = <textarea @value=*content.content[type] />;
+								// init the next tick so everything is already appended to the DOM
+								setTimeout(function(){
+									inputs[type] = CodeMirror.fromTextArea(textarea, {
+										lineNumbers: true,
+										indentWithTabs: true,
+										smartIndent: false,
+										lineWrapping: true,
+										mode: type == "js" ? "javascript" : (type == "html" ? "htmlmixed" : "css")
+									});
+									<{textarea.nextElementSibling} +[[save]]:prevent=save />
+								}, 0);
+							</#code>
 							<select class="mode" @value=*content.mode[type] +change={ *content.mode[type] = this.value }>
-								modes[type].forEach(function(m){
-									<option value=m @text=m @selected=(^content.mode[type] == m) />
-								});
+								foreach(modes[type] as m) {
+									<option value=m +text=m @selected=(^content.mode[type] == m) />
+								}
 							</select>
 						</div>
 					</:bind-if>
-				});
+				}
 			</section>
 		</section>
 
@@ -308,14 +310,14 @@ window.onload = function(){
 
 			<nav>
 				<div style="margin:8px 0 10px">
-					Object.keys(tabs).forEach(function(key){
-						<span class="item" +class=key @text=tabs[key] +class=(*tab == key ? "active" : "") +click={ *tab = key } />
-					});
+					foreach(Object.keys(tabs) as key) {
+						<span class="item" +class=key +text=tabs[key] +class=(*tab == key ? "active" : "") +click={ *tab = key } />
+					}
 				</div>
 			</nav>
 
 			<section @visible=(*tab == "output") :append>
-				<:bind-if :condition={ !*result.error } >
+				<:bind-if :condition={ !*result.error } #code>
 					var container = <iframe style="width:100%;height:100%;border:none" />
 					window.sandbox = container.contentWindow;
 					<{container.contentWindow.document.head}>
@@ -340,11 +342,11 @@ window.onload = function(){
 				<textarea class="text" readonly @value=(*result.warnings ? *result.warnings.join('\n') : "") />
 			</section>
 
-			<:bind-if :condition={ *tab == "code" }>
+			if(*tab == "code") {
 				<section>
-					["js", "html", "css"].forEach(function(type){
+					foreach(["js", "html", "css"] as type) {
 						<:bind-if :condition={ *content.show[type] } :change={ !!@.querySelector("#output-" + type) != newValue.show[type] }>
-							<div id=("output-" + type) class="editor">
+							<div id=("output-" + type) class="editor" #code>
 								var textarea = <textarea @value=(*result[type] || "") />;
 								// init the next tick so everything is already appended to the DOM
 								setTimeout(function(){
@@ -357,9 +359,9 @@ window.onload = function(){
 								}, 0);
 							</div>
 						</:bind-if>
-					});
+					}
 				</section>
-			</:bind-if>
+			}
 
 			<section @visible=(*tab == "info")>
 				<textarea class="text" readonly @value=(*result.errors.length ? "" : JSON.stringify(*result.info, null, 4)) />
