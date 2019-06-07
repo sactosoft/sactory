@@ -325,7 +325,7 @@ Builder.prototype.event = function(name, value, bind){
 									}
 								}
 							}
-							ret = ret.replace(/-/g, "");
+							if(ret != '-') ret = ret.replace(/-/g, "");
 							return function(event){
 								return event.key.toLowerCase() == ret;
 							};

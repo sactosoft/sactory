@@ -397,12 +397,12 @@ Parser.prototype.readVarName = function(force){
  * @since 0.13.0
  */
 Parser.prototype.readTagName = function(force){
-	return this.readImpl(/^(([#*]?[a-zA-Z0-9:-]+)|@)/, force, function(){ return "Could not find a valid tag name."; });
+	return this.readImpl(/^(#[a-z]+|[a-zA-Z0-9:-]+|@)/, force, function(){ return "Could not find a valid tag name."; });
 };
 
 /**
  * Reads the prefix of an attribute name.
- * @returns A prefix or an empty string.
+ * @returns A prefix or false if none was specified.
  * @since 0.68.0
  */
 Parser.prototype.readAttributePrefix = function(){
@@ -419,7 +419,7 @@ Parser.prototype.readAttributePrefix = function(){
 			remove: '-'
 		}[match[2]];
 	} else {
-		return "";
+		return false;
 	}
 };
 

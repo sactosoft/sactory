@@ -1165,7 +1165,6 @@ Transpiler.prototype.open = function(){
 		var computed = false;
 		var selector, originalTagName, tagName = "";
 		var selectorAll = false;
-		var noWidget = false;
 		var slotName;
 		this.updateTemplateLiteralParser();
 		if(selector = this.parser.readQueryExpr()) {
@@ -1181,7 +1180,6 @@ Transpiler.prototype.open = function(){
 				tagName = this.parseCode(tagName).source;
 				computed = true;
 			} else {
-				noWidget = !!this.parser.readIf('*');
 				originalTagName = tagName = this.parser.readTagName(true);
 				var column = tagName.indexOf(':');
 				if(column > 0) {
@@ -1205,38 +1203,62 @@ Transpiler.prototype.open = function(){
 				sattributes.push(expr);
 				skip(true);
 			} else {
-				var names = [];
+				var add = false;
 				var value = "\"\"";
-				if(next == '{') {
-					this.parser.index++;
+				var attrs = [this.parseAttributeName(true, false)];
+				if(this.parser.readIf('{')) {
+					var newAttrs = [];
 					do {
 						skip();
-						names.push(this.parseAttributeName());
+						for(var i in attrs) {
+							newAttrs.push(this.parseAttributeName(true, true, attrs[i]));
+						}
 						skip();
 					} while((next = this.parser.read()) == ',');
-					if(next != '}') this.parser.error("Expected '}' after attribute names list.");
-				} else {
-					names.push(this.parseAttributeName());
+					if(next != '}') this.parser.error("Expected '}' after interpolated attributes list.");
+					attrs = newAttrs;
+					var afterAttr = this.parseAttributeName(false, false);
+					if(afterAttr.parts.length) {
+						attrs.forEach(function(attr){
+							if(afterAttr.computed) attr.computed = true;
+							afterAttr.parts.forEach(function(part){
+								attr.parts.push(Polyfill.assign({}, part));
+							});
+						});
+					}
 				}
-				var add = false;
+				// convert attribute names and prefixes
+				attrs.forEach(function(attr){
+					if(attr.prefix === false) attr.prefix = "";
+					if(attr.computed) {
+						attr.parts.forEach(function(part){
+							if(part.computed) part.name = '(' + part.name + ')';
+							else part.name = JSON.stringify(part.name);
+						});
+						attr.name = attr.parts.map(function(part){ return part.name; }).join('+');
+					} else {
+						attr.name = attr.parts.map(function(part){ return part.name }).join("");
+					}
+				});
+				// read value
 				skip(true);
 				if(this.parser.peek() == '=') {
 					this.parser.index++;
 					skip();
 					this.parser.parseTemplateLiteral = null;
-					var prefix = names[0].prefix;
-					for(var i=1; i<names.length; i++) {
-						if(names[i].prefix != prefix) {
+					var prefix = attrs[0].prefix;
+					for(var i=1; i<attrs.length; i++) {
+						if(attrs[i].prefix != prefix) {
 							prefix = null;
 							break;
 						}
 					}
-					var name = names.length == 1 ? names[0].name : "";
+					var name = attrs.length == 1 ? attrs[0].name : "";
 					value = this.parser.readAttributeValue();
 					if(value.charAt(0) == '#') value = this.runtime + ".functions." + value.substr(1) + "()";
-					if(names.every(function(a){ return a.prefix == '@' || a.prefix == '+'; })) {
+					if(attrs.every(function(a){ return a.prefix == '@' || a.prefix == '+'; })) {
 						value = this.wrapFunction(value, false, "event");
-					} else if(names.length == 1 && names[0].prefix == ':') {
+					} else if(attrs.length == 1 && attrs[0].prefix == ':') {
 						if(name == "change") {
 							value = this.wrapFunction(value, true, "oldValue", "newValue");
 						} else if(name == "condition" || name == "if") {
@@ -1248,40 +1270,36 @@ Transpiler.prototype.open = function(){
 					value = this.parseCode(value).toValue();
 					skip(true);
 				}
-				for(var i in names) {
-					var attr = names[i];
+				for(var i in attrs) {
+					var attr = attrs[i];
 					var add = attr.computed;
 					attr.value = value;
-					if(!add) {
-						if(attr.prefix == "@" && !attr.name) {
-							parent = value;
-						} else if(attr.prefix == "@" && attr.name == "anchor") {
-							createAnchor = value;
-						} else if(attr.prefix == '#') {
-							newMode = modeNames[attr.name];
-						} else if(attr.prefix == ':') {
-							var prev;
-							if(Polyfill.startsWith.call(attr.name, "next:") || (prev = Polyfill.startsWith.call(attr.name, "prev:"))) {
-								attr.prefix = "";
-								attr.name = attr.name.substr(5);
-								attr.value = this.runtime + "." + this.feature((prev ? "prev" : "next") + "Id") + "()";
-								if(value != "\"\"") attr.value = value + " + " + attr.value;
-								add = true;
-							} else if(iattributes.hasOwnProperty(attr.name)) {
-								if(iattributes[attr.name] instanceof Array) {
-									iattributes[attr.name].push(value);
-								} else {
-									var a = iattributes[attr.name] = [iattributes[attr.name], value];
-									a.toString = function(){
-										return '[' + this.join(", ") + ']';
-									};
-								}
+					if(attr.prefix == '#') {
+						if(attr.computed) this.parser.error("Mode attributes cannot be computed.");
+						newMode = modeNames[attr.name];
+					} else if(attr.prefix == ':') {
+						if(attr.computed) this.parser.error("Compile-time attributes cannot be computed.");
+						var prev;
+						if(Polyfill.startsWith.call(attr.name, "next:") || (prev = Polyfill.startsWith.call(attr.name, "prev:"))) {
+							attr.prefix = "";
+							attr.name = attr.name.substr(5);
+							attr.value = this.runtime + "." + this.feature((prev ? "prev" : "next") + "Id") + "()";
+							if(value != "\"\"") attr.value = value + " + " + attr.value;
+							add = true;
+						} else if(iattributes.hasOwnProperty(attr.name)) {
+							if(iattributes[attr.name] instanceof Array) {
+								iattributes[attr.name].push(value);
 							} else {
-								iattributes[attr.name] = value;
+								var a = iattributes[attr.name] = [iattributes[attr.name], value];
+								a.toString = function(){
+									return '[' + this.join(", ") + ']';
+								};
 							}
 						} else {
-							add = true;
+							iattributes[attr.name] = value;
 						}
+					} else {
+						add = true;
 					}
 					if(add) {
 						rattributes.push(attr);
@@ -1369,12 +1387,13 @@ Transpiler.prototype.open = function(){
 		else if(iattributes.html) parent = "document.documentElement";
 		else if(iattributes.head) parent = "document.head";
 		else if(iattributes.body) parent = "document.body";
+		else if(iattributes.parent) parent = iattributes.parent;
 		function createExprOptions() {
 			var ret = "";
 			currentInheritance = "";
 			var inheritance = this.inheritance.join("");
 			var args = !!(inheritance || rattributes.length);
-			if(noWidget) ret += "widget:false,";
+			if(computed) ret += "widget:false,";
 			if(currentNamespace) ret += "namespace:" + currentNamespace + ",";
 			if(args) ret += "args:[";
 			if(inheritance) ret += inheritance;
@@ -1549,21 +1568,33 @@ Transpiler.prototype.open = function(){
 /**
  * @since 0.60.0
  */
-Transpiler.prototype.parseAttributeName = function(){
-	var attr = {};
-	attr.inherit = !!this.parser.readIf('~');
-	attr.optional = !!this.parser.readIf('?');
-	attr.prefix = this.parser.readAttributePrefix();
-	if(attr.prefix == ':' && (attr.inherit || attr.optional)) this.parser.error("Compile-time attributes cannot be inherited nor optional.");
-	if(attr.prefix == '#' && (attr.inherit || attr.optional)) this.parser.error("Mode attributes cannot be inherited nor optional.");
-	attr.computed = false;
-	var parts = [];
-	var required = attr.prefix != '@' && attr.prefix != '$';
+Transpiler.prototype.parseAttributeName = function(prefixes, req, from){
+	var attr;
+	if(from) {
+		attr = Polyfill.assign({}, from);
+		attr.parts = [];
+		from.parts.forEach(function(part){
+			attr.parts.push(Polyfill.assign({}, part));
+		});
+	} else {
+		attr = {
+			prefix: false,
+			computed: false,
+			parts: []
+		};
+	}
+	if(prefixes) {
+		if(this.parser.readIf('~')) attr.inherit = true;
+		if(this.parser.readIf('?')) attr.optional = true;
+		var prefix = this.parser.readAttributePrefix();
+		if(prefix !== false) attr.prefix = prefix;
+		if(attr.prefix == ':' && (attr.inherit || attr.optional)) this.parser.error("Compile-time attributes cannot be inherited nor optional.");
+		if(attr.prefix == '#' && (attr.inherit || attr.optional)) this.parser.error("Mode attributes cannot be inherited nor optional.");
+	}
+	var required = req && attr.prefix != '$';
 	while(true) {
 		var ret = {};
 		if(ret.name = this.parser.readComputedExpr()) {
-			if(attr.prefix == ':') this.parser.error("Compile-time attribute names cannot be computed.");
-			if(attr.prefix == '#') this.parser.error("Mode attribute names cannot be computed.");
 			attr.computed = ret.computed = true;
 			if(ret.name.charAt(0) == '[' && ret.name.charAt(ret.name.length - 1) == ']') {
 				ret.name = this.runtime + ".config.shortcut." + ret.name.slice(1, -1);
@@ -1573,17 +1604,8 @@ Transpiler.prototype.parseAttributeName = function(){
 		} else if(!(ret.name = this.parser.readAttributeName(required))) {
 			break;
 		}
-		parts.push(ret);
+		attr.parts.push(ret);
 		required = false;
-	}
-	if(attr.computed) {
-		parts.forEach(function(part){
-			if(part.computed) part.name = '(' + part.name + ')';
-			else part.name = JSON.stringify(part.name);
-		});
-		attr.name = parts.map(function(part){ return part.name; }).join('+');
-	} else {
-		if(parts.length) attr.name = parts[0].name;
 	}
 	return attr;
 };
