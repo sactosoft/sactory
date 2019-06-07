@@ -354,10 +354,10 @@ LogicParser.prototype.parseLogic = function(expected, type){
 					var rest = parser.input.substr(parser.index);
 					if(expr) {
 						this.add(expr + skipped + (reverse ? ".slice(0).reverse()" : "") + ".forEach(function(" + rest + ")");
-						statement.end = ")";
+						statement.end = ".bind(this))";
 					} else {
 						this.add("for(var " + rest + "=" + from + ";" + rest + (reverse ? ">" : "<") + to + ";" + rest + (reverse ? "--" : "++") + "){!function(" + rest + ")");
-						statement.end = "(" + rest + ")}";
+						statement.end = ".call(this, " + rest + ")}";
 					}
 				} else {
 					this.add(expected + skipped + source);
@@ -554,6 +554,14 @@ JavascriptParser.prototype.next = function(match){
 									break;
 								case "render":
 									add(false, "render", this.transpiler.slotsRegistry + ", " + this.element + ", " + this.bind + ", " + this.anchor + ", ");
+									break;
+								case "rgb":
+								case "rgba":
+								case "lighten":
+								case "darken":
+								case "grayscale":
+								case "mix":
+									add(true, this.transpiler.feature("css." + match[1]));
 									break;
 								default:
 									this.add('@');
@@ -864,19 +872,20 @@ CSSBParser.prototype.beforeremove = function(){
 
 CSSBParser.createExprImpl = function(expr, info, transpiler){
 	var parser = new Parser(expr);
+	parser.options = {comments: true, strings: true};
 	function skip() {
 		var skipped = parser.skipImpl({strings: false, comments: true});
 		if(skipped) info.computed += skipped;
 	}
 	function readSign() {
-		var result = parser.readImpl(/^(\+\+?|\-\-?)/, false);
+		var result = parser.readImpl(/^[+-]{1,2}/, false);
 		if(result) {
 			info.computed += result;
 			info.op++;
 		}
 	}
 	function readOp() {
-		var result = parser.readImpl(/^(\+|\-|\*|\/|\%)/, false);
+		var result = parser.readImpl(/^[+*\/%-]/, false);
 		if(result) {
 			info.computed += result;
 			info.op++;
@@ -893,7 +902,7 @@ CSSBParser.createExprImpl = function(expr, info, transpiler){
 			info.computed += ')';
 		} else {
 			var v = parser.readSingleExpression(true);
-			if(/^[a-zA-Z_\$]/.exec(v)) {
+			if(/^[a-zA-Z_$]/.exec(v)) {
 				// it's a variable
 				info.is = true;
 				info.computed += info.runtime + "." + transpiler.feature("unit") + "(" + info.param + "," + v + ")";
@@ -919,16 +928,7 @@ CSSBParser.createExpr = function(expr, transpiler){
 		is: false,
 		op: 0
 	};
-	var ret = "";
-	var parser = new Parser(CSSBParser.createExprImpl(expr, info, transpiler) && info.is && info.op && (info.computed + ")})({})") || expr);
-	parser.options = {comments: true, strings: true};
-	while(true) {
-		var result = parser.find(['#'], false, true);
-		ret += result.pre;
-		if(result.match) ret += transpiler.runtime + ".css.";
-		else break;
-	}
-	return ret;
+	return CSSBParser.createExprImpl(expr, info, transpiler) && info.is && info.op && (info.computed + ")})({})") || expr;
 };
 
 // export parsers

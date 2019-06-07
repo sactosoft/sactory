@@ -130,7 +130,7 @@ Builder.prototype.twoway = function(name, value, bind){
 };
 	
 Builder.prototype.attrImpl = function(name, value){
-	if(value === undefined || value === null) {
+	if(value === null) {
 		this.element.removeAttribute(name);
 	} else {
 		this.element.setAttribute(name, value);
@@ -527,11 +527,11 @@ Builder.prototype[Builder.TYPE_ADD] = function(name, value, bind, anchor){
  * @since 0.69.0
  */
 Builder.prototype[Builder.TYPE_REMOVE] = function(name, value, bind){
-	//TODO observable and bind functionalities
+	value = SactoryObservable.unobserve(value);
 	if(name == "class") {
 		this.removeClassName(value || "");
 	} else {
-		this.element.removeEventListener(name, SactoryObservable.unobserve(value));
+		this.element.removeEventListener(name, value);
 	}
 };
 	
