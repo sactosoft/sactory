@@ -13,7 +13,7 @@ window.addEventListener("load", function(){
 		// bind omitting :to (it's taken from :condition)
 		var timeout;
 		<:bind-if :condition={ !!*tagName; } :cleanup={ clearTimeout(timeout); }>
-			@text = "Tag name is now " + *tagName;
+			<@ +text=("Tag name is now " + *tagName) />
 			var spread = {
 				"@style.border": "3px dashed red",
 				"@style.margin": "8px"
@@ -29,7 +29,7 @@ window.addEventListener("load", function(){
 						font-weight: bold;
 					}
 				</style>
-				<p style="background:purple;color:white" @text=*tagName />
+				<p style="background:purple;color:white" +text=*tagName />
 			</>
 			<:bind :to=*tagName>
 				var visible = **true;
@@ -37,10 +37,10 @@ window.addEventListener("load", function(){
 					Show:
 					<input type="checkbox" *checked=visible />
 				</label>
-				<button +click={ console.log("Button clicked") } @text="Button" @visible=*visible />
+				<button +click={ console.log("Button clicked") } +text="Button" @visible=*visible />
 				<!-- a comment -->
 				timeout = setTimeout(function(){
-					<button @text="Another button" />
+					<button +text="Another button" />
 				}, 5000);
 			</:bind>
 		</:bind-if>
@@ -65,7 +65,7 @@ window.addEventListener("load", function(){
 
 	<div>
 		var duration = **30;
-		var durationInSeconds = **(*duration + 's');
+		var durationInSeconds = @watch(*duration + 's');
 		<input type="number" step="1" *value=*duration />
 		<style :scoped>
 			.cookie {
@@ -90,9 +90,9 @@ window.addEventListener("load", function(){
 				}
 			}
 		</style>
-		var cookies = **(0, "cookies");
+		var cookies = @watch(0, "cookies");
 		<div class="cookie"><img src="http://icons.iconarchive.com/icons/oxygen-icons.org/oxygen/256/Apps-preferences-web-browser-cookies-icon.png" +click={ *cookies++ } /></div>
-		<p @text=`Clicked ${*cookies} cookies! (${*cookies - ***cookies} in this session)` />
+		<p +text=`Clicked ${*cookies} cookies! (${*cookies - ^cookies} in this session)` />
 	</div>
 
 	<svg>
@@ -115,7 +115,7 @@ window.addEventListener("load", function(){
 	}
 
 	var langValue = **"en";
-	var lang = **(langs[*langValue] || langs.en);
+	var lang = @watch(langs[*langValue] || langs.en);
 
 	<p #html>Language is set to <input style="width:32px" *value=*langValue />, ${*lang.welcome}! ${*lang.goodbye}.</p>
 
@@ -123,7 +123,7 @@ window.addEventListener("load", function(){
 
 	<input type="checkbox" *checked=*test />
 
-	<#hl>
+	<#html :logic :trimmed>
 		Some text
 		<p>Some tag</p>
 		if(*test) {
@@ -136,7 +136,7 @@ window.addEventListener("load", function(){
 		for(var i=1; i<=6; i++) {
 			<['h' + i]>The big brown fox jumps over the lazy dog</>
 		}
-	</#hl>
+	</#html>
 
 	var html = **"";
 

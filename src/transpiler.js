@@ -182,7 +182,7 @@ function TextParser(transpiler, parser, source, attributes) {
 TextParser.prototype = Object.create(SourceParser.prototype);
 
 TextParser.prototype.addText = function(expr){
-	this.add(this.element + ".__builder.text(" + expr + ", " + this.bind + ", " + this.anchor + ");");
+	this.add(this.runtime + "." + this.transpiler.feature("text") + "(" + this.element + ", " + this.bind + ", " + this.anchor + ", " + expr + ");");
 };
 
 TextParser.prototype.addCurrent = function(){
@@ -366,9 +366,8 @@ LogicParser.prototype.parseLogic = function(expected, type){
 				// without condition
 				this.add(expected);
 			}
-			var skipped = this.parser.skipImpl({});
-			if(!(statement.inline = (this.parser.peek() != '{'))) skipped += this.parser.read();
-			this.add(skipped);
+			this.add(this.parser.skipImpl({}));
+			if(!(statement.inline = !this.parser.readIf('{'))) this.add('{');
 			this.statements.push(statement);
 		}
 		return true;
@@ -382,7 +381,7 @@ LogicParser.prototype.parseLogic = function(expected, type){
 };
 
 LogicParser.prototype.parse = function(handle, eof){
-	var result = this.parser.find(['$', '<', 'v', 'c', 'l', 'i', 'e', 'f', 'w', '}', '\n'], false, true);
+	var result = this.parser.find(['$', '<', 'v', 'c', 'l', 'i', 'e', 'f', 'w', '}', '\n'], false, false);
 	this.pushText(result.pre);
 	switch(result.match) {
 		case 'c':
@@ -441,12 +440,13 @@ LogicParser.prototype.parse = function(handle, eof){
 LogicParser.prototype.end = function(){
 	var sorted = [];
 	this.popped.forEach(function(popped){
-		if(popped.observables) {
+		//if(popped.observables) {
+			var bind = !!popped.observables.length;
 			sorted.push(
-				{index: popped.startIndex, start: true, observables: popped.observables},
-				{index: popped.endIndex, start: false, end: popped.end}
+				{index: popped.startIndex, start: true, bind: bind, observables: popped.observables},
+				{index: popped.endIndex, start: false, bind: bind, end: popped.end}
 			);
-		}
+		//}
 	});
 	sorted.sort(function(a, b){
 		return a.index - b.index;
@@ -454,8 +454,8 @@ LogicParser.prototype.end = function(){
 	var shift = 0;
 	for(var i=0; i<sorted.length; i++) {
 		var popped = sorted[i];
-		this.source.splice(popped.index + shift++, 0, popped.start ? this.runtime + "." + this.transpiler.feature("bind") + "(this, " + this.element + ", " + this.bind + ", " + this.anchor +
-			", [" + uniq(popped.observables).join(", ") + "], 0, 0, function(" + this.element + ", " + this.bind + ", " + this.anchor + "){" : popped.end + "});");
+		this.source.splice(popped.index + shift++, 0, popped.start ? (popped.bind ? this.runtime + "." + this.transpiler.feature("bind") + "(this, " + this.element + ", " + this.bind + ", " + this.anchor +
+			", [" + uniq(popped.observables).join(", ") + "], 0, 0, function(" + this.element + ", " + this.bind + ", " + this.anchor + "){" : "") : popped.end + (popped.bind ? "})" : "") + ";");
 	}
 };
 
@@ -543,6 +543,14 @@ JavascriptParser.prototype.next = function(match){
 									}
 									this.parentheses.push(false);
 									break;
+								case "text":
+								case "html":
+									this.parser.index += match[0].length - 1;
+									this.add(this.runtime + "." + this.transpiler.feature(match[1]) + "(" + this.element + ", " + this.bind + ", " + this.anchor + ", " + this.parseCodeToValue("skipEnclosedContent") + ")");
+									break;
+								case "on":
+									add(true, this.transpiler.feature("on"), this.element + ", " + this.bind + ", ");
+									break;
 								case "widgets.add":
 									add(true, this.transpiler.feature("defineWidget"));
 									break;
@@ -554,6 +562,9 @@ JavascriptParser.prototype.next = function(match){
 									break;
 								case "render":
 									add(false, "render", this.transpiler.slotsRegistry + ", " + this.element + ", " + this.bind + ", " + this.anchor + ", ");
+									break;
+								case "slot":
+									//TODO
 									break;
 								case "rgb":
 								case "rgba":
@@ -706,7 +717,7 @@ function CSSBParser(transpiler, parser, source, attributes) {
 	this.observables = [];
 	this.snaps = [];
 	this.expr = [];
-	this.scopes = ["__root"];
+	this.scopes = [transpiler.nextVarName()];
 	this.scope = !!attributes.scoped;
 }
 
@@ -720,7 +731,7 @@ CSSBParser.prototype.parseCodeImpl = function(source){
 };
 
 CSSBParser.prototype.addScope = function(selector){
-	var scope = "__" + this.transpiler.nextId();
+	var scope = this.transpiler.nextVarName();
 	this.add("var " + scope + "=" + this.runtime + "." + this.transpiler.feature("select") + "(" + this.scopes[this.scopes.length - 1] + "," + selector + ");");
 	this.scopes.push(scope);
 };
@@ -920,7 +931,7 @@ CSSBParser.createExprImpl = function(expr, info, transpiler){
 };
 
 CSSBParser.createExpr = function(expr, transpiler){
-	var param = "__" + transpiler.nextId();
+	var param = transpiler.nextVarName();
 	var info = {
 		runtime: transpiler.runtime,
 		param: param,
@@ -964,6 +975,20 @@ function Transpiler(options) {
  */
 Transpiler.prototype.nextId = function(){
 	return this.count++;
+};
+
+/**
+ * @since 0.78.0
+ */
+Transpiler.prototype.nextVarName = function(){
+	var num = this.count++ % 1521;
+	var s = "";
+	while(num > 0) {
+		var t = (num - 1) % 39;
+		s = String.fromCharCode(0x561 + t) + s;
+		num = Math.floor((num - t) / 39);
+	}
+	return s;
 };
 
 /**
@@ -1325,17 +1350,8 @@ Transpiler.prototype.open = function(){
 					if(alias.hasOwnProperty("mode")) newMode = alias.mode;
 				} else {
 					switch(name) {
-						case "window":
-						case "document":
-							element = name;
-							create = append = false;
-							break;
 						case "root":
 							element = element + ".getRootNode({composed: " + (iattributes.composed || "false") + "})";
-							create = append = false;
-							break;
-						case "html":
-							element = "document.documentElement";
 							create = append = false;
 							break;
 						case "head":
@@ -1381,10 +1397,7 @@ Transpiler.prototype.open = function(){
 			}
 		}
 
-		if(iattributes.window) parent = "window";
-		else if(iattributes.document) parent = "document";
-		else if(iattributes.root) parent = parent + ".getRootNode({composed: " + (iattributes.composed || "false") + "})";
-		else if(iattributes.html) parent = "document.documentElement";
+		if(iattributes.root) parent = parent + ".getRootNode({composed: " + (iattributes.composed || "false") + "})";
 		else if(iattributes.head) parent = "document.head";
 		else if(iattributes.body) parent = "document.body";
 		else if(iattributes.parent) parent = iattributes.parent;
@@ -1461,35 +1474,34 @@ Transpiler.prototype.open = function(){
 		if(bindType || tagName == ":bind") {
 			this.source.push(this.runtime + "." + this.feature("bind" + bindType) + "(" + ["this", parent, this.bind, this.anchor, iattributes.to || "0", iattributes.change || "0", iattributes.cleanup || "0"].join(", ") +
 				(bindType == "If" ? ", " + iattributes.condition : "") + ", function(" + [this.element, this.bind, this.anchor, iattributes.as || this.value, iattributes.index || this.index, iattributes.array || this.array].join(", ") + "){");
-			if(!create) before = false;
 			currentClosing.unshift("})");
 		}
 
 		if(slotName) {
-			before.push([this.feature("updateSlot"), this.bind, this.anchor, createExprOptions.call(this), this.slots, '"' + tagName + '"', '"' + slotName + '"', "function(" + this.element + ", " + this.anchor + "){"]);
+			before.push([this.feature("updateSlot"), createExprOptions.call(this), this.slots, '"' + tagName + '"', '"' + slotName + '"', "function(" + this.element + ", " + this.anchor + "){"]);
 			call = update = append = false;
 			beforeClosing += "}";
 		} else if(iattributes.clone) {
-			before.push([this.feature("clone"), element, this.bind, this.anchor, createExprOptions.call(this)]);
+			before.push([this.feature("clone"), createExprOptions.call(this)]);
 		} else if(create) {
 			update = false;
 			if(tagName == ":shadow") {
-				before.push(["set", "element", parent + ".attachShadow({mode: " + (iattributes.mode || "\"open\"") + "})"]);
+				element = parent + ".attachShadow({mode: " + (iattributes.mode || "\"open\"") + "})";
 				append = false;
 			} else {
 				if(tagName == ":fragment") {
-					before.push(["set", "element", "document.createDocumentFragment()"]);
+					element = "document.createDocumentFragment()";
 				} else {
-					before.push([this.feature("create"), this.bind, this.anchor, computed ? tagName : '"' + tagName + '"', createExprOptions.call(this)]);
+					before.push([this.feature("create"), computed ? tagName : '"' + tagName + '"', createExprOptions.call(this)]);
 				}
 			}
 		}
 		if(update) {
-			before.push([this.feature("update"), element, this.bind, this.anchor, createExprOptions.call(this)]);
+			before.push([this.feature("update"), createExprOptions.call(this)]);
 		}
 		if(append) {
 			var hooks = newMode !== undefined ? [this.currentMode.parser.afterappend() || 0, this.currentMode.parser.beforeremove() || 0] : [];
-			before.push([this.feature("append"), parent, this.bind, this.anchor].concat(hooks));
+			before.push([this.feature("append"), parent, this.anchor].concat(hooks));
 		}
 		if(next == '/') {
 			this.parser.expect('>');
@@ -1502,27 +1514,19 @@ Transpiler.prototype.open = function(){
 				// move the append function in the 'after' calls, so the DOM tree won't be re-rendered too much
 				after.push(before.pop());
 			}
-			if(before.length == 0) {
-				// nothing was created or updated, the container must be set manually
-				before.push(["set", "container", parent]);
-			}
 			before.push([this.feature("body"), this.slots, "function(" + this.element + ", " + this.anchor + ", " + this.slots + "){"]);
 			beforeClosing += "}";
 		}
 
 		var runtime = this.runtime;
 		function mapNext(a) {
-			if(a[0] == "set") {
-				return ".set(" + JSON.stringify(a[1]) + ", " + a[2] + ")";
-			} else {
-				return ".next(" + runtime + "." + a[0] + ", " + a.slice(1).join(", ") + ")";
-			}
+			return ", [" + runtime + "." + a.join(", ") + "]";
 		}
 
 		if(before) {
 			if(before.length) {
-				this.source.push(this.runtime + (conditional ? "." + this.feature("cond") : "") + "(this)" + before.map(mapNext).join("").slice(0, -1));
-				currentClosing.unshift(")" + after.map(mapNext).join("") + ".close()");
+				this.source.push(this.runtime + "(this, " + element + ", " + this.bind + ", " + this.anchor + before.map(mapNext).join("").slice(0, -1));
+				currentClosing.unshift("]" + after.map(mapNext).join("") + ")");
 			} else {
 				this.source.push(parent);
 			}
@@ -1622,7 +1626,7 @@ Transpiler.prototype.feature = function(name){
  * @since 0.62.0
  */
 Transpiler.prototype.nextVar = function(){
-	return "$_" + this.count++ % 100;
+	return String.fromCharCode(0x561 + this.count++ % 39);
 };
 
 /**

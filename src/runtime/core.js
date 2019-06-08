@@ -11,76 +11,22 @@ Object.defineProperty(Node, "ANCHOR_NODE", {
 /**
  * @since 0.60.0
  */
-function Sactory(context) {
-	return new Pipe(context);
+function Sactory(context, element, bind, anchor) {
+	var context = {
+		context: context,
+		element: element,
+		container: element,
+		bind: bind,
+		anchor: anchor
+	};
+	for(var i=4; i<arguments.length; i++) {
+		var args = arguments[i];
+		var fun = args[0];
+		args[0] = context;
+		fun.apply(null, args);
+	}
+	return context.element;
 }
-
-/**
- * @since 0.72.0
- */
-Sactory.cond = function(context){
-	return new ConditionalPipe(context);
-};
-
-/**
- * @class
- * @since 0.60.0
- */
-function Pipe(context) {
-	this.context = context;
-	this.result = {};
-	this.ret = undefined;
-}
-
-/**
- * @since 0.60.0
- */
-Pipe.prototype.next = function(fun){
-	var args = Array.prototype.slice.call(arguments, 1);
-	args.unshift(this.result);
-	this.ret = fun.apply(this.context, args);
-	return this;
-};
-
-/**
- * @since 0.60.0
- */
-Pipe.prototype.set = function(key, value){
-	this.result[key] = value;
-	return this;
-};
-
-/**
- * @since 0.60.0
- */
-Pipe.prototype.close = function(){
-	return this.ret;
-};
-
-/**
- * @since 0.72.0
- */
-function ConditionalPipe(context) {
-	Pipe.call(this, context);
-	this.prev = true;
-}
-
-ConditionalPipe.prototype = Object.create(Pipe.prototype);
-
-ConditionalPipe.prototype.nextIf = function(condition){
-	if(this.prev = condition) Pipe.prototype.apply(this, Array.prototype.slice.call(arguments, 1));
-	return this;
-};
-
-ConditionalPipe.prototype.nextElseIf = function(condition){
-	if(this.prev = !this.prev && condition) Pipe.prototype.apply(this, Array.prototype.slice.call(arguments, 1));
-	return this;
-};
-
-ConditionalPipe.prototype.nextElse = function(){
-	if(!this.prev) Pipe.prototype.apply(this, arguments);
-	return this;
-};
 
 // constants
 
@@ -177,7 +123,7 @@ Sactory.attr = function(type, name, value, optional){
 /**
  * @since 0.60.0
  */
-Sactory.update = function(result, element, bind, anchor, options){
+Sactory.update = function(context, options){
 	
 	var args = [];
 	var widgetArgs = {};
@@ -204,64 +150,58 @@ Sactory.update = function(result, element, bind, anchor, options){
 			Polyfill.assign(elementArgs, spread);
 		});
 	}*/
-
-	var container, slots;
 	
-	if(!element) {
+	if(!context.element) {
 		var widget = widgets[options.tagName];
 		if(widget && options.widget !== false) {
-			slots = new SlotRegistry(options.tagName);
+			context.slots = new SlotRegistry(options.tagName);
 			var instance = new widget(widgetArgs, options.namespace);
-			element = instance.render(slots, null, bind, null);
-			element.__widget = element["@@"] = instance;
-			if(typeof instance.onappend == "function") element.__builder.event("append", function(){ instance.onappend(element); }, bind);
-			if(typeof instance.onremove == "function") element.__builder.event("remove", function(){ instance.onremove(element); }, bind);
-			if(slots.slots.__container) {
-				container = slots.slots.__container.element;
-				result.anchor = slots.slots.__container.anchor;
+			context.element = instance.render(context.slots, null, context.bind, null);
+			context.element.__widget = context.element["@@"] = instance;
+			if(typeof instance.onappend == "function") context.element.__builder.event("append", function(){ instance.onappend(context.element); }, context.bind);
+			if(typeof instance.onremove == "function") context.element.__builder.event("remove", function(){ instance.onremove(context.element); }, context.bind);
+			if(context.slots.slots.__container) {
+				context.container = context.slots.slots.__container.element;
+				context.anchor = context.slots.slots.__container.anchor;
+			} else {
+				context.container = context.element;
 			}
 		} else if(options.namespace) {
-			element = document.createElementNS(NAMESPACES[options.namespace] || options.namespace, options.tagName);
+			context.element = context.container = document.createElementNS(NAMESPACES[options.namespace] || options.namespace, options.tagName);
 		} else {
-			element = document.createElement(options.tagName);
+			context.element = context.container = document.createElement(options.tagName);
 		}
 	}
-
-	if(!container) container = element;
 	
 	args.forEach(function(arg){
-		element.__builder[arg.type](arg.name, arg.value, bind, anchor);
+		context.element.__builder[arg.type](arg.name, arg.value, context.bind, context.anchor);
 	});
-	
-	Polyfill.assign(result, {
-		element: element,
-		container: container,
-		slots: slots
-	});
-
-	return element;
 	
 };
 
 /**
  * @since 0.60.0
  */
-Sactory.create = function(result, bind, anchor, tagName, options){
+Sactory.create = function(context, tagName, options){
 	options.tagName = tagName;
-	return Sactory.update(result, null, bind, anchor, options);
+	context.element = context.container = null; // delete parents
+	context.anchor = null; // invalidate the current anchor so the children will not use it
+	Sactory.update(context, options);
 };
 
 /**
  * @since 0.71.0
  */
-Sactory.clone = function(result, element, bind, anchor, options){
-	return Sactory.update(result, element.cloneNode(true), bind, anchor, options);
+Sactory.clone = function(context, options){
+	context.element = context.container = context.element.cloneNode(true);
+	context.anchor = null; // invalidate the current anchor so the children will not use it
+	Sactory.update(context, options);
 };
 
 /**
  * @since 0.73.0
  */
-Sactory.updateSlot = function(result, bind, anchor, options, slots, widget, slotName, fun){
+Sactory.updateSlot = function(context, options, slots, widget, slotName, fun){
 	var componentSlot = (function(){
 		if(slots) {
 			for(var i=slots.length-1; i>=0; i--) {
@@ -274,44 +214,69 @@ Sactory.updateSlot = function(result, bind, anchor, options, slots, widget, slot
 		}
 	})();
 	if(!componentSlot) throw new Error("Could not find slot '" + slotName + "' for widget '" + widget + "'.");
-	var element = componentSlot.element && Sactory.update(result, componentSlot.element, bind, anchor, options);
-	fun.call(this, element || componentSlot.anchor.parentNode, componentSlot.anchor);
-	return element;
-};
-
-/**
- * @since 0.60.0
- */
-Sactory.body = function(result, slots, fun){
-	if(result.slots && Object.keys(result.slots.slots).length) {
-		slots = (slots || []).concat(result.slots);
+	if(componentSlot.element) {
+		context.element = componentSlot.element;
+		Sactory.update(context, options);
 	}
-	var element = result.container || result.element;
-	fun.call(this, result.anchor ? result.anchor.parentNode : element, result.anchor, slots);
-	return element;
+	fun.call(context.context, context.element || componentSlot.anchor.parentNode, componentSlot.anchor);
 };
 
 /**
  * @since 0.60.0
  */
-Sactory.append = function(result, parent, bind, anchor, afterappend, beforeremove){
+Sactory.body = function(context, slots, fun){
+	if(context.slots && Object.keys(context.slots.slots).length) {
+		slots = (slots || []).concat(context.slots);
+	}
+	fun.call(context.context, context.container, context.anchor, slots);
+};
+
+/**
+ * @since 0.60.0
+ */
+Sactory.append = function(context, parent, anchor, afterappend, beforeremove){
 	if(parent && parent.nodeType || typeof parent == "string" && (parent = document.querySelector(parent))) {
-		if(result.anchor) anchor = result.anchor;
-		if(anchor && anchor.parentNode === parent) parent.insertBefore(result.element, anchor);
-		else parent.appendChild(result.element);
-		if(afterappend) afterappend.call(result.element);
-		if(result.element.dispatchEvent) result.element.dispatchEvent(new Event("append"));
-		if(beforeremove) result.element.__builder.event("remove", beforeremove, bind);
-		if(bind) bind.appendChild(result.element);
+		if(anchor && anchor.parentNode === parent) parent.insertBefore(context.element, anchor);
+		else parent.appendChild(context.element);
+		if(afterappend) afterappend.call(context.element);
+		if(context.element.dispatchEvent) context.element.dispatchEvent(new Event("append"));
+		if(beforeremove) context.element.__builder.event("remove", beforeremove, context.bind);
+		if(context.bind) context.bind.appendChild(context.element);
 	}
-	return result.element;
+};
+
+/**
+ * @since 0.78.0
+ */
+Sactory.text = function(element, bind, anchor, text){
+	if(element) element.__builder.text(text, bind, anchor);
+};
+
+/**
+ * @since 0.78.0
+ */
+Sactory.html = function(element, bind, anchor, html){
+	if(element) element.__builder.html(html, bind, anchor);
 };
 
 /**
  * @since 0.40.0
  */
 Sactory.comment = function(element, bind, anchor, comment){
-	return Sactory.append({element: document.createComment(comment)}, element, bind, anchor);
+	var ret = document.createComment(comment);
+	Sactory.append({element: ret, bind: bind}, element, anchor);
+	return ret;
+};
+
+/**
+ * @since 0.78.0
+ */
+Sactory.on = function(element, bind, name, value){
+	if(arguments.length == 5) {
+		arguments[2].__builder.event(arguments[3], arguments[4], bind);
+	} else {
+		element.__builder.event(name, value, bind);
+	}
 };
 
 /**

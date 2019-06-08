@@ -55,7 +55,7 @@ window.onload = function(){
 	var content = hash ? @watch(hash.content) : @watch(defaultContent, *key);
 	var showCount = @watch(*content.show.js + *content.show.html + *content.show.css);
 	var result = @watch((function(){
-		var result = {source: "", before: "", after: "", info: {time: 0, tags: {}, templates: {}, features: []}, errors: [], warnings: []};
+		var result = {source: "", before: "", after: "", info: {time: 0, tags: {}, features: []}, errors: [], warnings: []};
 		var transpiler = new Transpiler({namespace: file.value});
 		function transpile(type, before, after) {
 			before = before ? before + '<!COMMENT start>' : "";
@@ -66,9 +66,6 @@ window.onload = function(){
 				result.info.variables = info.variables;
 				for(var tag in info.tags) {
 					result.info.tags[tag] = (result.info.tags[tag] || 0) + info.tags[tag];
-				}
-				for(var template in info.templates) {
-					result.info.templates[template] = (result.info.templates[template] || 0) + info.templates[template];
 				}
 				info.features.forEach(function(feature){
 					if(result.info.features.indexOf(feature) == -1) result.info.features.push(feature);
@@ -82,6 +79,7 @@ window.onload = function(){
 				result.source += info.source.contentOnly;
 				result.after = info.source.after;
 			} catch(e) {
+				console.error(e);
 				result.errors.push(e);
 			}
 		}

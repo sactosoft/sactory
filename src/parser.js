@@ -477,7 +477,7 @@ Parser.prototype.readSingleExpression = function(skip){
 	} else if(peek == '/') {
 		ret += this.skipRegExp();
 	} else {
-		ret += this.readImpl(/^(([a-zA-Z_$][a-zA-Z0-9_$]*)|([0-9]*\.?[0-9]+([eE][+-]?[0-9]+)?))/, false) || "";
+		ret += this.readImpl(/^(([a-zA-Z_$][a-zA-Z0-9_$]*)|0[box][0-9]+|([0-9]*\.?[0-9]+([eE][+-]?[0-9]+)?))/, false) || "";
 	}
 	while(!this.eof()) {
 		var before = {
