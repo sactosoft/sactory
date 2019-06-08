@@ -156,6 +156,62 @@ Builder.prototype.append = function(element, bind, anchor){
 	else this.element.appendChild(element);
 	if(bind) bind.appendChild(element);
 };
+
+/**
+ * @since 0.46.0
+ */
+Builder.prototype.visible = function(value, reversed, bind){
+	if(!hiddenAdded) {
+		hiddenAdded = true;
+		var style = document.createElement("style");
+		style.textContent = "." + hidden + "{display:none !important;}";
+		document.head.appendChild(style);
+	}
+	var builder = this;
+	function update(value) {
+		if(!!value ^ reversed) {
+			builder.removeClass(hidden);
+		} else {
+			builder.addClass(hidden);
+		}
+	}
+	if(SactoryObservable.isObservable(value)) {
+		this.subscribe(bind, SactoryObservable.observe(value, update));
+	} else {
+		update(value);
+	}
+};
+
+/**
+ * @since 0.79.0
+ */
+Builder.prototype.style = function(name, value, bind){
+	var node = document.createElement("style");
+	var className = SactoryConfig.config.prefix + Math.floor(Math.random() * 100000);
+	var wrap;
+	var dot = name.indexOf('.');
+	if(dot == -1) {
+		wrap = function(value){
+			return "." + className + name + "{" + value + "}";
+		};
+	} else {
+		var prop = name.substr(dot + 1);
+		name = name.substring(0, dot);
+		wrap = function(value){
+			return "." + className + name + "{" + prop + ":" + value + "}";
+		};
+	}
+	if(SactoryObservable.isObservable(value)) {
+		this.subscribe(SactoryObservable.observe(value, function(value){
+			node.textContent = wrap(value);
+		}));
+	} else {
+		node.textContent = wrap(value);
+	}
+	this["class"](className, bind);
+	document.head.appendChild(node);
+	if(bind) bind.appendChild(node);
+};
 	
 Builder.prototype.text = function(value, bind, anchor){
 	var textNode;
@@ -204,27 +260,30 @@ Builder.prototype.html = function(value, bind, anchor){
 };
 
 /**
- * @since 0.46.0
+ * @since 0.79.0
  */
-Builder.prototype.visible = function(value, reversed, bind){
-	if(!hiddenAdded) {
-		hiddenAdded = true;
-		var style = document.createElement("style");
-		style.textContent = "." + hidden + "{display:none !important;}";
-		document.head.appendChild(style);
-	}
+Builder.prototype["class"] = function(value, bind){
 	var builder = this;
-	function update(value) {
-		if(!!value ^ reversed) {
-			builder.removeClass(hidden);
-		} else {
-			builder.addClass(hidden);
-		}
-	}
 	if(SactoryObservable.isObservable(value)) {
-		this.subscribe(bind, SactoryObservable.observe(value, update));
+		var lastValue = value.value || "";
+		this.subscribe(bind, value.subscribe(function(newValue, oldValue){
+			builder.removeClassName(oldValue || "");
+			builder.addClassName(lastValue = (newValue || ""));
+		}));
+		this.addClassName(lastValue);
+		if(bind) {
+			bind.addRollback(function(){
+				builder.removeClassName(lastValue);
+			});
+		}
 	} else {
-		update(value);
+		if(!value) value = "";
+		this.addClassName(value);
+		if(bind) {
+			bind.addRollback(function(){
+				builder.removeClassName(value);
+			});
+		}
 	}
 };
 
@@ -461,7 +520,6 @@ Builder.prototype.removeClassName = function(className){
  */
 Builder.prototype[Builder.TYPE_PROP] = function(name, value, bind){
 	switch(name) {
-		default: return this.prop(name, value, bind);
 		case "visible": return this.visible(value, false, bind);
 		case "hidden": return this.visible(value, true, bind);
 		case "enabled":
@@ -469,6 +527,13 @@ Builder.prototype[Builder.TYPE_PROP] = function(name, value, bind){
 				this.prop("disabled", SactoryObservable.computedObservable(null, bind, [value], function(){ return !value.value; }), bind);
 			} else {
 				this.prop("disabled", !value, bind);
+			}
+			break;
+		default:
+			if(Polyfill.startsWith.call(name, "style:")) {
+				this.style(name.substr(5), value, bind);
+			} else {
+				this.prop(name, value, bind);
 			}
 	}
 };
@@ -494,32 +559,8 @@ Builder.prototype[Builder.TYPE_ADD] = function(name, value, bind, anchor){
 	switch(name) {
 		case "text": return this.text(value, bind, anchor);
 		case "html": return this.html(value, bind, anchor);
-		case "class":
-			var builder = this;
-			if(SactoryObservable.isObservable(value)) {
-				var lastValue = value.value || "";
-				this.subscribe(bind, value.subscribe(function(newValue, oldValue){
-					builder.removeClassName(oldValue || "");
-					builder.addClassName(lastValue = (newValue || ""));
-				}));
-				this.addClassName(lastValue);
-				if(bind) {
-					bind.addRollback(function(){
-						builder.removeClassName(lastValue);
-					});
-				}
-			} else {
-				if(!value) value = "";
-				this.addClassName(value);
-				if(bind) {
-					bind.addRollback(function(){
-						builder.removeClassName(value);
-					});
-				}
-			}
-			break;
-		default:
-			this.event(name, SactoryObservable.unobserve(value), bind);
+		case "class": return this["class"](value, bind);
+		default: this.event(name, SactoryObservable.unobserve(value), bind);
 	}
 };
 

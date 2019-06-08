@@ -513,70 +513,65 @@ JavascriptParser.prototype.next = function(match){
 					this.add(this.element);
 					if(skip) this.add(skip);
 				} else {
-					var match = this.parser.input.substr(this.parser.index).match(/^(?:((?:\.?[a-zA-Z0-9_$]+)+)(\s*)(?:(=(?!=))|(\()))/);
+					var match = this.parser.input.substr(this.parser.index).match(/^(?:((?:\.?[a-zA-Z0-9_$]+)+)(\s*)\()/);
 					if(match) {
-						if(match[3]) {
+						var add = function(runtime, fun, args){
 							this.parser.index += match[0].length;
-							this.add(this.element + skip + ".__builder" + this.parser.skipImpl({strings: false}) +
-								"[0](\"" + match[1] + "\"" + match[2] + ", " + this.parseCodeToValue("readExpression") + ", " + this.bind + ", " + this.anchor + ")");
-						} else {
-							var add = function(runtime, fun, args){
+							this.add((runtime ? this.runtime + "." : "") + skip + fun + match[2] + "(" + (args || ""));
+							this.parentheses.push(false);
+						}.bind(this);
+						switch(match[1]) {
+							case "subscribe":
+								add(true, this.transpiler.feature("subscribe"), this.bind + ", ");
+								break;
+							case "watch":
+								// new observable
 								this.parser.index += match[0].length;
-								this.add((runtime ? this.runtime + "." : "") + skip + fun + match[2] + "(" + (args || ""));
+								this.parser.parseTemplateLiteral = null;
+								var parsed = this.transpiler.parseCode(this.parser.readExpression());
+								this.transpiler.updateTemplateLiteralParser();
+								if(parsed.observables && parsed.observables.length) {
+									// computed
+									this.add(this.runtime + "." + this.transpiler.feature("computedObservable") + "(this, " + this.bind + ", " + parsed.toSpreadValue());
+								} else {
+									this.add(this.runtime + "." + this.transpiler.feature("observable") + "(" + parsed.source);
+								}
 								this.parentheses.push(false);
-							}.bind(this);
-							switch(match[1]) {
-								case "subscribe":
-									add(true, this.transpiler.feature("subscribe"), this.bind + ", ");
-									break;
-								case "watch":
-									// new observable
-									this.parser.index += match[0].length;
-									this.parser.parseTemplateLiteral = null;
-									var parsed = this.transpiler.parseCode(this.parser.readExpression());
-									this.transpiler.updateTemplateLiteralParser();
-									if(parsed.observables && parsed.observables.length) {
-										// computed
-										this.add(this.runtime + "." + this.transpiler.feature("computedObservable") + "(this, " + this.bind + ", " + parsed.toSpreadValue());
-									} else {
-										this.add(this.runtime + "." + this.transpiler.feature("observable") + "(" + parsed.source);
-									}
-									this.parentheses.push(false);
-									break;
-								case "text":
-								case "html":
-									this.parser.index += match[0].length - 1;
-									this.add(this.runtime + "." + this.transpiler.feature(match[1]) + "(" + this.element + ", " + this.bind + ", " + this.anchor + ", " + this.parseCodeToValue("skipEnclosedContent") + ")");
-									break;
-								case "on":
-									add(true, this.transpiler.feature("on"), this.element + ", " + this.bind + ", ");
-									break;
-								case "widgets.add":
-									add(true, this.transpiler.feature("defineWidget"));
-									break;
-								case "widgets.remove":
-									add(true, this.transpiler.feature("undefineWidget"));
-									break;
-								case "widgets.names":
-									add(true, this.transpiler.feature("getWidgetsNames"));
-									break;
-								case "render":
-									add(false, "render", this.transpiler.slotsRegistry + ", " + this.element + ", " + this.bind + ", " + this.anchor + ", ");
-									break;
-								case "slot":
-									//TODO
-									break;
-								case "rgb":
-								case "rgba":
-								case "lighten":
-								case "darken":
-								case "grayscale":
-								case "mix":
-									add(true, this.transpiler.feature("css." + match[1]));
-									break;
-								default:
-									this.add('@');
-							}
+								break;
+							case "text":
+							case "html":
+								this.parser.index += match[0].length - 1;
+								this.add(this.runtime + "." + this.transpiler.feature(match[1]) + "(" + this.element + ", " + this.bind + ", " + this.anchor + ", " + this.parseCodeToValue("skipEnclosedContent") + ")");
+								break;
+							case "on":
+								add(true, this.transpiler.feature("on"), this.element + ", " + this.bind + ", ");
+								break;
+							case "widgets.add":
+								add(true, this.transpiler.feature("defineWidget"));
+								break;
+							case "widgets.remove":
+								add(true, this.transpiler.feature("undefineWidget"));
+								break;
+							case "widgets.names":
+								add(true, this.transpiler.feature("getWidgetsNames"));
+								break;
+							case "render":
+								add(false, "render", this.transpiler.slotsRegistry + ", " + this.element + ", " + this.bind + ", " + this.anchor + ", ");
+								break;
+							case "slot":
+								add(false, this.transpiler.slotsRegistry + ".add", this.runtime + "." + this.transpiler.feature("createAnchor") + "(" + this.element + ", " + this.bind + ", " + this.anchor + "), ");
+								break;
+							case "rgb":
+							case "rgba":
+							case "lighten":
+							case "darken":
+							case "grayscale":
+							case "mix":
+								add(true, this.transpiler.feature("css." + match[1]));
+								break;
+							default:
+								this.add('@');
+						}
 							/*this.parser.index += match[0].length;
 							if(match[4]) {
 								this.add(this.runtime  + skip + ".subscribe" + match[11] + "(" + this.bind + ", ");
@@ -602,7 +597,6 @@ JavascriptParser.prototype.next = function(match){
 									this.parentheses.push(false);
 								}
 							}*/
-						}
 					} else {
 						this.add('@' + skip);
 					}
@@ -1372,9 +1366,8 @@ Transpiler.prototype.open = function(){
 			} else if(tagName.charAt(0) == '#') {
 				newMode = modeNames[tagName.substr(1)];
 				if(newMode !== undefined) create = update = append = false; // behave as a scope
-			} else if(tagName.charAt(0) == '@') {
+			} else if(tagName == '@') {
 				create = append = false;
-				tagName = tagName.substr(1);
 			} else {
 				if(tagName) {
 					if(this.tagNames.hasOwnProperty(tagName)) this.tagNames[tagName]++;
@@ -1441,95 +1434,98 @@ Transpiler.prototype.open = function(){
 			this.startMode(newMode, attributes);
 		}
 
-		if(selector) {
-			this.source.push(this.runtime + "." + this.feature("query") + "(this, " + (queryElement || parent) + ", " + parent + ", " + selector + ", " + selectorAll + ", function(" + this.element + ", " + this.parentElement + "){");
-			if(iattributes.adopt || iattributes.clone) {
-				parent = this.parentElement;
-				create = false;
-				update = append = true;
+		if(tagName.charAt(0) != '#') {
+
+			if(selector) {
+				this.source.push(this.runtime + "." + this.feature("query") + "(this, " + (queryElement || parent) + ", " + parent + ", " + selector + ", " + selectorAll + ", function(" + this.element + ", " + this.parentElement + "){");
+				if(iattributes.adopt || iattributes.clone) {
+					parent = this.parentElement;
+					create = false;
+					update = append = true;
+				}
+				currentClosing.unshift("})");
 			}
-			currentClosing.unshift("})");
-		}
-		if(iattributes.unique) {
-			this.source.push(this.runtime + "." + this.feature("unique") + "(this, " + this.nextId() + ", function(){return ");
-			currentClosing.unshift("})");
-		}
+			if(iattributes.unique) {
+				this.source.push(this.runtime + "." + this.feature("unique") + "(this, " + this.nextId() + ", function(){return ");
+				currentClosing.unshift("})");
+			}
 
-		var before = [], after = [];
-		var beforeClosing = "";
-		var call = true;
-		var inline = false;
-		var conditional = false;
+			var before = [], after = [];
+			var beforeClosing = "";
+			var call = true;
+			var inline = false;
 
-		var bindType = "";
-		if(tagName == ":bind-if" || tagName == ":if") bindType = "If";
-		else if(tagName == ":bind-each" || tagName == ":each") bindType = "Each";
-		else if(iattributes["if"]) {
-			bindType = "If";
-			iattributes.condition = iattributes["if"];
-		} else if(iattributes.each) {
-			bindType = "Each";
-			iattributes.to = iattributes.each;
-		}
-		if(bindType || tagName == ":bind") {
-			this.source.push(this.runtime + "." + this.feature("bind" + bindType) + "(" + ["this", parent, this.bind, this.anchor, iattributes.to || "0", iattributes.change || "0", iattributes.cleanup || "0"].join(", ") +
-				(bindType == "If" ? ", " + iattributes.condition : "") + ", function(" + [this.element, this.bind, this.anchor, iattributes.as || this.value, iattributes.index || this.index, iattributes.array || this.array].join(", ") + "){");
-			currentClosing.unshift("})");
-		}
+			var bindType = "";
+			if(tagName == ":bind-if" || tagName == ":if") bindType = "If";
+			else if(tagName == ":bind-each" || tagName == ":each") bindType = "Each";
+			else if(iattributes["if"]) {
+				bindType = "If";
+				iattributes.condition = iattributes["if"];
+			} else if(iattributes.each) {
+				bindType = "Each";
+				iattributes.to = iattributes.each;
+			}
+			if(bindType || tagName == ":bind") {
+				this.source.push(this.runtime + "." + this.feature("bind" + bindType) + "(" + ["this", parent, this.bind, this.anchor, iattributes.to || "0", iattributes.change || "0", iattributes.cleanup || "0"].join(", ") +
+					(bindType == "If" ? ", " + iattributes.condition : "") + ", function(" + [this.element, this.bind, this.anchor, iattributes.as || this.value, iattributes.index || this.index, iattributes.array || this.array].join(", ") + "){");
+				currentClosing.unshift("})");
+			}
 
-		if(slotName) {
-			before.push([this.feature("updateSlot"), createExprOptions.call(this), this.slots, '"' + tagName + '"', '"' + slotName + '"', "function(" + this.element + ", " + this.anchor + "){"]);
-			call = update = append = false;
-			beforeClosing += "}";
-		} else if(iattributes.clone) {
-			before.push([this.feature("clone"), createExprOptions.call(this)]);
-		} else if(create) {
-			update = false;
-			if(tagName == ":shadow") {
-				element = parent + ".attachShadow({mode: " + (iattributes.mode || "\"open\"") + "})";
-				append = false;
-			} else {
-				if(tagName == ":fragment") {
-					element = "document.createDocumentFragment()";
+			if(slotName) {
+				before.push([this.feature("updateSlot"), createExprOptions.call(this), this.slots, '"' + tagName + '"', '"' + slotName + '"', "function(" + this.element + ", " + this.anchor + "){"]);
+				call = update = append = false;
+				beforeClosing += "}";
+			} else if(iattributes.clone) {
+				before.push([this.feature("clone"), createExprOptions.call(this)]);
+			} else if(create) {
+				update = false;
+				if(tagName == ":shadow") {
+					element = parent + ".attachShadow({mode: " + (iattributes.mode || "\"open\"") + "})";
+					append = false;
 				} else {
-					before.push([this.feature("create"), computed ? tagName : '"' + tagName + '"', createExprOptions.call(this)]);
+					if(tagName == ":fragment") {
+						element = "document.createDocumentFragment()";
+					} else {
+						before.push([this.feature("create"), computed ? tagName : '"' + tagName + '"', createExprOptions.call(this)]);
+					}
 				}
 			}
-		}
-		if(update) {
-			before.push([this.feature("update"), createExprOptions.call(this)]);
-		}
-		if(append) {
-			var hooks = newMode !== undefined ? [this.currentMode.parser.afterappend() || 0, this.currentMode.parser.beforeremove() || 0] : [];
-			before.push([this.feature("append"), parent, this.anchor].concat(hooks));
-		}
-		if(next == '/') {
-			this.parser.expect('>');
-			inline = true;
-			call = false;
-		}
-		if(before && (call || iattributes.slot)) {
-			// create body
-			if(create && append && !iattributes.append) {
-				// move the append function in the 'after' calls, so the DOM tree won't be re-rendered too much
-				after.push(before.pop());
+			if(update) {
+				before.push([this.feature("update"), createExprOptions.call(this)]);
 			}
-			before.push([this.feature("body"), this.slots, "function(" + this.element + ", " + this.anchor + ", " + this.slots + "){"]);
-			beforeClosing += "}";
-		}
+			if(append) {
+				var hooks = newMode !== undefined ? [this.currentMode.parser.afterappend() || 0, this.currentMode.parser.beforeremove() || 0] : [];
+				before.push([this.feature("append"), parent, this.anchor].concat(hooks));
+			}
+			if(next == '/') {
+				this.parser.expect('>');
+				inline = true;
+				call = false;
+			}
+			if(before && (call || iattributes.slot)) {
+				// create body
+				if(create && append && !iattributes.append) {
+					// move the append function in the 'after' calls, so the DOM tree won't be re-rendered too much
+					after.push(before.pop());
+				}
+				before.push([this.feature("body"), this.slots, "function(" + this.element + ", " + this.anchor + ", " + this.slots + "){"]);
+				beforeClosing += "}";
+			}
 
-		var runtime = this.runtime;
-		function mapNext(a) {
-			return ", [" + runtime + "." + a.join(", ") + "]";
-		}
+			var runtime = this.runtime;
+			function mapNext(a) {
+				return ", [" + runtime + "." + a.join(", ") + "]";
+			}
 
-		if(before) {
 			if(before.length) {
 				this.source.push(this.runtime + "(this, " + element + ", " + this.bind + ", " + this.anchor + before.map(mapNext).join("").slice(0, -1));
 				currentClosing.unshift("]" + after.map(mapNext).join("") + ")");
 			} else {
 				this.source.push(parent);
 			}
+
+			currentClosing.unshift(beforeClosing);
+
 		}
 
 		if(iattributes.slot) {
@@ -1543,7 +1539,7 @@ Transpiler.prototype.open = function(){
 			}
 		}
 
-		currentClosing = beforeClosing + currentClosing.join("");
+		currentClosing = currentClosing.join("");
 
 		if(inline) {
 			if(newMode !== undefined) {

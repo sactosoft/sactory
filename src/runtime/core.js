@@ -135,7 +135,18 @@ Sactory.update = function(context, options){
 		options.args.forEach(function(arg){
 			if(arg.type == Builder.TYPE_WIDGET) {
 				if(arg.name.length) {
-					widgetArgs[arg.name] = arg.value;
+					var splitted = arg.name.split('.');
+					if(splitted.length > 1) {
+						var obj = widgetArgs;
+						for(var i=0; i<splitted.length-1; i++) {
+							var k = splitted[i];
+							if(typeof obj[k] != "object") obj[k] = {};
+							obj = obj[k];
+						}
+						obj[splitted[splitted.length - 1]] = arg.value;
+					} else {
+						widgetArgs[arg.name] = arg.value;
+					}
 				} else {
 					widgetArgs = arg.value;
 				}
@@ -218,7 +229,7 @@ Sactory.updateSlot = function(context, options, slots, widget, slotName, fun){
 		context.element = componentSlot.element;
 		Sactory.update(context, options);
 	}
-	fun.call(context.context, context.element || componentSlot.anchor.parentNode, componentSlot.anchor);
+	fun.call(context.context, componentSlot.anchor ? componentSlot.anchor.parentNode : context.element, componentSlot.anchor);
 };
 
 /**
