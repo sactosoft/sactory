@@ -502,7 +502,7 @@ JavascriptParser.prototype.next = function(match){
 		case '@':
 			if(this.parser.peek() == '@') {
 				this.parser.index++;
-				this.add((this.parser.last != '.' ? this.element + "." : "") + "__widget");
+				this.add((this.parser.last != '.' ? this.element + "." : "") + "__builder.widgets");
 				var skipped = this.parser.skipImpl({strings: false});
 				this.add(skipped);
 				if(/[a-zA-Z_$]/.test(this.parser.peek())) this.add(".");
@@ -1166,7 +1166,7 @@ Transpiler.prototype.open = function(){
 			if(required) requiredSkip = s;
 		}
 		var currentIndex = this.source.length;
-		var newMode = undefined;
+
 		var create = true; // whether a new element is being created
 		var update = true; // whether the element is being updated, only considered if create is false
 		var append = true; // whether the element should be appended to the current element after its creation
@@ -1177,11 +1177,13 @@ Transpiler.prototype.open = function(){
 		var iattributes = {}; // attributes used to give instructions to the transpiler, not used at runtime
 		var rattributes = []; // attributes used at runtime to modify the element
 		var sattributes = []; // variable name of the attributes passed using the spread syntax
+		var newMode = undefined;
 		var currentNamespace = this.namespaces[this.namespaces.length - 1];
 		var currentInheritance = null;
 		var currentClosing = [];
 		var createAnchor;
 		var computed = false;
+		var optional = false;
 		var selector, originalTagName, tagName = "";
 		var selectorAll = false;
 		var slotName;
@@ -1195,6 +1197,7 @@ Transpiler.prototype.open = function(){
 			}
 			create = append = false;
 		} else {
+			optional = !!this.parser.readIf('?');
 			if(tagName = this.parser.readComputedExpr()) {
 				tagName = this.parseCode(tagName).source;
 				computed = true;
@@ -1406,7 +1409,7 @@ Transpiler.prototype.open = function(){
 			for(var i=0; i<rattributes.length; i++) {
 				var attribute = rattributes[i];
 				var expr = this.runtime + "." + this.feature("attr") + "(" +
-					{'@': 0, '': 1, '*': 2, '+': 3, '-': 4, '$': 5}[attribute.prefix] + ", " +
+					{'@': 0, '': 1, '*': 2, '+': 3, '-': 4, '$': 5, '$$': 6}[attribute.prefix] + ", " +
 					(attribute.computed ? attribute.name : '"' + (attribute.name || "") + '"') +
 					(attribute.value != "\"\"" || attribute.optional ? ", " + attribute.value : "") +
 					(attribute.optional ? ", 1" : "") + "),";
@@ -1477,6 +1480,9 @@ Transpiler.prototype.open = function(){
 				beforeClosing += "}";
 			} else if(iattributes.clone) {
 				before.push([this.feature("clone"), createExprOptions.call(this)]);
+			} else if(optional) {
+				update = false;
+				before.push([this.feature("createOrUpdate"), element, computed ? tagName : '"' + tagName + '"', createExprOptions.call(this)]);
 			} else if(create) {
 				update = false;
 				if(tagName == ":shadow") {
@@ -1494,8 +1500,9 @@ Transpiler.prototype.open = function(){
 				before.push([this.feature("update"), createExprOptions.call(this)]);
 			}
 			if(append) {
-				var hooks = newMode !== undefined ? [this.currentMode.parser.afterappend() || 0, this.currentMode.parser.beforeremove() || 0] : [];
-				before.push([this.feature("append"), parent, this.anchor].concat(hooks));
+				var append = [this.feature("append"), parent, this.anchor].concat(newMode !== undefined ? [this.currentMode.parser.afterappend() || 0, this.currentMode.parser.beforeremove() || 0] : []);
+				if(optional) append[0] = "[" + element + " ? \"" + this.feature("noop") + "\" : \"append\"]";
+				before.push(append);
 			}
 			if(next == '/') {
 				this.parser.expect('>');
@@ -1514,7 +1521,7 @@ Transpiler.prototype.open = function(){
 
 			var runtime = this.runtime;
 			function mapNext(a) {
-				return ", [" + runtime + "." + a.join(", ") + "]";
+				return ", [" + runtime + (a[0].charAt(0) != "[" ? "." : "") + a.join(", ") + "]";
 			}
 
 			if(before.length) {

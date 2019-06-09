@@ -100,6 +100,11 @@ SlotRegistry.prototype.add = function(anchor, name, element){
 // init global functions used at runtime
 
 /**
+ * @since 0.80.0
+ */
+Sactory.noop = function(){};
+
+/**
  * @since 0.32.0
  */
 Sactory.check = function(major, minor, patch){
@@ -127,28 +132,44 @@ Sactory.update = function(context, options){
 	
 	var args = [];
 	var widgetArgs = {};
+	var widgetExt = {};
+
 	if(options.args) {
 		// filter out optional arguments
 		options.args = options.args.filter(function(a){
 			return !a.optional || a.value !== undefined;
 		});
 		options.args.forEach(function(arg){
-			if(arg.type == Builder.TYPE_WIDGET) {
-				if(arg.name.length) {
-					var splitted = arg.name.split('.');
-					if(splitted.length > 1) {
-						var obj = widgetArgs;
-						for(var i=0; i<splitted.length-1; i++) {
-							var k = splitted[i];
-							if(typeof obj[k] != "object") obj[k] = {};
-							obj = obj[k];
-						}
-						obj[splitted[splitted.length - 1]] = arg.value;
+			var ext = arg.type == Builder.TYPE_EXTEND_WIDGET;
+			if(ext || arg.type == Builder.TYPE_WIDGET) {
+				var obj;
+				if(ext) {
+					var col = arg.name.indexOf(':');
+					if(col == -1) {
+						widgetExt[arg.name] = arg.value;
+						return;
 					} else {
-						widgetArgs[arg.name] = arg.value;
+						obj = widgetExt[arg.name.substring(0, col)] = {};
+						arg.name = arg.name.substr(col + 1);
 					}
 				} else {
-					widgetArgs = arg.value;
+					if(arg.name.length) {
+						obj = widgetArgs;
+					} else {
+						widgetArgs = arg.value;
+						return;
+					}
+				}
+				var splitted = arg.name.split('.');
+				if(splitted.length > 1) {
+					for(var i=0; i<splitted.length-1; i++) {
+						var k = splitted[i];
+						if(typeof obj[k] != "object") obj[k] = {};
+						obj = obj[k];
+					}
+					obj[splitted[splitted.length - 1]] = arg.value;
+				} else {
+					obj[arg.name] = arg.value;
 				}
 			} else {
 				args.push(arg);
@@ -168,7 +189,7 @@ Sactory.update = function(context, options){
 			context.slots = new SlotRegistry(options.tagName);
 			var instance = new widget(widgetArgs, options.namespace);
 			context.element = instance.render(context.slots, null, context.bind, null);
-			context.element.__widget = context.element["@@"] = instance;
+			context.element.__builder.widgets[options.tagName] = instance;
 			if(typeof instance.onappend == "function") context.element.__builder.event("append", function(){ instance.onappend(context.element); }, context.bind);
 			if(typeof instance.onremove == "function") context.element.__builder.event("remove", function(){ instance.onremove(context.element); }, context.bind);
 			if(context.slots.slots.__container) {
@@ -187,6 +208,13 @@ Sactory.update = function(context, options){
 	args.forEach(function(arg){
 		context.element.__builder[arg.type](arg.name, arg.value, context.bind, context.anchor);
 	});
+
+	for(var widgetName in widgetExt) {
+		if(!widgets.hasOwnProperty(widgetName)) throw new Error("Widget '" + widgetName + "' could not be found.");
+		var instance = new widgets[widgetName](widgetExt[widgetName]);
+		instance.render(new SlotRegistry(""), context.element, context.bind, null);
+		context.element.__builder.widgets[widgetName] = instance;
+	}
 	
 };
 
@@ -198,6 +226,17 @@ Sactory.create = function(context, tagName, options){
 	context.element = context.container = null; // delete parents
 	context.anchor = null; // invalidate the current anchor so the children will not use it
 	Sactory.update(context, options);
+};
+
+/**
+ * @since 0.80.0
+ */
+Sactory.createOrUpdate = function(context, condition, tagName, options){
+	if(condition) {
+		Sactory.update(context, options);
+	} else {
+		Sactory.create(context, tagName, options);
+	}
 };
 
 /**

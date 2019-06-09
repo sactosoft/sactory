@@ -1,0 +1,4 @@
+<div class="btn-group" style="margin:8px">
+	<button $type="primary">Primary Button</button>
+	<a href="#" $$button:type="info">Info link</a>
+</div>

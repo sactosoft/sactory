@@ -35,6 +35,9 @@ Builder.TYPE_TWOWAY = 2;
 Builder.TYPE_ADD = 3;
 Builder.TYPE_REMOVE = 4;
 Builder.TYPE_WIDGET = 5;
+Builder.TYPE_EXTEND_WIDGET = 6;
+
+Builder.prototype.widgets = {};
 
 /**
  * @since 0.42.0
