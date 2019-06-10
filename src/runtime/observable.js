@@ -15,32 +15,13 @@ function Observable(value) {
 
 Observable.prototype.replace = function(value){
 	if(value && typeof value == "object") {
-		if(value.constructor === Object) return this.observeChildren(value);
-		else if(value.constructor === Array || value.constructor === ObservableArray) return new ObservableArray(this, value);
+		if(value.constructor === Array || value.constructor === ObservableArray) return new ObservableArray(this, value);
 		else if(value.constructor === Date) return new ObservableDate(this, value);
 		else if(value.constructor === ObservableDate) return new ObservableDate(this, value.date);
 		else return value;
 	} else {
 		return value;
 	}
-};
-
-Observable.prototype.observeChildren = function(value){
-	var $this = this;
-	Object.keys(value).forEach(function(key){
-		var childValue = $this.replace(value[key]);
-		Object.defineProperty(value, key, {
-			enumerable: true,
-			get: function(){
-				return childValue;
-			},
-			set: function(newValue){
-				childValue = $this.replace(newValue);
-				$this.update();
-			}
-		});
-	});
-	return value;
 };
 
 /**
@@ -129,6 +110,55 @@ Object.defineProperty(Observable.prototype, "value", {
 		this.update(value);
 	}
 });
+
+/**
+ * @class
+ * @since 0.81.0
+ */
+function DeepObservable(value) {
+	Observable.call(this, value);
+}
+
+DeepObservable.prototype = Object.create(Observable.prototype);
+
+DeepObservable.prototype.replace = function(value){
+	return this.observeChildren(value, []);
+};
+
+DeepObservable.prototype.makeChild = function(value, path){
+	var ret = Object(value);
+	Object.defineProperty(ret, "__parentObservable", {
+		enumerable: false,
+		value: this
+	});
+	Object.defineProperty(ret, "__path", {
+		enumerable: false,
+		value: path
+	});
+	if(value && typeof value == "object") {
+		this.observeChildren(value, path);
+	}
+	return ret;
+};
+
+DeepObservable.prototype.observeChildren = function(value, path){
+	var $this = this;
+	Object.keys(value).forEach(function(key){
+		var currentPath = path.concat(key);
+		var childValue = $this.makeChild(value[key], currentPath);
+		Object.defineProperty(value, key, {
+			enumerable: true,
+			get: function(){
+				return childValue;
+			},
+			set: function(newValue){
+				childValue = $this.makeChild(newValue, currentPath);
+				$this.update();
+			}
+		});
+	});
+	return value;
+};
 
 /**
  * @class
@@ -272,18 +302,33 @@ StorageObservableProvider.prototype.set = function(value){
  * @since 0.40.0
  */
 Sactory.isObservable = function(value){
-	return value instanceof Observable;
+	return value instanceof Observable || value && value.__parentObservable;
 };
 
 /**
- * Subscribes to the observables and calls the callback with the current value.
+ * Subscribes to the observables and, optionally, calls the callback with the current value.
  * @returns The new subscription.
  * @since 0.40.0
  */
-Sactory.observe = function(value, callback, type){
-	var ret = value.subscribe(callback, type);
-	callback(value.value);
-	return ret;
+Sactory.observe = function(value, callback, type, subscribeOnly){
+	if(value.__parentObservable) {
+		function get() {
+			var obj = value.__parentObservable.value;
+			value.__path.forEach(function(p){
+				obj = obj[p];
+			});
+			return obj;
+		}
+		var ret = value.__parentObservable.subscribe(function(){
+			callback(get());
+		}, type);
+		if(!subscribeOnly) callback(get());
+		return ret;
+	} else {
+		var ret = value.subscribe(callback, type);
+		if(!subscribeOnly) callback(value.value);
+		return ret;
+	}
 };
 
 /**
@@ -323,10 +368,17 @@ Sactory.observable = function(value, storage, key){
 };
 
 /**
- * @since 0.48.0
+ * @since 0.81.0
  */
-Sactory.computedObservable = function(context, bind, observables, fun){
-	var ret = new Observable(fun.call(context));
+Sactory.observable.deep = function(value, storage, key){
+	return new DeepObservable(value);
+};
+
+/**
+ * @since 0.81.0
+ */
+Sactory.computedObservableImpl = function(T, context, bind, observables, fun){
+	var ret = new T(fun.call(context));
 	ret.computed = true;
 	ret.dependencies = observables;
 	ret.subscriptions = [];
@@ -341,6 +393,20 @@ Sactory.computedObservable = function(context, bind, observables, fun){
 		});
 	}
 	return ret;
+};
+
+/**
+ * @since 0.48.0
+ */
+Sactory.computedObservable = function(context, bind, observables, fun){
+	return Sactory.computedObservableImpl(Observable, context, bind, observables, fun);
+};
+
+/**
+ * @since 0.81.0
+ */
+Sactory.computedObservable.deep = function(context, bind, observables, fun){
+	return Sactory.computedObservableImpl(DeepObservable, context, bind, observables, fun);
 };
 
 module.exports = Sactory;

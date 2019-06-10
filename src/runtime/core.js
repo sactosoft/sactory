@@ -363,15 +363,6 @@ Sactory.query = function(context, doc, parent, selector, all, fun){
 	}
 };
 
-/**
- * @since 0.58.0
- */
-Sactory.subscribe = function(bind, observable, callback, type){
-	var subscription = observable.subscribe(callback, type);
-	if(bind) bind.subscribe(subscription);
-	return subscription;
-};
-
 var currentId;
 
 /**

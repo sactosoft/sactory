@@ -180,4 +180,13 @@ Sactory.bindEach = function(context, element, bind, anchor, target, change, clea
 	});
 };
 
+/**
+ * @since 0.58.0
+ */
+Sactory.subscribe = function(bind, observable, callback, type){
+	var subscription = SactoryObservable.observe(observable, callback, type, true);
+	if(bind) bind.subscribe(subscription);
+	return subscription;
+};
+
 module.exports = Sactory;

@@ -525,16 +525,18 @@ JavascriptParser.prototype.next = function(match){
 								add(true, this.transpiler.feature("subscribe"), this.bind + ", ");
 								break;
 							case "watch":
+							case "watch.deep":
 								// new observable
+								var type = match[1].substr(5);
 								this.parser.index += match[0].length;
 								this.parser.parseTemplateLiteral = null;
 								var parsed = this.transpiler.parseCode(this.parser.readExpression());
 								this.transpiler.updateTemplateLiteralParser();
 								if(parsed.observables && parsed.observables.length) {
 									// computed
-									this.add(this.runtime + "." + this.transpiler.feature("computedObservable") + "(this, " + this.bind + ", " + parsed.toSpreadValue());
+									this.add(this.runtime + "." + this.transpiler.feature("computedObservable") + type + "(this, " + this.bind + ", " + parsed.toSpreadValue());
 								} else {
-									this.add(this.runtime + "." + this.transpiler.feature("observable") + "(" + parsed.source);
+									this.add(this.runtime + "." + this.transpiler.feature("observable") + type + "(" + parsed.source);
 								}
 								this.parentheses.push(false);
 								break;
