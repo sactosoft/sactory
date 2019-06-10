@@ -118,18 +118,34 @@ Builder.prototype.twoway = function(name, value, bind){
 			}
 		}());
 	});
-	if(!events.length) events.push("input");
 	var type = 1048576 + Math.floor(Math.random() * 1048576);
+	this.prop(name, value, bind, type); // one way
+	if(value.computed && value.dependencies.length == 1 && value.dependencies[0].deep) {
+		// it's the child of a deep observable
+		var deep = value.dependencies[0];
+		var path = deep.lastPath.slice(0, -1);
+		var key = deep.lastPath[deep.lastPath.length - 1];
+		converters.push(function(newValue){
+			var obj = deep.value;
+			path.forEach(function(p){
+				obj = obj[p];
+			});
+			obj[key] = newValue;
+		});
+	} else {
+		converters.push(function(newValue){
+			value.update(newValue, type);
+		});
+	}
+	if(!events.length) events.push("input");
 	for(var i=0; i<events.length; i++) {
 		this.event(events[i], function(){
-			var parsed = this[name];
+			var newValue = this[name];
 			converters.forEach(function(converter){
-				parsed = converter.call(parsed, parsed);
+				newValue = converter.call(newValue, newValue);
 			});
-			value.update(parsed, type);
 		}, bind);
 	}
-	this.prop(name, value, bind, type);
 };
 	
 Builder.prototype.attrImpl = function(name, value){

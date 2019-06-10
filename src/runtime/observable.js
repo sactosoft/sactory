@@ -41,24 +41,6 @@ Observable.prototype.updateImpl = function(value, type){
 };
 
 /**
- * @since 0.66.0
- */
-Observable.prototype.merge = function(object){
-	this.mergeImpl(this.internal.value, object);
-	this.update();
-};
-
-Observable.prototype.mergeImpl = function(value, object){
-	for(var key in object) {
-		if(typeof object[key] =="object" && value[key] == "object") {
-			this.mergeImpl(value[key], object[key]);
-		} else {
-			value[key] = object[key];
-		}
-	}
-};
-
-/**
  * @since 0.49.0
  */
 Observable.prototype.snap = function(id){
@@ -117,6 +99,7 @@ Object.defineProperty(Observable.prototype, "value", {
  */
 function DeepObservable(value) {
 	Observable.call(this, value);
+	this.deep = true;
 }
 
 DeepObservable.prototype = Object.create(Observable.prototype);
@@ -126,19 +109,10 @@ DeepObservable.prototype.replace = function(value){
 };
 
 DeepObservable.prototype.makeChild = function(value, path){
-	var ret = Object(value);
-	Object.defineProperty(ret, "__parentObservable", {
-		enumerable: false,
-		value: this
-	});
-	Object.defineProperty(ret, "__path", {
-		enumerable: false,
-		value: path
-	});
 	if(value && typeof value == "object") {
 		this.observeChildren(value, path);
 	}
-	return ret;
+	return value;
 };
 
 DeepObservable.prototype.observeChildren = function(value, path){
@@ -149,6 +123,7 @@ DeepObservable.prototype.observeChildren = function(value, path){
 		Object.defineProperty(value, key, {
 			enumerable: true,
 			get: function(){
+				$this.lastPath = currentPath;
 				return childValue;
 			},
 			set: function(newValue){
@@ -158,6 +133,24 @@ DeepObservable.prototype.observeChildren = function(value, path){
 		});
 	});
 	return value;
+};
+
+/**
+ * @since 0.66.0
+ */
+DeepObservable.prototype.merge = function(object){
+	this.mergeImpl(this.internal.value, object);
+	this.update();
+};
+
+DeepObservable.prototype.mergeImpl = function(value, object){
+	for(var key in object) {
+		if(typeof value[key] == "object" && typeof object[key] == "object") {
+			this.mergeImpl(value[key], object[key]);
+		} else {
+			value[key] = object[key];
+		}
+	}
 };
 
 /**
@@ -311,24 +304,9 @@ Sactory.isObservable = function(value){
  * @since 0.40.0
  */
 Sactory.observe = function(value, callback, type, subscribeOnly){
-	if(value.__parentObservable) {
-		function get() {
-			var obj = value.__parentObservable.value;
-			value.__path.forEach(function(p){
-				obj = obj[p];
-			});
-			return obj;
-		}
-		var ret = value.__parentObservable.subscribe(function(){
-			callback(get());
-		}, type);
-		if(!subscribeOnly) callback(get());
-		return ret;
-	} else {
-		var ret = value.subscribe(callback, type);
-		if(!subscribeOnly) callback(value.value);
-		return ret;
-	}
+	var ret = value.subscribe(callback, type);
+	if(!subscribeOnly) callback(value.value);
+	return ret;
 };
 
 /**

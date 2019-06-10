@@ -52,7 +52,7 @@ window.onload = function(){
 		css: ["css", "css :logic", "cssb"]
 	};
 
-	var content = hash ? @watch(hash.content) : @watch(defaultContent, *key);
+	var content = hash ? @watch.deep(hash.content) : @watch.deep(defaultContent, *key);
 	var showCount = @watch(*content.show.js + *content.show.html + *content.show.css);
 	var result = @watch((function(){
 		var result = {source: "", before: "", after: "", info: {time: 0, tags: {}, features: []}, errors: [], warnings: []};
@@ -267,8 +267,7 @@ window.onload = function(){
 				}
 				foreach(Object.keys(*content.show) as type) {
 					<label style="margin-left:12px">
-						<!--<input type="checkbox" style="vertical-align:middle" *checked=*content.show[type] />-->
-						<input type="checkbox" style="vertical-align:middle" @checked=*content.show[type] +change={ *content.show[type] = this.checked } />
+						<input type="checkbox" style="vertical-align:middle" *checked=*content.show[type] />
 						${type.toUpperCase()}
 					</label>
 				}
@@ -293,7 +292,7 @@ window.onload = function(){
 									<{textarea.nextElementSibling} +[[save]]:prevent=save />
 								}, 0);
 							</#code>
-							<select class="mode" @value=*content.mode[type] +change={ *content.mode[type] = this.value }>
+							<select class="mode" *value=*content.mode[type]>
 								foreach(modes[type] as m) {
 									<option value=m +text=m @selected=(^content.mode[type] == m) />
 								}
