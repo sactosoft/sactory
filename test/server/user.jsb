@@ -31,7 +31,7 @@ module.exports = function(app){
 		<{document.documentElement} lang="en" #html>
 			<:body>
 				&#64;
-				<input type="password" *value=value />
+				<input type="password" *form=value />
 				&Delta;
 				&ouml;
 			</:body>

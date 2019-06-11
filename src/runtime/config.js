@@ -8,7 +8,7 @@ var cmd = mac ? "meta" : "ctrl";
  * @since 0.64.0
  */
 Sactory.config = {
-	prefix: "__sa",
+	prefix: "sa",
 	shortcut: {
 		cmd: cmd,
 		save: "keydown:" + cmd + ":key.s",
@@ -28,5 +28,9 @@ Sactory.config = {
 		}
 	}
 };
+
+Sactory.newPrefix = function(){
+	return Sactory.config.prefix + Math.floor(Math.random() * 100000);
+}
 
 module.exports = Sactory;

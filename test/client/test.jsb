@@ -9,7 +9,7 @@ window.addEventListener("load", function(){
 	<!-- start -->
 	<{document.body} class="body">
 		// two-way binding for observable
-		<input *value=*tagName />
+		<input *form=*tagName />
 		// bind omitting :to (it's taken from :condition)
 		var timeout;
 		<:bind-if :condition={ !!*tagName; } :cleanup={ clearTimeout(timeout); }>
@@ -22,7 +22,7 @@ window.addEventListener("load", function(){
 			var transparent = "background";
 			<[*tagName] @["style." + transparent]="transparent" ...spread>
 				var type = **"text";
-				<input type="text" *value=*type />
+				<input type="text" *form=*type />
 				<input type=*type @value="placeholder text" />
 				<style>
 					input[type='${*type}']${*type == "text" ? ",input:not([type])" : ""} {
@@ -35,7 +35,7 @@ window.addEventListener("load", function(){
 				var visible = **true;
 				<label #html>
 					Show:
-					<input type="checkbox" *checked=visible />
+					<input type="checkbox" *form=visible />
 				</label>
 				<button +click={ console.log("Button clicked") } +text="Button" @visible=*visible />
 				<!-- a comment -->
@@ -66,7 +66,7 @@ window.addEventListener("load", function(){
 	<div>
 		var duration = **30;
 		var durationInSeconds = @watch(*duration + 's');
-		<input type="number" step="1" *value=*duration />
+		<input type="number" step="1" *form:number=*duration />
 		<style :scoped>
 			.cookie {
 				display: inline-block;
@@ -117,11 +117,11 @@ window.addEventListener("load", function(){
 	var langValue = **"en";
 	var lang = @watch(langs[*langValue] || langs.en);
 
-	<p #html>Language is set to <input style="width:32px" *value=*langValue />, ${*lang.welcome}! ${*lang.goodbye}.</p>
+	<p #html>Language is set to <input style="width:32px" *form=*langValue />, ${*lang.welcome}! ${*lang.goodbye}.</p>
 
 	var test = **true;
 
-	<input type="checkbox" *checked=*test />
+	<input type="checkbox" *form=*test />
 
 	<#html :logic :trimmed>
 		Some text
@@ -140,7 +140,7 @@ window.addEventListener("load", function(){
 
 	var html = **"";
 
-	<textarea style="width:600px;height:400px;font-family:monospace" *value=*html />
+	<textarea style="width:600px;height:400px;font-family:monospace" *form=*html />
 
 	<div style="margin:8px 0;border:4px solid silver">
 		@innerHTML = *html;

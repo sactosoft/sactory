@@ -282,6 +282,15 @@ Sactory.body = function(context, slots, fun){
 };
 
 /**
+ * @since 0.82.0
+ */
+Sactory.forms = function(context){
+	Array.prototype.slice.call(arguments, 1).forEach(function(value){
+		context.element.__builder.form(value[0], value[1], context.bind);
+	});
+};
+
+/**
  * @since 0.60.0
  */
 Sactory.append = function(context, parent, anchor, afterappend, beforeremove){
@@ -369,7 +378,7 @@ var currentId;
  * @since 0.70.0
  */
 Sactory.nextId = function(){
-	return currentId = SactoryConfig.config.prefix + Math.floor(Math.random() * 100000);
+	return currentId = SactoryConfig.newPrefix();
 };
 
 /**

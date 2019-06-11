@@ -4,7 +4,7 @@ var SactoryObservable = require("./observable");
 var SactoryBind = require("./bind");
 
 // generate class name for hidden elements
-var hidden = "__sa" + Math.floor(Math.random() * 100000);
+var hidden = SactoryConfig.newPrefix();
 var hiddenAdded = false;
 
 /**
@@ -29,9 +29,8 @@ function Builder(element) {
 
 }
 
-Builder.TYPE_PROP = 0;
 Builder.TYPE_ATTR = 1;
-Builder.TYPE_TWOWAY = 2;
+Builder.TYPE_PROP = 2;
 Builder.TYPE_ADD = 3;
 Builder.TYPE_REMOVE = 4;
 Builder.TYPE_WIDGET = 5;
@@ -44,108 +43,6 @@ Builder.prototype.widgets = {};
  */
 Builder.prototype.subscribe = function(bind, subscription){
 	if(bind) bind.subscriptions.push(subscription);
-};
-
-Builder.prototype.propImpl = function(name, value){
-	var o = this.element;
-	if(name.charAt(0) == '@') {
-		o = o.__component;
-		name = name.substr(1);
-	}
-	var s = name.split('.');
-	while(s.length > 1) {
-		o = o[s.shift()];
-	}
-	o[s[0]] = value;
-};
-	
-Builder.prototype.prop = function(name, value, bind, type){
-	var propImpl = this.propImpl.bind(this);
-	if(SactoryObservable.isObservable(value)) {
-		this.subscribe(bind, SactoryObservable.observe(value, function(value){
-			propImpl(name, value);
-		}, type));
-	} else {
-		propImpl(name, value);
-	}
-};
-
-/**
- * @since 0.46.0
- */
-Builder.prototype.twoway = function(name, value, bind){
-	var splitted = name.split("::");
-	var events = splitted.slice(1);
-	var modifiers = splitted[0].split(":");
-	name = modifiers[0];
-	if(!SactoryObservable.isObservable(value)) throw new Error("Cannot two-way bind property '" + name + "': the given value is not an observable.");
-	var converters = [];
-	modifiers.slice(1).forEach(function(mod){
-		converters.push(function(){
-			switch(mod) {
-				case "number":
-				case "num":
-				case "float":
-					return parseFloat;
-				case "int":
-				case "integer":
-					return parseInt;
-				case "comma":
-					return function(){
-						return this.replace(/,/g, '.');
-					};
-				case "trim":
-					return String.prototype.trim;
-				case "trim-left":
-				case "trim-start":
-					return Polyfill.trimStart;
-				case "trim-right":
-				case "trim-end":
-					return Polyfill.trimEnd;
-				case "lower":
-				case "lowercase":
-					return String.prototype.toLowerCase;
-				case "upper":
-				case "uppercase":
-					return String.prototype.toUpperCase;
-				case "capital":
-				case "capitalize":
-					return function(){
-						return this.charAt(0).toUpperCase() + this.substr(1);
-					};
-				default:
-					throw new Error("Unknown value modifier '" + mod + "'.");
-			}
-		}());
-	});
-	var type = 1048576 + Math.floor(Math.random() * 1048576);
-	this.prop(name, value, bind, type); // one way
-	if(value.computed && value.dependencies.length == 1 && value.dependencies[0].deep) {
-		// it's the child of a deep observable
-		var deep = value.dependencies[0];
-		var path = deep.lastPath.slice(0, -1);
-		var key = deep.lastPath[deep.lastPath.length - 1];
-		converters.push(function(newValue){
-			var obj = deep.value;
-			path.forEach(function(p){
-				obj = obj[p];
-			});
-			obj[key] = newValue;
-		});
-	} else {
-		converters.push(function(newValue){
-			value.update(newValue, type);
-		});
-	}
-	if(!events.length) events.push("input");
-	for(var i=0; i<events.length; i++) {
-		this.event(events[i], function(){
-			var newValue = this[name];
-			converters.forEach(function(converter){
-				newValue = converter.call(newValue, newValue);
-			});
-		}, bind);
-	}
 };
 	
 Builder.prototype.attrImpl = function(name, value){
@@ -164,6 +61,31 @@ Builder.prototype.attr = function(name, value, bind){
 		}));
 	} else {
 		attrImpl(name, value);
+	}
+};
+
+Builder.prototype.propImpl = function(name, value){
+	var o = this.element;
+	if(name.charAt(0) == '@') {
+		o = o.__widgets;
+		name = name.substr(1);
+		if(name.charAt(0) == '.') name = name.substr(1);
+	}
+	var s = name.split('.');
+	while(s.length > 1) {
+		o = o[s.shift()];
+	}
+	o[s[0]] = value;
+};
+	
+Builder.prototype.prop = function(name, value, bind, type){
+	var propImpl = this.propImpl.bind(this);
+	if(SactoryObservable.isObservable(value)) {
+		this.subscribe(bind, SactoryObservable.observe(value, function(value){
+			propImpl(name, value);
+		}, type));
+	} else {
+		propImpl(name, value);
 	}
 };
 
@@ -206,7 +128,7 @@ Builder.prototype.visible = function(value, reversed, bind){
  */
 Builder.prototype.style = function(name, value, bind){
 	var node = document.createElement("style");
-	var className = SactoryConfig.config.prefix + Math.floor(Math.random() * 100000);
+	var className = SactoryConfig.newPrefix();
 	var wrap;
 	var dot = name.indexOf('.');
 	if(dot == -1) {
@@ -592,6 +514,144 @@ Builder.prototype[Builder.TYPE_REMOVE] = function(name, value, bind){
 		this.removeClassName(value || "");
 	} else {
 		this.element.removeEventListener(name, value);
+	}
+};
+
+/**
+ * @since 0.46.0
+ */
+Builder.prototype.form = function(info, value, bind){
+	if(!SactoryObservable.isObservable(value)) throw new Error("Cannot two-way bind '" + this.element.tagName.toLowerCase() + "': the given value is not an observable.");
+	var splitted = info.split("::");
+	var events = splitted.slice(1);
+	var updateType = 1048576 + Math.floor(Math.random() * 1048576);
+	var inputType = this.element.type;
+	var get;
+	var converters = [];
+	// calculate property name and default converter
+	if(inputType == "checkbox") {
+		this.prop("checked", value, bind, updateType);
+		get = function(callback){
+			callback(this.checked);
+		};
+	} else if(inputType == "radio") {
+		// make sure that the radio buttons that depend on the same observable have
+		// the same name and are in the same radio group
+		if(!this.element.name) {
+			this.element.name = value.radioGroupName || (value.radioGroupName = SactoryConfig.newPrefix());
+		}
+		// need to make a computed observable that returns true when the value of the
+		// observable is equal to the attribute value of the element
+		this.prop("checked", SactoryObservable.computedObservable(this.element, bind, [value], function(){ return value.value == this.value; }), bind, updateType);
+		get = function(callback){
+			// the event is called only when radio is selected
+			callback(this.value);
+		};
+	} else {
+		this.prop("value", value, bind, updateType);
+		get = function(callback){
+			callback(this.value);
+		};
+	}
+	// calculate the default event type if none was specified
+	if(!events.length) {
+		if(this.element.tagName.toUpperCase() == "SELECT") {
+			events.push("change");
+		} else {
+			if(this.element.type == "checkbox" || this.element.type == "radio") {
+				events.push("change");
+			} else {
+				events.push("input");
+			}
+		}
+	}
+	splitted[0].split(":").slice(1).forEach(function(mod){
+		converters.push(function(){
+			switch(mod) {
+				case "number":
+				case "num":
+				case "float":
+					return parseFloat;
+				case "int":
+				case "integer":
+					return parseInt;
+				case "date":
+					switch(inputType) {
+						case "date":
+						case "month":
+							return function(){
+								var s = this.split('-');
+								return new Date(s[0], s[1] - 1, s[2] || 1);
+							};
+						case "time":
+							return function(){
+								var s = this.split(':');
+								var date = new Date();
+								date.setHours(s[0]);
+								date.setMinutes(s[0]);
+								date.setSeconds(0);
+								date.setMilliseconds(0);
+								return date;
+							};
+						case "datetime-local":
+						default:
+							return function(){ return new Date(this); };
+					}
+				case "comma":
+					return function(){
+						return this.replace(/,/g, '.');
+					};
+				case "trim":
+					return String.prototype.trim;
+				case "trim-left":
+				case "trim-start":
+					return Polyfill.trimStart;
+				case "trim-right":
+				case "trim-end":
+					return Polyfill.trimEnd;
+				case "lower":
+				case "lowercase":
+					return String.prototype.toLowerCase;
+				case "upper":
+				case "uppercase":
+					return String.prototype.toUpperCase;
+				case "capital":
+				case "capitalize":
+					return function(){
+						return this.charAt(0).toUpperCase() + this.substr(1);
+					};
+				default:
+					throw new Error("Unknown value modifier '" + mod + "'.");
+			}
+		}());
+	});
+	if(value.computed && value.dependencies.length == 1 && value.dependencies[0].deep) {
+		// it's the child of a deep observable
+		var deep = value.dependencies[0];
+		var path = deep.lastPath.slice(0, -1);
+		var key = deep.lastPath[deep.lastPath.length - 1];
+		converters.push(function(newValue){
+			var obj = deep.value;
+			path.forEach(function(p){
+				obj = obj[p];
+			});
+			value.updateType = updateType;
+			obj[key] = newValue;
+		});
+	} else {
+		converters.push(function(newValue){
+			value.updateType = updateType;
+			value.value = newValue;
+		});
+	}
+	for(var i=0; i<events.length; i++) {
+		this.event(events[i], function(){
+			get.call(this, function(newValue){
+				converters.forEach(function(converter){
+					newValue = converter.call(newValue, newValue);
+				});
+			});
+		}, bind);
 	}
 };
 	

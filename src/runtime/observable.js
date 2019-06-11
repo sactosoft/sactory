@@ -11,6 +11,7 @@ function Observable(value) {
 		count: 0,
 		subscriptions: {}
 	};
+	this.updateType = undefined;
 }
 
 Observable.prototype.replace = function(value){
@@ -27,8 +28,9 @@ Observable.prototype.replace = function(value){
 /**
  * @since 0.42.0
  */
-Observable.prototype.update = function(value, type){
-	this.updateImpl(arguments.length ? this.replace(value) : this.internal.value, type);
+Observable.prototype.update = function(value){
+	this.updateImpl(arguments.length ? this.replace(value) : this.internal.value, this.updateType);
+	this.updateType = undefined;
 };
 
 Observable.prototype.updateImpl = function(value, type){
@@ -36,7 +38,7 @@ Observable.prototype.updateImpl = function(value, type){
 	this.internal.value = value;
 	for(var i in this.internal.subscriptions) {
 		var subscription = this.internal.subscriptions[i];
-		if(!subscription.type || subscription.type !== type) subscription.callback(value, oldValue, type);
+		if(!subscription.type || subscription.type !== type) subscription.callback(value, oldValue);
 	}
 };
 
@@ -139,7 +141,10 @@ DeepObservable.prototype.observeChildren = function(value, path){
  * @since 0.66.0
  */
 DeepObservable.prototype.merge = function(object){
+	var update = this.update;
+	this.update = function(){}; // disable update
 	this.mergeImpl(this.internal.value, object);
+	this.update = update; // enable update
 	this.update();
 };
 
@@ -157,41 +162,46 @@ DeepObservable.prototype.mergeImpl = function(value, object){
  * @class
  * @since 0.54.0
  */
-function SavedObservable(defaultValue, storage) {
+function makeSavedObservable(T, defaultValue, storage) {
+
+	var observable;
+
+	if(typeof Promise == "function") {
+		this.handleReturn = function(ret){
+			if(ret instanceof Promise) {
+				var $this = this;
+				ret.then(function(value){
+					// do not call this.updateImpl to avoid saving
+					Observable.prototype.updateImpl.call($this, value);
+				});
+				return true;
+			} else {
+				return false;
+			}
+		};
+	} else {
+		this.handleReturn = function(){
+			return false;
+		};
+	}
+
 	if(storage.get) {
 		var ret = storage.get(defaultValue);
-		Observable.call(this, this.handleReturn(ret) ? defaultValue : ret);
+		observable = new T(this.handleReturn(ret) ? defaultValue : ret);
 	} else {
-		Observable.call(this, defaultValue);
+		observable = new T(defaultValue);
 	}
-	this.internal.storage = storage;
-}
 
-SavedObservable.prototype = Object.create(Observable.prototype);
+	observable.storage = storage;
 
-if(typeof Promise == "function") {
-	SavedObservable.prototype.handleReturn = function(ret){
-		if(ret instanceof Promise) {
-			var $this = this;
-			ret.then(function(value){
-				// do not call this.updateImpl to avoid saving
-				Observable.prototype.updateImpl.call($this, value);
-			});
-			return true;
-		} else {
-			return false;
-		}
+	observable.updateImpl = function(value, type){
+		storage.set(value);
+		Observable.prototype.updateImpl.call(this, value, type);
 	};
-} else {
-	SavedObservable.prototype.handleReturn = function(){
-		return false;
-	};
-}
 
-SavedObservable.prototype.updateImpl = function(value, type){
-	this.internal.storage.set(value);
-	Observable.prototype.updateImpl.call(this, value, type);
-};
+	return observable;
+
+}
 
 /**
  * @class
@@ -295,7 +305,7 @@ StorageObservableProvider.prototype.set = function(value){
  * @since 0.40.0
  */
 Sactory.isObservable = function(value){
-	return value instanceof Observable || value && value.__parentObservable;
+	return value instanceof Observable;
 };
 
 /**
@@ -328,28 +338,36 @@ Sactory.unobserve = function(value){
 };
 
 /**
- * @since 0.41.0
+ * @since 0.81.0
  */
-Sactory.observable = function(value, storage, key){
-	if(arguments.length > 1) {
+Sactory.observableImpl = function(T, value, storage, key){
+	if(storage) {
 		if(storage instanceof Storage) {
-			return new SavedObservable(value, new StorageObservableProvider(storage, key));
+			return makeSavedObservable(T, value, new StorageObservableProvider(storage, key));
 		} else if(typeof storage == "object") {
-			return new SavedObservable(value, storage);
+			return makeSavedObservable(T, value, storage);
 		} else if(window.localStorage) {
-			return new SavedObservable(value, new StorageObservableProvider(window.localStorage, storage));
+			return makeSavedObservable(T, value, new StorageObservableProvider(window.localStorage, storage));
 		} else {
 			console.warn("window.localStorage is unavailable. '" + storage + "' will not be stored.");
 		}
+	} else {
+		return new T(value);
 	}
-	return new Observable(value);
+};
+
+/**
+ * @since 0.41.0
+ */
+Sactory.observable = function(value, storage, key){
+	return Sactory.observableImpl(Observable, value, storage, key);
 };
 
 /**
  * @since 0.81.0
  */
 Sactory.observable.deep = function(value, storage, key){
-	return new DeepObservable(value);
+	return Sactory.observableImpl(DeepObservable, value, storage, key);
 };
 
 /**

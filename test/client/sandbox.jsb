@@ -95,14 +95,11 @@ window.onload = function(){
 			*content = JSON.parse(window.localStorage.getItem(*key));
 		}
 		@subscribe(file, function(value){
-			content.internal.storage.key = *key;
-			var set = content.internal.storage.set;
-			content.internal.storage.set = function(){}; // disable saving
-			content.merge(content.internal.storage.get(defaultContent));
+			content.storage.key = *key;
+			*content = content.storage.get(defaultContent);
 			for(var type in *content.content) {
 				if(inputs[type]) inputs[type].setValue(*content.content[type]);
 			}
-			content.internal.storage.set = set; // enable saving
 		});
 	}
 
@@ -253,13 +250,13 @@ window.onload = function(){
 				if(hash) {
 					<span +text=hash.name />
 				} else {
-					<input *value=*file />
+					<input *form=*file />
 					if(window.localStorage) {
-						<select *value=*file>
+						<select *form=*file>
 							foreach(Object.keys(window.localStorage).sort() as key) {
 								if(key.substr(0, 8) == "storage.") {
 									var value = key.substr(8);
-									<option value=value +text=value @selected=(value == ^file) />
+									<option value=value +text=value /*@selected=(value == ^file)*/ />
 								}
 							}
 						</select>
@@ -267,7 +264,7 @@ window.onload = function(){
 				}
 				foreach(Object.keys(*content.show) as type) {
 					<label style="margin-left:12px">
-						<input type="checkbox" style="vertical-align:middle" *checked=*content.show[type] />
+						<input type="checkbox" style="vertical-align:middle" *form=*content.show[type] />
 						${type.toUpperCase()}
 					</label>
 				}
@@ -292,9 +289,9 @@ window.onload = function(){
 									<{textarea.nextElementSibling} +[[save]]:prevent=save />
 								}, 0);
 							</#code>
-							<select class="mode" *value=*content.mode[type]>
+							<select class="mode" *form=*content.mode[type]>
 								foreach(modes[type] as m) {
-									<option value=m +text=m @selected=(^content.mode[type] == m) />
+									<option value=m +text=m /*@selected=(^content.mode[type] == m)*/ />
 								}
 							</select>
 						</div>
