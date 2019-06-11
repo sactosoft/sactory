@@ -95,8 +95,9 @@ window.onload = function(){
 			*content = JSON.parse(window.localStorage.getItem(*key));
 		}
 		@subscribe(file, function(value){
-			content.storage.key = *key;
+			content.storage.key = "";
 			*content = content.storage.get(defaultContent);
+			content.storage.key = *key;
 			for(var type in *content.content) {
 				if(inputs[type]) inputs[type].setValue(*content.content[type]);
 			}

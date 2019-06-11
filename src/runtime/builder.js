@@ -540,12 +540,32 @@ Builder.prototype.form = function(info, value, bind){
 		if(!this.element.name) {
 			this.element.name = value.radioGroupName || (value.radioGroupName = SactoryConfig.newPrefix());
 		}
-		// need to make a computed observable that returns true when the value of the
+		// subscription that returns sets `checked` to true when the value of the
 		// observable is equal to the attribute value of the element
-		this.prop("checked", SactoryObservable.computedObservable(this.element, bind, [value], function(){ return value.value == this.value; }), bind, updateType);
+		var element = this.element;
+		this.subscribe(bind, SactoryObservable.observe(value, function(value){
+			element.checked = value == element.value;
+		}, updateType));
 		get = function(callback){
 			// the event is called only when radio is selected
 			callback(this.value);
+		};
+	} else if(this.element.multiple) {
+		// a multiple select does not bind to a property, instead it updates the options,
+		// setting the selected property, everytime the observable is updated
+		var options = this.element.options;
+		this.subscribe(bind, SactoryObservable.observe(value, function(value){
+			// options is a live collection, no need to get the value again from the element
+			Array.prototype.forEach.call(options, function(option){
+				option.selected = value.indexOf(option.value) != -1;
+			});
+		}, updateType));
+		// the get function maps the values of the selected options (obtained from the
+		// `selectedOptions` property or a polyfill)
+		get = function(callback){
+			callback(Array.prototype.map.call(selectedOptions(this), function(option){
+				return option.value;
+			}));
 		};
 	} else {
 		this.prop("value", value, bind, updateType);
@@ -654,17 +674,6 @@ Builder.prototype.form = function(info, value, bind){
 		}, bind);
 	}
 };
-	
-Builder.prototype.set = function(name, value, bind, anchor){
-	if(typeof name == "object") {
-		for(var key in name) {
-			this.setImpl(key, name[key], bind, anchor);
-		}
-	} else {
-		this.setImpl(name, value, bind, anchor);
-	}
-	return this.element;
-};
 
 // polyfill
 
@@ -693,5 +702,15 @@ if(Object.getOwnPropertyDescriptor(Element.prototype, "classList")) {
 	};
 
 }
+
+var selectedOptions = HTMLSelectElement && Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "selectedOptions") ? 
+	function(select){
+		return select.selectedOptions;
+	} :
+	function(select){
+		return Array.prototype.filter.call(select.options, function(option){
+			return option.selected;
+		});
+	};
 
 module.exports = Builder;
