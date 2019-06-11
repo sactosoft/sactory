@@ -11,15 +11,15 @@ Sactory.config = {
 	prefix: "sa",
 	shortcut: {
 		cmd: cmd,
-		save: "keydown:" + cmd + ":key.s",
-		copy: "keydown:" + cmd + ":key.c",
-		cut: "keydown:" + cmd + ":key.x",
-		paste: "keydown:" + cmd + ":key.v",
-		print: "keydown:" + cmd + ":key.p",
-		undo: "keydown:" + cmd + ":key.z",
-		redo: "keydown:" + cmd + ":key.y",
-		find: "keydown:" + cmd + ":key.f",
-		select: "keydown:" + cmd + ":key.a"
+		save: "keydown:" + cmd + ":key-code.83",	// s
+		copy: "keydown:" + cmd + ":key-code.67",	// c
+		cut: "keydown:" + cmd + ":key-code.88",		// x
+		paste: "keydown:" + cmd + ":key-code.86",	// v
+		print: "keydown:" + cmd + ":key-code.80",	// p
+		undo: "keydown:" + cmd + ":key-code.90",	// z
+		redo: "keydown:" + cmd + ":key-code.89",	// y
+		find: "keydown:" + cmd + ":key-code.70",	// f
+		select: "keydown:" + cmd + ":key-code.65",	// a
 	},
 	event: {
 		aliases: {

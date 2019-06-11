@@ -1611,7 +1611,8 @@ Transpiler.prototype.parseAttributeName = function(prefixes, req, from){
 		if(ret.name = this.parser.readComputedExpr()) {
 			attr.computed = ret.computed = true;
 			if(ret.name.charAt(0) == '[' && ret.name.charAt(ret.name.length - 1) == ']') {
-				ret.name = this.runtime + ".config.shortcut." + ret.name.slice(1, -1);
+				ret.name = ret.name.slice(1, -1);
+				ret.name = this.runtime + ".config.shortcut" + (ret.name.charAt(0) == '[' ? "" : ".") + ret.name;
 			} else {
 				ret.name = this.parseCode(ret.name).source;
 			}
