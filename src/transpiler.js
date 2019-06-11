@@ -1447,6 +1447,11 @@ Transpiler.prototype.open = function(){
 
 		if(tagName.charAt(0) != '#') {
 
+			if(!computed && tagName == ":debug" || iattributes["debug"]) {
+				this.source.push("if(" + this.runtime + ".debug){");
+				currentClosing.unshift("}");
+			}
+
 			if(selector) {
 				this.source.push(this.runtime + "." + this.feature("query") + "(this, " + (queryElement || parent) + ", " + parent + ", " + selector + ", " + selectorAll + ", function(" + this.element + ", " + this.parentElement + "){");
 				if(iattributes.adopt || iattributes.clone) {

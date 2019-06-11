@@ -388,4 +388,10 @@ Sactory.prevId = function(){
 	return currentId;
 };
 
+/* debug:
+Object.defineProperty(Sactory, "debug", {
+	value: true
+});
+*/
+
 module.exports = Sactory;
