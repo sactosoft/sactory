@@ -1184,7 +1184,8 @@ Transpiler.prototype.open = function(){
 		var currentInheritance = null;
 		var currentClosing = [];
 		var createAnchor;
-		var forms = []; // form binding
+		var transitions = [];
+		var forms = [];
 		var computed = false;
 		var optional = false;
 		var selector, originalTagName, tagName = "";
@@ -1321,11 +1322,19 @@ Transpiler.prototype.open = function(){
 								else start.name = start.name.substr(5);
 								attr.value = this.runtime + "." + this.feature((temp ? "prev" : "next") + "Id") + "()";
 								if(value != "\"\"") attr.value = value + " + " + attr.value;
+							} else if(Polyfill.startsWith.call(start.name, "in:") || Polyfill.startsWith.call(start.name, "out:")) {
+								var column = start.name.indexOf(':');
+								var type = start.name.substring(0, column);
+								start.name = start.name.substr(column + 1);
+								if(!start.name.length) attr.parts.shift();
+								this.compileAttributeParts(attr);
+								transitions.push({type: type, name: this.stringifyAttribute(attr), value: attr.value})
+								break;
 							} else if((temp = (start.name == "form")) || Polyfill.startsWith.call(start.name, "form:")) {
 								if(temp) attr.parts.shift();
 								else start.name = start.name.substr(4);
 								this.compileAttributeParts(attr);
-								forms.push([attr.computed ? attr.name : '"' + attr.name + '"', attr.value]);
+								forms.push([this.stringifyAttribute(attr), attr.value]);
 								break;
 							} else {
 								this.parser.error("Unknown semi compile-time attribute '" + attr.name + "'.");
@@ -1426,6 +1435,11 @@ Transpiler.prototype.open = function(){
 			}
 			if(args) ret = ret.slice(0, -1) + "],";
 			if(sattributes.length) ret += "spread:[" + sattributes.join(",") + "],";
+			if(transitions.length) {
+				ret += "transitions:[" + transitions.map(function(transition){
+					return "[\"" + transition.type + "\", " + transition.name + ", " + (transition.value == "\"\"" ? "{}" : transition.value) + "]";
+				}).join(", ") + "],";
+			}
 			return "{" + ret.slice(0, -1) + "}";
 		}
 		parser.index++;
@@ -1644,6 +1658,13 @@ Transpiler.prototype.compileAttributeParts = function(attr){
 	} else {
 		attr.name = attr.parts.map(function(part){ return part.name }).join("");
 	}
+};
+
+/**
+ * @since 0.84.0
+ */
+Transpiler.prototype.stringifyAttribute = function(attr){
+	return attr.computed ? attr.name : '"' + attr.name + '"';
 };
 
 /**

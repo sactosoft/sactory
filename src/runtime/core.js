@@ -204,10 +204,20 @@ Sactory.update = function(context, options){
 			context.element = context.container = document.createElement(options.tagName);
 		}
 	}
+
+	args.sort(function(a, b){
+		return a.type - b.type;
+	});
 	
 	args.forEach(function(arg){
 		context.element.__builder[arg.type](arg.name, arg.value, context.bind, context.anchor);
 	});
+
+	if(options.transitions) {
+		options.transitions.forEach(function(transition){
+			context.element.__builder.addAnimation(transition[0], transition[1], transition[2] || {});
+		});
+	}
 
 	for(var widgetName in widgetExt) {
 		if(!widgets.hasOwnProperty(widgetName)) throw new Error("Widget '" + widgetName + "' could not be found.");
