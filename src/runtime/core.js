@@ -95,6 +95,11 @@ function SlotRegistry(name) {
  */
 SlotRegistry.prototype.add = function(anchor, name, element){
 	this.slots[name || "__container"] = {element: element, anchor: anchor};
+	/* debug:
+	if(element) {
+		element.setAttribute(":slot", (element.hasAttribute(":slot") ? element.getAttribute(":slot") + "," : "") + (name || "__container"));
+	}
+	*/
 };
 
 // init global functions used at runtime
@@ -198,10 +203,18 @@ Sactory.update = function(context, options){
 			} else {
 				context.container = context.element;
 			}
-		} else if(options.namespace) {
-			context.element = context.container = document.createElementNS(NAMESPACES[options.namespace] || options.namespace, options.tagName);
+			/* debug:
+			context.element.setAttribute(":widget", options.tagName);
+			*/
 		} else {
-			context.element = context.container = document.createElement(options.tagName);
+			if(options.namespace) {
+				context.element = context.container = document.createElementNS(NAMESPACES[options.namespace] || options.namespace, options.tagName);
+			} else {
+				context.element = context.container = document.createElement(options.tagName);
+			}
+			/* debug:
+			context.element.setAttribute(":created", "");
+			*/
 		}
 	}
 
@@ -224,7 +237,14 @@ Sactory.update = function(context, options){
 		var instance = new widgets[widgetName](widgetExt[widgetName]);
 		instance.render(new SlotRegistry(""), context.element, context.bind, null);
 		context.element.__builder.widgets[widgetName] = instance;
+		/* debug:
+		context.element.setAttribute(":extend:" + widgetName, "");
+		*/
 	}
+
+	/* debug:
+	context.element.setAttribute(":id", context.element.__builder.runtimeId);
+	*/
 	
 };
 

@@ -191,22 +191,22 @@ TextParser.prototype.addCurrent = function(){
 	} else {
 		var expr = [];
 		var observables = [];
-		var snaps = [];
+		var maybeObservables = [];
 		for(var i in this.current) {
 			var curr = this.current[i];
 			if(curr.text) {
 				if(curr.value.length) expr.push(stringify(this.replaceText(curr.value)));
 			} else {
 				Array.prototype.push.apply(observables, curr.value.observables);
-				Array.prototype.push.apply(snaps, curr.value.snaps);
+				Array.prototype.push.apply(maybeObservables, curr.value.maybeObservables);
 				expr.push(curr.value.source); 
 			}
 		}
 		if(expr.length) {
 			var joined = expr.join(" + ");
-			if(observables.length) {
-				joined = this.runtime + "." + this.transpiler.feature("computedObservable") + "(this, " + this.bind + ", [" +
-					uniq(observables).join(", ") + "], function(){return " + joined + "}" + (snaps.length ? ", " + snaps.join(", ") : "") + ")";
+			if(observables.length || maybeObservables.length) {
+				joined = this.runtime + "." + this.transpiler.feature(maybeObservables.length ? "maybeComputedObservable" : "computedObservable") + "(this, " + this.bind + ", [" +
+					uniq(observables).join(", ") + "], function(){return " + joined + "}" + (maybeObservables.length ? ", [" + maybeObservables.join(", ") + "]" : "") + ")";
 			}
 			this.addText(joined);
 		}
@@ -466,7 +466,7 @@ LogicParser.prototype.end = function(){
 function JavascriptParser(transpiler, parser, source, attributes) {
 	BreakpointParser.call(this, transpiler, parser, source, attributes, ['(', ')', '@', '*', '^']);
 	this.observables = [];
-	this.snaps = [];
+	this.maybeObservables = [];
 	this.parentheses = [];
 }
 
@@ -532,7 +532,7 @@ JavascriptParser.prototype.next = function(match){
 								this.parser.parseTemplateLiteral = null;
 								var parsed = this.transpiler.parseCode(this.parser.readExpression());
 								this.transpiler.updateTemplateLiteralParser();
-								if(parsed.observables && parsed.observables.length) {
+								if(parsed.observables && parsed.observables.length || parsed.maybeObservables && parsed.maybeObservables.length) {
 									// computed
 									this.add(this.runtime + "." + this.transpiler.feature("computedObservable") + type + "(this, " + this.bind + ", " + parsed.toSpreadValue());
 								} else {
@@ -572,36 +572,12 @@ JavascriptParser.prototype.next = function(match){
 							case "darken":
 							case "grayscale":
 							case "mix":
+							case "random":
 								add(true, this.transpiler.feature("css." + match[1]));
 								break;
 							default:
 								this.add('@');
 						}
-							/*this.parser.index += match[0].length;
-							if(match[4]) {
-								this.add(this.runtime  + skip + ".subscribe" + match[11] + "(" + this.bind + ", ");
-								this.parentheses.push(false);
-							} else if(match[5]) {
-								this.add(this.transpiler.anchorsRegistry  + skip + ".add" + match[11] + "(" + this.runtime + "." + this.transpiler.feature("createAnchor") + "(" + this.element + ", " + this.bind + ", " + this.anchor + "), ");
-								this.parentheses.push(false);
-							} else {
-								var type = match[6] ? "Template" : "Component";
-								if(match[8]) {
-									this.add(this.runtime + skip + ".define" + type + match[11] + "(");
-									this.add(this.parser.readExpression()); // name
-									this.parser.expect(',');
-									if(match[6]) {
-										this.add(", this, function(" + this.element + ", " + this.bind + ", " + this.anchor + ", " + this.transpiler.args + "){(");
-										this.parentheses.push(").call(this, " + this.transpiler.args + ", " + this.transpiler.args + ")}");
-									} else {
-										this.add(", function(" + this.transpiler.anchorsRegistry + ", " + this.element + ", " + this.bind + ", " + this.anchor + "){return new (");
-										this.parentheses.push(")()}");
-									}
-								} else {
-									this.add(this.runtime + skip + (match[9] ? ".undefine" + type : ".get" + type + "sName") + match[11] + "(");
-									this.parentheses.push(false);
-								}
-							}*/
 					} else {
 						this.add('@' + skip);
 					}
@@ -610,33 +586,28 @@ JavascriptParser.prototype.next = function(match){
 			break;
 		case '*':
 			if(this.parser.couldStartRegExp()) {
-				if(this.parser.peek() == '*') {
-					this.parser.index++;
-					if(this.parser.peek() == '*') {
-						this.transpiler.warn("The `***` syntax for snapped observables is deprecated. Use `^` instead.", this.parser.position);
-						this.parser.index++;
-						// spreading an observable
-						var name = getName.call(this);
-						var id = this.transpiler.nextId();
-						this.add(name + ".snapped(" + id + ")");
-						this.snaps.push(name + ".snap(" + id + ")");
-					} else {
-						// new observable
-						var position = this.parser.position;
-						this.parser.parseTemplateLiteral = null;
-						var parsed = this.transpiler.parseCode(this.parser.readSingleExpression(true));
-						this.transpiler.updateTemplateLiteralParser();
-						if(parsed.observables && parsed.observables.length) {
-							// should be computed
-							this.transpiler.warn("The observable syntax `**` cannot be used to create computed observables, use `@watch` instead.", position);
-						}
-						this.add(this.runtime + "." + this.transpiler.feature("observable") + "(" + parsed.source + ")");
+				if(this.parser.readIf('*')) {
+					// new observable
+					var position = this.parser.position;
+					this.parser.parseTemplateLiteral = null;
+					var parsed = this.transpiler.parseCode(this.parser.readSingleExpression(true));
+					this.transpiler.updateTemplateLiteralParser();
+					if(parsed.observables && parsed.observables.length || parsed.maybeObservables && parsed.maybeObservables.length) {
+						// should be computed
+						this.transpiler.warn("The observable syntax `**` cannot be used to create computed observables, use `@watch` instead.", position);
 					}
+					this.add(this.runtime + "." + this.transpiler.feature("observable") + "(" + parsed.source + ")");
 				} else {
 					// get/set observable
+					var maybe = !!this.parser.readIf('?');
 					var name = getName.call(this);
-					this.add(name + ".value");
-					this.observables.push(name);
+					if(maybe) {
+						this.add(this.runtime + "." + this.transpiler.feature("value") + "(" + name + ")");
+						this.maybeObservables.push(name);
+					} else {
+						this.add(name + ".value");
+						this.observables.push(name);
+					}
 				}
 				this.parser.last = ')';
 				this.parser.lastIndex = this.parser.index;
@@ -649,10 +620,14 @@ JavascriptParser.prototype.next = function(match){
 			break;
 		case '^':
 			if(this.parser.couldStartRegExp()) {
+				var maybe = !!this.parser.readIf('?');
 				var name = getName.call(this);
 				var id = this.transpiler.nextId();
-				this.add(name + ".snapped(" + id + ")");
-				this.snaps.push(name + ".snap(" + id + ")");
+				if(maybe) {
+					this.add(this.runtime + "." + this.transpiler.feature("value") + "(" + name + ")");
+				} else {
+					this.add(name + ".value");
+				}
 				this.parser.last = ')';
 				this.parser.lastIndex = this.parser.index;
 			} else {
@@ -1038,25 +1013,26 @@ Transpiler.prototype.parseCode = function(input, parentParser){
 	mode.end();
 	source = source.join("");
 	var observables = mode.observables ? uniq(mode.observables) : [];
+	var maybeObservables = mode.maybeObservables ? uniq(mode.maybeObservables) : [];
 	var $this = this;
 	var ret = {
 		source: source,
 		observables: observables,
-		snaps: mode.snaps,
+		maybeObservables: maybeObservables,
 		toValue: function(){
-			if(observables.length) {
-				if(input.charAt(0) == '*' && source == input.substr(1) + ".value") {
+			if(observables.length || maybeObservables.length) {
+				if(observables.length == 1 && input.charAt(0) == '*' && source == input.substr(1) + ".value") {
 					// single observable, pass it raw so it can be used in two-way binding
 					return input.substr(1);
 				} else {
-					return $this.runtime + "." + $this.feature("computedObservable") + "(this, " + $this.bind + ", " + ret.toSpreadValue() + ")";
+					return $this.runtime + "." + $this.feature(maybeObservables.length ? "maybeComputedObservable" : "computedObservable") + "(this, " + $this.bind + ", " + ret.toSpreadValue() + ")";
 				}
 			} else {
 				return source;
 			}
 		},
 		toSpreadValue: function(){
-			return "[" + observables.join(", ") + "], function(){return " + source + "}" + (mode.snaps && mode.snaps.length ? ", " + mode.snaps.join(", ") : "");
+			return "[" + observables.join(", ") + "], function(){return " + source + "}" + (maybeObservables.length ? ", [" + maybeObservables.join(", ") + "]" : "");
 		}
 	};
 	return ret;
@@ -1316,33 +1292,59 @@ Transpiler.prototype.open = function(){
 							}
 							break;
 						case '*':
+							var add = false;
 							var temp;
 							var start = attr.parts[0];
 							if(!start || start.computed) this.parser.error("First part of semi compile-time attributes cannot be computed.");
-							if(Polyfill.startsWith.call(start.name, "next:") || (temp = Polyfill.startsWith.call(start.name, "prev:"))) {
-								attr.prefix = "";
-								if(start.name.length == 5) attr.parts.shift();
-								else start.name = start.name.substr(5);
-								attr.value = this.runtime + "." + this.feature((temp ? "prev" : "next") + "Id") + "()";
-								if(value != "\"\"") attr.value = value + " + " + attr.value;
-							} else if(Polyfill.startsWith.call(start.name, "io:") || Polyfill.startsWith.call(start.name, "in:") || Polyfill.startsWith.call(start.name, "out:")) {
-								var column = start.name.indexOf(':');
-								var type = start.name.substring(0, column);
-								start.name = start.name.substr(column + 1);
-								if(!start.name.length) attr.parts.shift();
-								this.compileAttributeParts(attr);
-								transitions.push({type: type, name: this.stringifyAttribute(attr), value: attr.value})
-								break;
-							} else if((temp = (start.name == "form")) || Polyfill.startsWith.call(start.name, "form:")) {
-								if(temp) attr.parts.shift();
-								else start.name = start.name.substr(4);
-								this.compileAttributeParts(attr);
-								forms.push([this.stringifyAttribute(attr), attr.value]);
-								break;
-							} else {
-								this.parser.error("Unknown semi compile-time attribute '" + attr.name + "'.");
+							var column = start.name.indexOf(":");
+							if(column == -1) column = start.name.length;
+							var name = start.name.substring(0, column);
+							switch(name) {
+								case "next":
+									temp = true;
+								case "prev":
+									attr.prefix = "";
+									if(start.name.length == 5) attr.parts.shift();
+									else start.name = start.name.substr(5);
+									attr.value = this.runtime + "." + this.feature((temp ? "next" : "prev") + "Id") + "()";
+									if(value != "\"\"") attr.value = value + " + " + attr.value;
+									add = true;
+									break;
+								case "io":
+								case "in":
+								case "out":
+									var type = start.name.substring(0, column);
+									start.name = start.name.substr(column + 1);
+									if(!start.name.length) attr.parts.shift();
+									this.compileAttributeParts(attr);
+									transitions.push({type: type, name: this.stringifyAttribute(attr), value: attr.value})
+									break;
+								case "number":
+									start.name += ":number";
+								case "checkbox":
+								case "color":
+								case "date":
+								case "email":
+								case "file":
+								case "hidden":
+								case "password":
+								case "radio":
+								case "range":
+								case "text":
+								case "time":
+									rattributes.push({prefix: "", name: "type", value: '"' + name + '"'});
+								case "form":
+								case "value":
+									if(column == start.name.length - 1) attr.parts.shift();
+									else start.name = start.name.substr(column);
+									this.compileAttributeParts(attr);
+									forms.push([this.stringifyAttribute(attr), attr.value]);
+									break;
+								default:
+									this.parser.error("Unknown semi compile-time attribute '" + attr.name + "'.");
 							}
-							this.compileAttributeParts(attr);
+							if(add) this.compileAttributeParts(attr);
+							else break;
 						default:
 							rattributes.push(attr);
 					}
@@ -1412,10 +1414,6 @@ Transpiler.prototype.open = function(){
 				}
 			}
 		}
-
-		["checkbox", "color", "date", "email", "file", "hidden", "number", "password", "radio", "range", "time"].forEach(function(type){
-			if(iattributes[type]) rattributes.push({prefix: "", name: "type", value: JSON.stringify(type)});
-		});
 
 		if(iattributes.root) parent = parent + ".getRootNode({composed: " + (iattributes.composed || "false") + "})";
 		else if(iattributes.head) parent = "document.head";
@@ -1803,6 +1801,8 @@ var dependencies = {
 	bind: ["createAnchor"],
 	bindIf: ["bind"],
 	bindEach: ["bind"],
+	// observable
+	maybeComputedObservable: ["filterObservables", "computedObservable"],
 	// cssb
 	compileAndBindStyle: ["convertStyle"],
 	convertStyle: ["compileStyle"]

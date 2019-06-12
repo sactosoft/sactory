@@ -143,7 +143,7 @@ window.addEventListener("load", function(){
 	<textarea style="width:600px;height:400px;font-family:monospace" *form=*html />
 
 	<div style="margin:8px 0;border:4px solid silver">
-		@innerHTML = *html;
+		@html(*html);
 	</div>
 
 });

@@ -25,19 +25,23 @@ Sactory.createKeyframes = function(animation, options){
 	}
 	if(!options.easing) options.easing = animation.easing;
 	if(!options.duration) options.duration = animation.duration;
-	for(var i in animation) {
-		if(i == "from" || i == "to") {
-			var value = [];
-			for(var key in animation[i]) {
-				value.push({selector: key, value: animation[i][key] + ""});
-			}
-			keyframes.push({selector: i, value: value});
-		}
-	}
 	var style = document.createElement("style");
-	style.textContent = SactoryStyle.compileStyle([{selector: "@keyframes " + name, value: keyframes}]);
+	if(animation.element) {
+		style.textContent = "@keyframes " + name + "{" + animation.element.textContent + "}";
+	} else {
+		for(var i in animation) {
+			if(i == "from" || i == "to") {
+				var value = [];
+				for(var key in animation[i]) {
+					value.push({selector: key, value: animation[i][key] + ""});
+				}
+				keyframes.push({selector: i, value: value});
+			}
+		}
+		style.textContent = SactoryStyle.compileStyle([{selector: "@keyframes " + name, value: keyframes}]);
+	}
 	/* debug:
-	style.setAttribute(":debug", "animation-keyframes");
+	style.setAttribute(":usage", "animation-keyframes");
 	*/
 	document.head.appendChild(style);
 	return name;

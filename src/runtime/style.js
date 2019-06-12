@@ -277,4 +277,14 @@ Sactory.css.mix = function(){
 	return color.toString();
 };
 
+/**
+ * @since 0.85.0
+ */
+Sactory.css.random = function(){
+	function color() {
+		return Polyfill.padStart.call(Math.floor(Math.random() * 256).toString(16), 2, '0');
+	}
+	return '#' + color() + color() + color();
+};
+
 module.exports = Sactory;

@@ -338,6 +338,19 @@ Sactory.unobserve = function(value){
 };
 
 /**
+ * If the given value is an observable returns the current value, otherwise
+ * returns the given value.
+ * @since 0.86.0
+ */
+Sactory.value = function(value){
+	if(Sactory.isObservable(value)) {
+		return value.value;
+	} else {
+		return value;
+	}
+};
+
+/**
  * @since 0.81.0
  */
 Sactory.observableImpl = function(T, value, storage, key){
@@ -373,7 +386,8 @@ Sactory.observable.deep = function(value, storage, key){
 /**
  * @since 0.81.0
  */
-Sactory.computedObservableImpl = function(T, context, bind, observables, fun){
+Sactory.computedObservableImpl = function(T, context, bind, observables, fun, maybe){
+	if(maybe) Array.prototype.push.apply(observables, Sactory.filterObservables(maybe));
 	var ret = new T(fun.call(context));
 	ret.computed = true;
 	ret.dependencies = observables;
@@ -394,15 +408,34 @@ Sactory.computedObservableImpl = function(T, context, bind, observables, fun){
 /**
  * @since 0.48.0
  */
-Sactory.computedObservable = function(context, bind, observables, fun){
-	return Sactory.computedObservableImpl(Observable, context, bind, observables, fun);
+Sactory.computedObservable = function(context, bind, observables, fun, maybe){
+	return Sactory.computedObservableImpl(Observable, context, bind, observables, fun, maybe);
 };
 
 /**
  * @since 0.81.0
  */
-Sactory.computedObservable.deep = function(context, bind, observables, fun){
-	return Sactory.computedObservableImpl(DeepObservable, context, bind, observables, fun);
+Sactory.computedObservable.deep = function(context, bind, observables, fun, maybe){
+	return Sactory.computedObservableImpl(DeepObservable, context, bind, observables, fun, maybe);
+};
+
+/**
+ * @since 0.86.0
+ */
+Sactory.maybeComputedObservable = function(context, bind, observables, fun, maybe){
+	Array.prototype.push.apply(observables, Sactory.filterObservables(maybe));
+	if(observables.length) {
+		return Sactory.computedObservable(context, bind, observables, fun);
+	} else {
+		return fun.call(context);
+	}
+};
+
+/**
+ * @since 0.86.0
+ */
+Sactory.filterObservables = function(maybe){
+	return maybe.filter(Sactory.isObservable);
 };
 
 module.exports = Sactory;

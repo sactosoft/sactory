@@ -112,7 +112,7 @@ Builder.prototype.visible = function(value, reversed, bind){
 		var style = document.createElement("style");
 		style.textContent = "." + hidden + "{display:none !important;}";
 		/* debug:
-		style.setAttribute(":debug", "visible-hidden-toggle");
+		style.setAttribute(":usage", "visible-hidden-toggle");
 		*/
 		document.head.appendChild(style);
 	}
