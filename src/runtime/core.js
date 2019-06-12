@@ -182,21 +182,27 @@ Sactory.update = function(context, options){
 		});
 	}
 
-	/*if(options.spread) {
+	if(options.spread) {
 		options.spread.forEach(function(spread){
-			Polyfill.assign(elementArgs, spread);
+			for(var key in spread) {
+				args.push({type: Builder.TYPE_ATTR, name: key, value: spread[key]});
+			}
 		});
-	}*/
+	}
 	
 	if(!context.element) {
 		var widget = widgets[options.tagName];
 		if(widget && options.widget !== false) {
 			context.slots = new SlotRegistry(options.tagName);
-			var instance = new widget(widgetArgs, options.namespace);
-			context.element = instance.render(context.slots, null, context.bind, null);
-			context.element.__builder.widgets[options.tagName] = instance;
-			if(typeof instance.onappend == "function") context.element.__builder.event("append", function(){ instance.onappend(context.element); }, context.bind);
-			if(typeof instance.onremove == "function") context.element.__builder.event("remove", function(){ instance.onremove(context.element); }, context.bind);
+			if(widget.prototype && widget.prototype.render) {
+				var instance = new widget(widgetArgs, options.namespace);
+				context.element = instance.render(context.slots, null, context.bind, null);
+				context.element.__builder.widgets[options.tagName] = instance;
+				if(typeof instance.onappend == "function") context.element.__builder.event("append", function(){ instance.onappend(context.element); }, context.bind);
+				if(typeof instance.onremove == "function") context.element.__builder.event("remove", function(){ instance.onremove(context.element); }, context.bind);
+			} else {
+				context.element = widget(context.slots, null, context.bind, null, widgetArgs, options.namespace);
+			}
 			if(context.slots.slots.__container) {
 				context.container = context.slots.slots.__container.element;
 				context.anchor = context.slots.slots.__container.anchor;

@@ -509,78 +509,78 @@ JavascriptParser.prototype.next = function(match){
 			} else {
 				var skip = this.parser.skipImpl({strings: false});
 				var peek = this.parser.peek();
-				if(peek === undefined || !/[a-zA-Z0-9_]/.test(peek)) {
+				var match = this.parser.input.substr(this.parser.index).match(/^(?:((?:\.?[a-zA-Z0-9_$]+)*)(\s*)\()/);
+				if(match) {
+					var add = function(runtime, fun, args){
+						this.parser.index += match[0].length;
+						this.add((runtime ? this.runtime + "." : "") + skip + fun + match[2] + "(" + (args || ""));
+						this.parentheses.push(false);
+					}.bind(this);
+					switch(match[1]) {
+						case "subscribe":
+							add(true, this.transpiler.feature("subscribe"), this.bind + ", ");
+							break;
+						case "watch":
+						case "watch.deep":
+							// new observable
+							var type = match[1].substr(5);
+							this.parser.index += match[0].length;
+							this.parser.parseTemplateLiteral = null;
+							var parsed = this.transpiler.parseCode(this.parser.readExpression());
+							this.transpiler.updateTemplateLiteralParser();
+							if(parsed.observables && parsed.observables.length || parsed.maybeObservables && parsed.maybeObservables.length) {
+								// computed
+								this.add(this.runtime + "." + this.transpiler.feature("computedObservable") + type + "(this, " + this.bind + ", " + parsed.toSpreadValue());
+							} else {
+								this.add(this.runtime + "." + this.transpiler.feature("observable") + type + "(" + parsed.source);
+							}
+							this.parentheses.push(false);
+							break;
+						case "text":
+						case "html":
+							this.parser.index += match[0].length - 1;
+							this.add(this.runtime + "." + this.transpiler.feature(match[1]) + "(" + this.element + ", " + this.bind + ", " + this.anchor + ", " + this.parseCodeToValue("skipEnclosedContent") + ")");
+							break;
+						case "on":
+							add(true, this.transpiler.feature("on"), this.element + ", " + this.bind + ", ");
+							break;
+						case "widgets.add":
+							add(true, this.transpiler.feature("defineWidget"));
+							break;
+						case "widgets.remove":
+							add(true, this.transpiler.feature("undefineWidget"));
+							break;
+						case "widgets.names":
+							add(true, this.transpiler.feature("getWidgetsNames"));
+							break;
+						case "render":
+						case "":
+							add(false, match[1], this.transpiler.slotsRegistry + ", " + this.element + ", " + this.bind + ", " + this.anchor + ", ");
+							break;
+						case "slot":
+							add(false, this.transpiler.slotsRegistry + ".add", this.runtime + "." + this.transpiler.feature("createAnchor") + "(" + this.element + ", " + this.bind + ", " + this.anchor + "), ");
+							break;
+						case "animations.add":
+							add(true, this.transpiler.feature("addAnimation"));
+							break;
+						case "rgb":
+						case "rgba":
+						case "lighten":
+						case "darken":
+						case "grayscale":
+						case "mix":
+						case "random":
+							add(true, this.transpiler.feature("css." + match[1]));
+							break;
+						default:
+
+							this.add('@');
+					}
+				} else if(peek === undefined || !/[a-zA-Z0-9_]/.test(peek)) {
 					this.add(this.element);
 					if(skip) this.add(skip);
 				} else {
-					var match = this.parser.input.substr(this.parser.index).match(/^(?:((?:\.?[a-zA-Z0-9_$]+)+)(\s*)\()/);
-					if(match) {
-						var add = function(runtime, fun, args){
-							this.parser.index += match[0].length;
-							this.add((runtime ? this.runtime + "." : "") + skip + fun + match[2] + "(" + (args || ""));
-							this.parentheses.push(false);
-						}.bind(this);
-						switch(match[1]) {
-							case "subscribe":
-								add(true, this.transpiler.feature("subscribe"), this.bind + ", ");
-								break;
-							case "watch":
-							case "watch.deep":
-								// new observable
-								var type = match[1].substr(5);
-								this.parser.index += match[0].length;
-								this.parser.parseTemplateLiteral = null;
-								var parsed = this.transpiler.parseCode(this.parser.readExpression());
-								this.transpiler.updateTemplateLiteralParser();
-								if(parsed.observables && parsed.observables.length || parsed.maybeObservables && parsed.maybeObservables.length) {
-									// computed
-									this.add(this.runtime + "." + this.transpiler.feature("computedObservable") + type + "(this, " + this.bind + ", " + parsed.toSpreadValue());
-								} else {
-									this.add(this.runtime + "." + this.transpiler.feature("observable") + type + "(" + parsed.source);
-								}
-								this.parentheses.push(false);
-								break;
-							case "text":
-							case "html":
-								this.parser.index += match[0].length - 1;
-								this.add(this.runtime + "." + this.transpiler.feature(match[1]) + "(" + this.element + ", " + this.bind + ", " + this.anchor + ", " + this.parseCodeToValue("skipEnclosedContent") + ")");
-								break;
-							case "on":
-								add(true, this.transpiler.feature("on"), this.element + ", " + this.bind + ", ");
-								break;
-							case "widgets.add":
-								add(true, this.transpiler.feature("defineWidget"));
-								break;
-							case "widgets.remove":
-								add(true, this.transpiler.feature("undefineWidget"));
-								break;
-							case "widgets.names":
-								add(true, this.transpiler.feature("getWidgetsNames"));
-								break;
-							case "render":
-								add(false, "render", this.transpiler.slotsRegistry + ", " + this.element + ", " + this.bind + ", " + this.anchor + ", ");
-								break;
-							case "slot":
-								add(false, this.transpiler.slotsRegistry + ".add", this.runtime + "." + this.transpiler.feature("createAnchor") + "(" + this.element + ", " + this.bind + ", " + this.anchor + "), ");
-								break;
-							case "animations.add":
-								add(true, this.transpiler.feature("addAnimation"));
-								break;
-							case "rgb":
-							case "rgba":
-							case "lighten":
-							case "darken":
-							case "grayscale":
-							case "mix":
-							case "random":
-								add(true, this.transpiler.feature("css." + match[1]));
-								break;
-							default:
-								this.add('@');
-						}
-					} else {
-						this.add('@' + skip);
-					}
+					this.add('@' + skip);
 				}
 			}
 			break;

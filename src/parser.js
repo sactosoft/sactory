@@ -469,7 +469,7 @@ Parser.prototype.readQueryExpr = function(){
  * @returns The expression read or an empty string if no expression could be found.
  */
 Parser.prototype.readSingleExpression = function(skip){
-	var ret = this.readImpl(/^([-+~!]*((new|delete|typeof)\s+)?\*{0,3}\^?@{0,2})/) || "";
+	var ret = this.readImpl(/^([-+~!]*((new|delete|typeof)\s+)?(\*{0,3}\??|\^\??)?@{0,2})/) || "";
 	if(skip) ret += this.skipImpl({strings: false});
 	var peek = this.peek();
 	if(peek == '"' || peek == '\'' || peek == '`') {
