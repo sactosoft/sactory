@@ -52,7 +52,7 @@ Sactory.computeUnit = function(unit, result){
 	}
 };
 
-function minify(root) {
+Sactory.compileStyle = function(root) {
 	var ret = "";
 	function compile(array) {
 		array.forEach(function(item){
@@ -78,7 +78,7 @@ function minify(root) {
  * Converts an object in CSSB format to minified CSS.
  * @since 0.19.0
  */
-Sactory.compileStyle = function(root){
+Sactory.convertStyle = function(root){
 	var ret = [];
 	function compile(selectors, curr, obj) {
 		obj.forEach(function(value){
@@ -120,7 +120,7 @@ Sactory.compileStyle = function(root){
 		});
 	}
 	compile([], ret, root);
-	return minify(ret);
+	return Sactory.compileStyle(ret);
 };
 
 /**
@@ -131,7 +131,7 @@ Sactory.compileStyle = function(root){
  */
 Sactory.compileAndBindStyle = function(fun, element, bind, observables){
 	function reload() {
-		element.textContent = Sactory.compileStyle(fun());
+		element.textContent = Sactory.convertStyle(fun());
 	}
 	observables.forEach(function(observable){
 		var subscription = observable.subscribe(reload);

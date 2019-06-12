@@ -563,6 +563,9 @@ JavascriptParser.prototype.next = function(match){
 							case "slot":
 								add(false, this.transpiler.slotsRegistry + ".add", this.runtime + "." + this.transpiler.feature("createAnchor") + "(" + this.element + ", " + this.bind + ", " + this.anchor + "), ");
 								break;
+							case "animations.add":
+								add(true, this.transpiler.feature("addAnimation"));
+								break;
 							case "rgb":
 							case "rgba":
 							case "lighten":
@@ -1322,7 +1325,7 @@ Transpiler.prototype.open = function(){
 								else start.name = start.name.substr(5);
 								attr.value = this.runtime + "." + this.feature((temp ? "prev" : "next") + "Id") + "()";
 								if(value != "\"\"") attr.value = value + " + " + attr.value;
-							} else if(Polyfill.startsWith.call(start.name, "in:") || Polyfill.startsWith.call(start.name, "out:")) {
+							} else if(Polyfill.startsWith.call(start.name, "io:") || Polyfill.startsWith.call(start.name, "in:") || Polyfill.startsWith.call(start.name, "out:")) {
 								var column = start.name.indexOf(':');
 								var type = start.name.substring(0, column);
 								start.name = start.name.substr(column + 1);
@@ -1409,6 +1412,10 @@ Transpiler.prototype.open = function(){
 				}
 			}
 		}
+
+		["checkbox", "color", "date", "email", "file", "hidden", "number", "password", "radio", "range", "time"].forEach(function(type){
+			if(iattributes[type]) rattributes.push({prefix: "", name: "type", value: JSON.stringify(type)});
+		});
 
 		if(iattributes.root) parent = parent + ".getRootNode({composed: " + (iattributes.composed || "false") + "})";
 		else if(iattributes.head) parent = "document.head";
@@ -1797,7 +1804,8 @@ var dependencies = {
 	bindIf: ["bind"],
 	bindEach: ["bind"],
 	// cssb
-	compileAndBindStyle: ["compileStyle"]
+	compileAndBindStyle: ["convertStyle"],
+	convertStyle: ["compileStyle"]
 };
 
 if(typeof window == "object") {

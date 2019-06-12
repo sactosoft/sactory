@@ -48,13 +48,14 @@ function make(filename, className, sources) {
 gulp.task("dist:sactory", function(){
 	return make("sactory", "Sactory", [
 		"polyfill",
-		"runtime/config",
-		"runtime/core",
-		"runtime/cssb",
+		"runtime/config", // must be first
+		"runtime/animation",
 		"runtime/bind",
-		"runtime/observable",
 		"runtime/builder",
-		"runtime/client"
+		"runtime/core",
+		"runtime/client",
+		"runtime/observable",
+		"runtime/style"
 	]);
 });
 

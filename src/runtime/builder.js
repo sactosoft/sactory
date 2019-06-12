@@ -2,6 +2,7 @@ var Polyfill = require("../polyfill");
 var SactoryConfig = require("./config");
 var SactoryObservable = require("./observable");
 var SactoryBind = require("./bind");
+var SactoryAnimation = require("./animation");
 
 // generate class name for hidden elements
 var hidden = SactoryConfig.newPrefix();
@@ -14,7 +15,7 @@ function Builder(element) {
 
 	this.element = element;
 
-	this.animations = {in: [], out: []};
+	this.animations = {i: [], o: []};
 	this.animationTimeout = false;
 	this.animationStart = 0;
 
@@ -110,6 +111,9 @@ Builder.prototype.visible = function(value, reversed, bind){
 		hiddenAdded = true;
 		var style = document.createElement("style");
 		style.textContent = "." + hidden + "{display:none !important;}";
+		/* debug:
+		style.setAttribute(":debug", "visible-hidden-toggle");
+		*/
 		document.head.appendChild(style);
 	}
 	var builder = this;
@@ -126,54 +130,36 @@ Builder.prototype.visible = function(value, reversed, bind){
 		var updateImpl = update;
 		update = function(newValue, oldValue){
 			if(newValue != oldValue) {
-				var oldAnimation;
 				if(this.animationTimeout) {
-					oldAnimation = this.animationStart;
 					// stop current animation
 					this.element.style.animation = "";
-					this.element.style.animationDelay = "";
 					clearTimeout(this.animationTimeout);
 					this.animationTimeout = false;
-					this.animationStart = 0;
 				}
-				var animations = this.animations[newValue ? "in" : "out"];
+				var animations = this.animations[newValue ? "i" : "o"];
 				if(animations.length) {
 					if(newValue) {
 						// when the animation is in the element must be displayed immediately
 						updateImpl(true);
 					}
 					animations = animations.slice(0); // duplicate
-					var time = new Date().getTime();
 					var i = 0;
 					function run() {
 						var animation = animations[i];
-						var duration = animation.duration || 1;
-						this.element.style.animation = animation.name + " " + duration + "s " + (animation.timing || "linear") + " forwards";
-						if(oldAnimation) {
-							var diff = (time - oldAnimation) / 1000;
-							if(diff < duration) {
-								console.log("Still need", diff, "out of", duration);
-								this.element.style.animationDelay = "-" + (duration - diff) + "s";
-								duration = diff;
-								this.animationStart -= diff * 1000;
-							}
-							oldAnimation = undefined;
-						}
+						var duration = animation.options.duration || 1;
+						this.element.style.animation = animation.name + " " + duration + "s " + (animation.options.easing || "linear") + " forwards";
+						this.element.style.animationDirection = newValue ? "reverse" : "normal";
 						this.animationTimeout = setTimeout(function(){
 							if(++i < animations.length) {
 								run.call(this);
 							} else {
-								console.log("done");
 								// the animations are over
 								updateImpl(newValue);
 								this.element.style.animation = "";
-								this.element.style.animationDelay = "";
 								this.animationTimeout = false;
-								this.animationStart = 0;
 							}
 						}.bind(this), duration * 1000);
 					}
-					this.animationStart = time;
 					run.call(this);
 				} else {
 					updateImpl(newValue);
@@ -739,7 +725,17 @@ Builder.prototype.form = function(info, value, bind){
 
 Builder.prototype.addAnimation = function(type, name, options){
 	if(typeof options == "number") options = {duration: options};
-	this.animations[type].push(Polyfill.assign(options, {name: name}));
+	var animation = SactoryAnimation.getAnimation(name);
+	if(!animation) throw new Error("Animation '" + name + "' is not defined.");
+	var res = {name: SactoryAnimation.createKeyframes(animation, options), options: options};
+	if(type == "io") {
+		this.animations.i.push(res);
+		this.animations.o.push(res);
+	} else if(type == "in") {
+		this.animations.i.push(res);
+	} else if(type == "out") {
+		this.animations.o.push(res);
+	}
 };
 
 // polyfill

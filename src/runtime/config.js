@@ -8,7 +8,7 @@ var cmd = mac ? "meta" : "ctrl";
  * @since 0.64.0
  */
 Sactory.config = {
-	prefix: "sa",
+	prefix: "sctr",
 	shortcut: {
 		cmd: cmd,
 		save: "keydown:" + cmd + ":key-code.83",	// s
