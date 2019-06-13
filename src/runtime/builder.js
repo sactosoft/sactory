@@ -43,6 +43,8 @@ Builder.TYPE_EXTEND_WIDGET = 6;
 
 Builder.prototype.widgets = {};
 
+Builder.prototype.widget = null;
+
 /**
  * @since 0.42.0
  */

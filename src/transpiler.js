@@ -556,6 +556,9 @@ JavascriptParser.prototype.next = function(match){
 						case "on":
 							add(true, this.transpiler.feature("on"), this.element + ", " + this.bind + ", ");
 							break;
+						case "widget":
+							add(true, this.transpiler.feature("widget"));
+							break;
 						case "widgets.add":
 							add(true, this.transpiler.feature("defineWidget"));
 							break;
@@ -700,7 +703,8 @@ function CSSBParser(transpiler, parser, source, attributes) {
 	this.maybeObservables = [];
 	this.expr = [];
 	this.scopes = [transpiler.nextVarName()];
-	this.scope = !!attributes.scoped;
+	this.scope = attributes.scope;
+	this.scoped = !!attributes.scoped;
 }
 
 CSSBParser.prototype = Object.create(SourceParser.prototype);
@@ -730,7 +734,8 @@ CSSBParser.prototype.skip = function(){
 CSSBParser.prototype.start = function(){
 	this.add(this.runtime + "." + this.transpiler.feature("compileAndBindStyle") + "(function(){");
 	this.add("var " + this.scopes[0] + "=[];");
-	if(this.scope) this.addScope("\".__sa\" + " + this.element + ".__builder.runtimeId");
+	if(this.scoped) this.addScope("'.' + " + this.runtime + ".config.prefix + " + this.element + ".__builder.runtimeId");
+	else if(this.scope) this.addScope(JSON.stringify('.' + this.scope));
 };
 
 CSSBParser.prototype.parse = function(handle, eof){
@@ -855,12 +860,16 @@ CSSBParser.prototype.end = function(){
 	this.add("return " + this.scopes[0] + "}, " + this.element + ", " + this.bind + ", [" + uniq(this.observables).join(", ") + "], [" + this.maybeObservables.join(", ") + "])");
 };
 
+CSSBParser.prototype.actionImpl = function(type){
+	if(this.scoped) return "function(){ this.parentNode.__builder." + type + "Class(" + this.runtime + ".config.prefix + this.__builder.runtimeId); }";
+};
+
 CSSBParser.prototype.afterappend = function(){
-	if(this.scope) return "function(){ this.parentNode.__builder.addClass(\"__sa\" + this.__builder.runtimeId); }";
+	return this.actionImpl("add");
 };
 
 CSSBParser.prototype.beforeremove = function(){
-	if(this.scope) return "function(){ this.parentNode.__builder.removeClass(\"__sa\" + this.__builder.runtimeId); }";
+	return this.actionImpl("remove");
 };
 
 CSSBParser.createExprImpl = function(expr, info, transpiler){
@@ -1466,12 +1475,15 @@ Transpiler.prototype.open = function(){
 			append = false;
 		}
 		if(newMode !== undefined) {
-			// the attributes need to be converted to booleans as they are strings.
-			// every attribute is evaluated to true except the `false` and `0` expressions, without quotes.
+			// every attribute is parsed as JSON, expect an empty string (default value) which is converter to true
 			var attributes = {};
 			for(var key in iattributes) {
-				var value = iattributes[key];
-				attributes[key] = value != "false" && value != "0";
+				try {
+					var value = JSON.parse(iattributes[key]);
+					attributes[key] = value === "" ? true : value;
+				} catch(e) {
+					// invalid values are ignored
+				}
 			}
 			this.startMode(newMode, attributes);
 		}
@@ -1793,6 +1805,7 @@ Transpiler.prototype.transpile = function(input){
 			slotsRegistry: this.slotsRegistry
 		},
 		scope: this.options.scope,
+		sequence: this.count,
 		tags: this.tagNames,
 		features: Object.keys(features),
 		warnings: this.warnings,
