@@ -24,7 +24,9 @@ Sactory.config = {
 	event: {
 		aliases: {
 			"space": " ",
-			"ctrl": "control"
+			"ctrl": "control",
+			"column": ":",
+			"dot": "."
 		}
 	}
 };

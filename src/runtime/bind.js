@@ -35,7 +35,7 @@ Bind.prototype.rollback = function(){
 	}
 	if(this.elements.length) {
 		this.elements.forEach(function(element){
-			if(element.__builderInstance && element.dispatchEvent) element.dispatchEvent(new Event("remove"));
+			if(element.__builderInstance && element.dispatchEvent) element.__builder.dispatchEvent("remove");
 			if(element.parentNode) element.parentNode.removeChild(element);
 		});
 		this.elements = [];

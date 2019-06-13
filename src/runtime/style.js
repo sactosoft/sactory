@@ -1,4 +1,5 @@
 var Polyfill = require("../polyfill");
+var SactoryObservable = require("./observable");
 
 var Sactory = {};
 
@@ -129,10 +130,11 @@ Sactory.convertStyle = function(root){
  * if present.
  * @since 0.49.0
  */
-Sactory.compileAndBindStyle = function(fun, element, bind, observables){
+Sactory.compileAndBindStyle = function(fun, element, bind, observables, maybe){
 	function reload() {
 		element.textContent = Sactory.convertStyle(fun());
 	}
+	Array.prototype.push.apply(observables, SactoryObservable.filterObservables(maybe));
 	observables.forEach(function(observable){
 		var subscription = observable.subscribe(reload);
 		if(bind) bind.subscribe(subscription);

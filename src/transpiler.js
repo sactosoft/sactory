@@ -30,6 +30,10 @@ function stringify(str) {
 	}) + '"';
 }
 
+function now() {
+	return performance.now ? performance.now() : new Date().getTime();
+}
+
 var modeRegistry = [];
 var modeNames = {};
 var defaultMode;
@@ -509,6 +513,14 @@ JavascriptParser.prototype.next = function(match){
 			} else {
 				var skip = this.parser.skipImpl({strings: false});
 				var peek = this.parser.peek();
+				var fallback = function(){
+					if(peek === undefined || !/[a-zA-Z0-9_]/.test(peek)) {
+						this.add(this.element);
+						if(skip) this.add(skip);
+					} else {
+						this.add('@' + skip);
+					}
+				}.bind(this);
 				var match = this.parser.input.substr(this.parser.index).match(/^(?:((?:\.?[a-zA-Z0-9_$]+)*)(\s*)\()/);
 				if(match) {
 					var add = function(runtime, fun, args){
@@ -573,14 +585,10 @@ JavascriptParser.prototype.next = function(match){
 							add(true, this.transpiler.feature("css." + match[1]));
 							break;
 						default:
-
-							this.add('@');
+							fallback();
 					}
-				} else if(peek === undefined || !/[a-zA-Z0-9_]/.test(peek)) {
-					this.add(this.element);
-					if(skip) this.add(skip);
 				} else {
-					this.add('@' + skip);
+					fallback();
 				}
 			}
 			break;
@@ -689,7 +697,7 @@ CSSParser.prototype = Object.create(LogicParser.prototype);
 function CSSBParser(transpiler, parser, source, attributes) {
 	SourceParser.call(this, transpiler, parser, source, attributes);
 	this.observables = [];
-	this.snaps = [];
+	this.maybeObservables = [];
 	this.expr = [];
 	this.scopes = [transpiler.nextVarName()];
 	this.scope = !!attributes.scoped;
@@ -700,7 +708,7 @@ CSSBParser.prototype = Object.create(SourceParser.prototype);
 CSSBParser.prototype.parseCodeImpl = function(source){
 	var parsed = this.transpiler.parseCode(source, this.parser);
 	if(parsed.observables) Array.prototype.push.apply(this.observables, parsed.observables);
-	if(parsed.snaps) Array.prototype.push.apply(this.snaps, parsed.snaps);
+	if(parsed.maybeObservables) Array.prototype.push.apply(this.maybeObservables, parsed.maybeObservables);
 	return parsed.source;
 };
 
@@ -844,7 +852,7 @@ CSSBParser.prototype.parse = function(handle, eof){
 };
 
 CSSBParser.prototype.end = function(){
-	this.add("return " + this.scopes[0] + "}, " + this.element + ", " + this.bind + ", [" + uniq(this.observables).join(", ") + "], [" + this.snaps.join(", ") + "])");
+	this.add("return " + this.scopes[0] + "}, " + this.element + ", " + this.bind + ", [" + uniq(this.observables).join(", ") + "], [" + this.maybeObservables.join(", ") + "])");
 };
 
 CSSBParser.prototype.afterappend = function(){
@@ -1002,7 +1010,7 @@ Transpiler.prototype.parseCode = function(input, parentParser){
 		parser.parseTemplateLiteral = function(expr){
 			var parsed = $this.parseCode(expr, parser);
 			Array.prototype.push.apply(mode.observables, parsed.observables);
-			Array.prototype.push.apply(mode.snaps, parsed.snaps);
+			Array.prototype.push.apply(mode.maybeObservables, parsed.maybeObservables);
 			return parsed.source;
 		};
 	}
@@ -1373,6 +1381,10 @@ Transpiler.prototype.open = function(){
 							element = element + ".getRootNode({composed: " + (iattributes.composed || "false") + "})";
 							create = append = false;
 							break;
+						case "html":
+							element = "document.documentElement";
+							create = append = false;
+							break;
 						case "head":
 						case "body":
 							element = "document." + name;
@@ -1472,7 +1484,9 @@ Transpiler.prototype.open = function(){
 			}
 
 			if(selector) {
-				this.source.push(this.runtime + "." + this.feature("query") + "(this, " + (queryElement || parent) + ", " + parent + ", " + selector + ", " + selectorAll + ", function(" + this.element + ", " + this.parentElement + "){");
+				if(iattributes["query-head"]) queryElement = "document.head";
+				else if(iattributes["query-body"]) queryElement = "document.body";
+				this.source.push(this.runtime + "." + this.feature("query") + "(this, " + (iattributes.query || queryElement || parent) + ", " + parent + ", " + selector + ", " + selectorAll + ", function(" + this.element + ", " + this.parentElement + "){");
 				if(iattributes.adopt || iattributes.clone) {
 					parent = this.parentElement;
 					create = false;
@@ -1700,7 +1714,7 @@ Transpiler.prototype.warn = function(message, position){
  */
 Transpiler.prototype.transpile = function(input){
 
-	var start = performance.now();
+	var start = now();
 	
 	this.parser = new Parser(input);
 
@@ -1766,7 +1780,7 @@ Transpiler.prototype.transpile = function(input){
 	Object.keys(features).forEach(addDependencies);
 	
 	return {
-		time: performance.now() - start,
+		time: now() - start,
 		variables: {
 			runtime: this.runtime,
 			element: this.element,

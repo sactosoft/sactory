@@ -1,3 +1,5 @@
+var Polyfill = require("../polyfill");
+
 var Sactory = {};
 
 /**
@@ -12,7 +14,17 @@ function Observable(value) {
 		subscriptions: {}
 	};
 	this.updateType = undefined;
+	/* debug:
+	var id = Math.floor(Math.random() * 100000);
+	Object.defineProperty(this, "id", {
+		value: id
+	});
+	*/
 }
+
+Observable.prototype.deep = false;
+
+Observable.prototype.computed = false;
 
 Observable.prototype.replace = function(value){
 	if(value && typeof value == "object") {
@@ -101,10 +113,11 @@ Object.defineProperty(Observable.prototype, "value", {
  */
 function DeepObservable(value) {
 	Observable.call(this, value);
-	this.deep = true;
 }
 
 DeepObservable.prototype = Object.create(Observable.prototype);
+
+DeepObservable.prototype.deep = true;
 
 DeepObservable.prototype.replace = function(value){
 	return this.observeChildren(value, []);
@@ -214,16 +227,16 @@ function ObservableArray(observable, value) {
 		enumerable: false,
 		value: observable
 	});
+	var length = this.length;
+	Object.defineProperty(this, "length", {
+		configurable: false,
+		enumerable: false,
+		writable: true,
+		value: length
+	});
 }
 
 ObservableArray.prototype = Object.create(Array.prototype);
-
-Object.defineProperty(ObservableArray.prototype, "length", {
-	configurable: false,
-	enumerable: false,
-	writable: true,
-	value: 0
-});
 
 ["copyWithin", "fill", "pop", "push", "reverse", "shift", "sort", "splice", "unshift"].forEach(function(fun){
 	if(Array.prototype[fun]) {
@@ -262,7 +275,7 @@ function ObservableDate(observable, value) {
 
 ObservableDate.prototype = Object.create(Date.prototype);
 
-Object.keys(Object.getOwnPropertyDescriptors(Date.prototype)).forEach(function(fun){
+Object.getOwnPropertyNames(Date.prototype).forEach(function(fun){
 	if(Polyfill.startsWith.call(fun, "set")) {
 		Object.defineProperty(ObservableDate.prototype, fun, {
 			enumerable: false,
@@ -364,9 +377,8 @@ Sactory.observableImpl = function(T, value, storage, key){
 		} else {
 			console.warn("window.localStorage is unavailable. '" + storage + "' will not be stored.");
 		}
-	} else {
-		return new T(value);
 	}
+	return new T(value);
 };
 
 /**

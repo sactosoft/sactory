@@ -39,7 +39,7 @@ module.exports = function(app){
 
 		*value = "changed";
 
-		res.send(@render());
+		res.send(@.render());
 
 		console.timeEnd();
 
@@ -65,7 +65,7 @@ module.exports = function(app){
 				});
 			</:body>
 			
-			res.send(@render());
+			res.send(@.render());
 
 			console.timeEnd();
 			
@@ -146,7 +146,7 @@ module.exports = function(app){
 				</#code>
 			</:body>
 			
-			res.send(@toString());
+			res.send(@.toString());
 			
 		});
 	

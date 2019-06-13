@@ -12,6 +12,8 @@ window.onload = function(){
 		"info": "Info"
 	};
 
+	var debugMode = @watch(true, "is_debug");
+
 	var tab = @watch("output", "current_tab");
 
 	function switchTab(from, to) {
@@ -55,6 +57,7 @@ window.onload = function(){
 	var content = hash ? @watch.deep(hash.content) : @watch.deep(defaultContent, *key);
 	var showCount = @watch(*content.show.js + *content.show.html + *content.show.css);
 	var result = @watch((function(){
+		*debugMode; // just to add it as a dependency
 		var result = {source: "", before: "", after: "", info: {time: 0, tags: {}, features: []}, errors: [], warnings: []};
 		var transpiler = new Transpiler({namespace: file.value});
 		function transpile(type, before, after) {
@@ -199,6 +202,10 @@ window.onload = function(){
 				height: calc(100% - 40px);
 			}
 		}
+		.fullscreen {
+			position: fixed;
+			top, bottom, left, right: 0;
+		}
 		.editor {
 			display: inline-block;
 			position: relative;
@@ -259,7 +266,7 @@ window.onload = function(){
 							foreach(Object.keys(window.localStorage).sort() as key) {
 								if(key.substr(0, 8) == "storage.") {
 									var value = key.substr(8);
-									<option value=value +text=value /*@selected=(value == ^file)*/ />
+									<option value=value +text=value />
 								}
 							}
 						</select>
@@ -267,10 +274,14 @@ window.onload = function(){
 				}
 				foreach(Object.keys(*content.show) as type) {
 					<label style="margin-left:12px">
-						<input type="checkbox" style="vertical-align:middle" *form=*content.show[type] />
+						<input style="vertical-align:middle" *checkbox=*content.show[type] />
 						${type.toUpperCase()}
 					</label>
 				}
+				<label style="margin-left:12px">
+					debug
+					<input style="vertical-align:middle" *checkbox=*debugMode />
+				</label>
 				<a id="github" href="https://github.com/sactory/sactory" target="_blank" @hidden=true />
 				<span style="float:right;font-weight:bold;color:darkviolet;cursor:pointer" +text=("Sactory v" + Sactory.VERSION) +click={ this.previousElementSibling.click() } />
 			</section>
@@ -294,7 +305,7 @@ window.onload = function(){
 							</#code>
 							<select class="mode" *form=*content.mode[type]>
 								foreach(modes[type] as m) {
-									<option value=m +text=m /*@selected=(^content.mode[type] == m)*/ />
+									<option value=m +text=m />
 								}
 							</select>
 						</div>
@@ -315,10 +326,11 @@ window.onload = function(){
 
 			<section @visible=(*tab == "output") :append>
 				<:bind-if :condition={ !*result.error } #code>
-					var container = <iframe style="width:100%;height:100%;border:none" />
+					var container = <iframe style="width:100%;height:100%;border:none" src="about:blank" />
 					window.sandbox = container.contentWindow;
 					<{container.contentWindow.document.head}>
-						<script src="../dist/sactory.debug.js" />.onload = function(){
+						<meta charset="UTF-8" />
+						<script src=("../dist/sactory" + (*debugMode ? ".debug" : "") + ".js") />.onload = function(){
 							/*try {
 								container.contentWindow.eval(*result.source.all);
 							} catch(e) {

@@ -280,7 +280,7 @@ Builder.prototype["class"] = function(value, bind){
  * @since 0.22.0
  */
 Builder.prototype.event = function(name, value, bind){
-	var split = name.split(/(?<!\\):/g).map(function(a){ return a.replace(/\\\:/g, ':'); });
+	var split = name.split(':');
 	var event = split.shift();
 	var listener = value || function(){};
 	var options = {};
@@ -352,7 +352,7 @@ Builder.prototype.event = function(name, value, bind){
 			default:
 				var positive = mod.charAt(0) != '!';
 				if(!positive) mod = mod.substr(1);
-				var dot = mod.split(/(?<!\\)\./g).map(function(a){ return a.replace(/\\\./g, '.'); });
+				var dot = mod.split('.');
 				switch(dot[0]) {
 					case "key":
 						var keys = dot.slice(1).map(function(a){
@@ -766,7 +766,26 @@ if(Object.getOwnPropertyDescriptor(Element.prototype, "classList")) {
 
 }
 
-var selectedOptions = HTMLSelectElement && Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "selectedOptions") ? 
+if(typeof Event == "function") {
+
+	Builder.prototype.dispatchEvent = function(name, bubbles, cancelable){
+		var event = new Event(name, bubbles, cancelable);
+		this.element.dispatchEvent(event);
+		return event;
+	};
+
+} else {
+
+	Builder.prototype.dispatchEvent = function(name, bubbles, cancelable){
+		var event = document.createEvent("Event");
+		event.initEvent(name, bubbles, cancelable);
+		this.element.dispatchEvent(event);
+		return event;
+	};
+
+}
+
+var selectedOptions = typeof HTMLSelectElement == "function" && Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "selectedOptions") ? 
 	function(select){
 		return select.selectedOptions;
 	} :

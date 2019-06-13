@@ -11,10 +11,12 @@ function merge() {
 
 module.exports = merge(
 	require("./src/runtime/server"),
-	require("./src/runtime/core"),
-	require("./src/runtime/cssb"),
+	require("./src/runtime/config"),
+	require("./src/runtime/animation"),
 	require("./src/runtime/bind"),
+	require("./src/runtime/core"),
 	require("./src/runtime/observable"),
+	require("./src/runtime/style"),
 	require("./src/transpiler"),
 	require("./src/watcher")
 );

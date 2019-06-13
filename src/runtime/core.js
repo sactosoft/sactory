@@ -240,9 +240,14 @@ Sactory.update = function(context, options){
 
 	for(var widgetName in widgetExt) {
 		if(!widgets.hasOwnProperty(widgetName)) throw new Error("Widget '" + widgetName + "' could not be found.");
-		var instance = new widgets[widgetName](widgetExt[widgetName]);
-		instance.render(new SlotRegistry(""), context.element, context.bind, null);
-		context.element.__builder.widgets[widgetName] = instance;
+		var widget = widgets[widgetName];
+		if(widget.prototype && widget.prototype.render) {
+			var instance = new widgets[widgetName](widgetExt[widgetName]);
+			instance.render(new SlotRegistry(""), context.element, context.bind, null);
+			context.element.__builder.widgets[widgetName] = instance;
+		} else {
+			widget(new SlotRegistry(""), context.element, context.bind, null, widgetExt[widgetName]);
+		}
 		/* debug:
 		context.element.setAttribute(":extend:" + widgetName, "");
 		*/
@@ -334,7 +339,7 @@ Sactory.append = function(context, parent, anchor, afterappend, beforeremove){
 		if(anchor && anchor.parentNode === parent) parent.insertBefore(context.element, anchor);
 		else parent.appendChild(context.element);
 		if(afterappend) afterappend.call(context.element);
-		if(context.element.dispatchEvent) context.element.dispatchEvent(new Event("append"));
+		if(context.element.__builder && context.element.dispatchEvent) context.element.__builder.dispatchEvent("append");
 		if(beforeremove) context.element.__builder.event("remove", beforeremove, context.bind);
 		if(context.bind) context.bind.appendChild(context.element);
 	}
@@ -391,7 +396,7 @@ Sactory.unique = function(context, id, fun){
  */
 Sactory.query = function(context, doc, parent, selector, all, fun){
 	var nodes = false;
-	if(all || (nodes = typeof selector == "object" && typeof selector.length == "number")) {
+	if(all || (nodes = selector && typeof selector.length == "number")) {
 		if(!nodes) {
 			selector = doc.querySelectorAll(selector);
 		}
