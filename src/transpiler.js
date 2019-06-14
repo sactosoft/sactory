@@ -484,6 +484,39 @@ JavascriptParser.prototype.handleParenthesis = function(match){
 	this.parser.lastIndex = this.parser.index;
 };
 
+JavascriptParser.prototype.addObservable = function(observables, maybeObservables, name){
+	if(name.length) {
+		var source = this.source[this.source.length - 1];
+		this.source[this.source.length - 1] = source.substring(0, source.length - name.length);
+	}
+	var maybe = !!this.parser.readIf('?');
+	var skipped = this.parser.skip();
+	if(skipped) this.add(skipped);
+	if(this.parser.peek() == '(') {
+		name += this.parseCodeToSource("skipEnclosedContent");
+	} else {
+		name += this.parseCodeToSource("readVarName", true);
+	}
+	if(maybe) {
+		this.add(this.runtime + "." + this.transpiler.feature("value") + "(" + name + ")");
+		if(maybeObservables) maybeObservables.push(name);
+	} else {
+		this.add(name + ".value");
+		if(observables) observables.push(name);
+	}
+	this.parser.last = ')';
+	this.parser.lastIndex = this.parser.index;
+};
+
+JavascriptParser.prototype.lookBehind = function(){
+	var end = this.parser.lastIndex;
+	var index = end;
+	while(index >= 0 && /[\s\.a-zA-Z0-9_$]/.test(this.parser.input.charAt(index))) {
+		index--;
+	}
+	return this.parser.input.substring(index + 1, end + 1);
+};
+
 JavascriptParser.prototype.next = function(match){
 	function getName() {
 		var skipped = this.parser.skip();
@@ -568,6 +601,9 @@ JavascriptParser.prototype.next = function(match){
 						case "widgets.remove":
 							add(true, this.transpiler.feature("undefineWidget"));
 							break;
+						case "widgets.has":
+							add(true, this.transpiler.feature("hasWidget"));
+							break;
 						case "widgets.names":
 							add(true, this.transpiler.feature("getWidgetsNames"));
 							break;
@@ -611,20 +647,14 @@ JavascriptParser.prototype.next = function(match){
 						this.transpiler.warn("The observable syntax `**` cannot be used to create computed observables, use `@watch` instead.", position);
 					}
 					this.add(this.runtime + "." + this.transpiler.feature("observable") + "(" + parsed.source + ")");
+					this.parser.last = ')';
+					this.parser.lastIndex = this.parser.index;
 				} else {
 					// get/set observable
-					var maybe = !!this.parser.readIf('?');
-					var name = getName.call(this);
-					if(maybe) {
-						this.add(this.runtime + "." + this.transpiler.feature("value") + "(" + name + ")");
-						this.maybeObservables.push(name);
-					} else {
-						this.add(name + ".value");
-						this.observables.push(name);
-					}
+					this.addObservable(this.observables, this.maybeObservables, "");
 				}
-				this.parser.last = ')';
-				this.parser.lastIndex = this.parser.index;
+			} else if(this.parser.last == '.') {
+				this.addObservable(this.observables, this.maybeObservables, this.lookBehind());
 			} else {
 				// just a multiplication or exponentiation
 				this.add('*');
@@ -634,16 +664,9 @@ JavascriptParser.prototype.next = function(match){
 			break;
 		case '^':
 			if(this.parser.couldStartRegExp()) {
-				var maybe = !!this.parser.readIf('?');
-				var name = getName.call(this);
-				var id = this.transpiler.nextId();
-				if(maybe) {
-					this.add(this.runtime + "." + this.transpiler.feature("value") + "(" + name + ")");
-				} else {
-					this.add(name + ".value");
-				}
-				this.parser.last = ')';
-				this.parser.lastIndex = this.parser.index;
+				this.addObservable(null, null, "");
+			} else if(this.parser.last == '.') {
+				this.addObservable(null, null, this.lookBehind());
 			} else {
 				// xor operator
 				this.add('^');

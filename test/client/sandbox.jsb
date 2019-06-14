@@ -1,7 +1,5 @@
 window.onload = function(){
 
-	var alignment = **"y";
-
 	var file, key, hash = null;
 
 	var tabs = {
@@ -13,6 +11,7 @@ window.onload = function(){
 	};
 
 	var debugMode = @watch(true, "is_debug");
+	var alignment = @watch("y", "alignment");
 
 	var tab = @watch("output", "current_tab");
 
@@ -214,6 +213,7 @@ window.onload = function(){
 		}
 		.x {
 			.top, .bottom {
+				display: inline-block;
 				width: 50%;
 				height: 100vh;
 			}
@@ -282,6 +282,10 @@ window.onload = function(){
 					debug
 					<input style="vertical-align:middle" *checkbox=*debugMode />
 				</label>
+				<select style="margin-left:12px" *value=*alignment>
+					<option value="y">Vertical</option>
+					<option value="x">Horizontal</option>
+				</select>
 				<a id="github" href="https://github.com/sactory/sactory" target="_blank" @hidden=true />
 				<span style="float:right;font-weight:bold;color:darkviolet;cursor:pointer" +text=("Sactory v" + Sactory.VERSION) +click={ this.previousElementSibling.click() } />
 			</section>

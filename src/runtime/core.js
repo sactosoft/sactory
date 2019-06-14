@@ -61,6 +61,14 @@ Sactory.undefineWidget = function(name){
 };
 
 /**
+ * Indicates whether a widget with the given name exists.
+ * @since 0.89.0
+ */
+Sactory.hasWidget = function(name){
+	return widgets.hasOwnProperty(name);
+};
+
+/**
  * Gets a list with the names of every registered widget.
  * @since 0.73.0
  */
