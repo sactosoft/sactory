@@ -291,10 +291,11 @@ Parser.prototype.skipRegExp = function(){
  * Skips and returns an expression that starts with a parenthesis, bracket or brace.
  * Comments, strings and regular expressions are skipped too and their content is not treated
  * as possible enclosures.
+ * @params {boolean} trim - Whether to remove the first and last parenthesis. False by default
  * @throws {ParserError} When the enclosure is not properly closed.
  * @since 0.20.0
  */
-Parser.prototype.skipEnclosedContent = function(){
+Parser.prototype.skipEnclosedContent = function(trim){
 	this.lastEnclosureIndex = this.index;
 	var par = {'}': '{', ']': '[', ')': '('};
 	var ret = this.read();
@@ -307,7 +308,7 @@ Parser.prototype.skipEnclosedContent = function(){
 		var open = count[result.match];
 		if(close) {
 			count[close]--;
-			if(count[close] < 0) return ret;
+			if(count[close] < 0) return trim ? ret.slice(1, -1) : ret;
 		} else if(open !== undefined) {
 			count[result.match]++;
 		}

@@ -248,11 +248,21 @@ TextParser.prototype.handle = function(){
 TextParser.prototype.parseImpl = function(pre, match, handle, eof){
 	switch(match) {
 		case '$':
+		case '#':
 			if(pre.slice(-1) == '\\') {
-				this.current[this.current.length - 1].value = this.current[this.current.length - 1].value.slice(0, -1) + '$';
+				this.current[this.current.length - 1].value = this.current[this.current.length - 1].value.slice(0, -1) + match;
 				break;
+			} else if(this.parser.peek() == '{') {
+				var expr = this.parseCode("skipEnclosedContent", true);
+				if(match == '#') {
+					this.addCurrent();
+					this.add(this.runtime + "." + this.transpiler.feature("mixin") + "(" + this.element + ", " + this.bind + ", " + this.anchor + ", " + expr.source + ");");
+				} else {
+					this.pushExpr(expr);
+				}
+			} else {
+				this.pushText(match);
 			}
-			this.pushExpr(this.parseCode("readVar", true));
 			break;
 		case '<':
 			if(this.handle()) {
@@ -269,7 +279,7 @@ TextParser.prototype.parseImpl = function(pre, match, handle, eof){
 };
 
 TextParser.prototype.parse = function(handle, eof){
-	var result = this.parser.find(['<', '$'], false, true);
+	var result = this.parser.find(['<', '$', '#'], false, true);
 	this.pushText(result.pre);
 	this.parseImpl(result.pre, result.match, handle, eof);
 };
@@ -387,7 +397,7 @@ LogicParser.prototype.parseLogic = function(expected, type){
 };
 
 LogicParser.prototype.parse = function(handle, eof){
-	var result = this.parser.find(['$', '<', 'v', 'c', 'l', 'i', 'e', 'f', 'w', '}', '\n'], false, false);
+	var result = this.parser.find(['$', '#', '<', 'v', 'c', 'l', 'i', 'e', 'f', 'w', '}', '\n'], false, false);
 	this.pushText(result.pre);
 	switch(result.match) {
 		case 'c':

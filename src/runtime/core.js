@@ -354,40 +354,6 @@ Sactory.append = function(context, parent, anchor, afterappend, beforeremove){
 };
 
 /**
- * @since 0.78.0
- */
-Sactory.text = function(element, bind, anchor, text){
-	if(element) element.__builder.text(text, bind, anchor);
-};
-
-/**
- * @since 0.78.0
- */
-Sactory.html = function(element, bind, anchor, html){
-	if(element) element.__builder.html(html, bind, anchor);
-};
-
-/**
- * @since 0.40.0
- */
-Sactory.comment = function(element, bind, anchor, comment){
-	var ret = document.createComment(comment);
-	Sactory.append({element: ret, bind: bind}, element, anchor);
-	return ret;
-};
-
-/**
- * @since 0.78.0
- */
-Sactory.on = function(element, bind, name, value){
-	if(arguments.length == 5) {
-		arguments[2].__builder.event(arguments[3], arguments[4], bind);
-	} else {
-		element.__builder.event(name, value, bind);
-	}
-};
-
-/**
  * @since 0.32.0
  */
 Sactory.unique = function(context, id, fun){
@@ -418,6 +384,51 @@ Sactory.query = function(context, doc, parent, selector, all, fun){
 		}
 		if(selector) fun.call(context, selector, parent);
 		return selector;
+	}
+};
+
+/**
+ * @since 0.90.0
+ */
+Sactory.mixin = function(element, bind, anchor, data){
+	if(data instanceof Node) {
+		Sactory.append({element: data, bind: bind}, element, anchor);
+	} else {
+		Sactory.text(element, bind, anchor, data);
+	}
+};
+
+/**
+ * @since 0.78.0
+ */
+Sactory.text = function(element, bind, anchor, text){
+	if(element) element.__builder.text(text, bind, anchor);
+};
+
+/**
+ * @since 0.78.0
+ */
+Sactory.html = function(element, bind, anchor, html){
+	if(element) element.__builder.html(html, bind, anchor);
+};
+
+/**
+ * @since 0.40.0
+ */
+Sactory.comment = function(element, bind, anchor, comment){
+	var ret = document.createComment(comment);
+	Sactory.append({element: ret, bind: bind}, element, anchor);
+	return ret;
+};
+
+/**
+ * @since 0.78.0
+ */
+Sactory.on = function(element, bind, name, value){
+	if(arguments.length == 5) {
+		arguments[2].__builder.event(arguments[3], arguments[4], bind);
+	} else {
+		element.__builder.event(name, value, bind);
 	}
 };
 
