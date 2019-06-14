@@ -320,6 +320,7 @@ LogicParser.prototype.parseLogic = function(expected, type){
 			var statement = Polyfill.startsWith.call(expected, "else") ? this.popped.pop() : {
 				startIndex: this.source.length,
 				observables: [],
+				maybeObservables: [],
 				end: ""
 			};
 			if(type === 1) {
@@ -327,6 +328,7 @@ LogicParser.prototype.parseLogic = function(expected, type){
 				function reparse(source, parser) {
 					var parsed = transpiler.parseCode(source, parser);
 					Array.prototype.push.apply(statement.observables, parsed.observables);
+					Array.prototype.push.apply(statement.maybeObservables, parsed.maybeObservables);
 					return parsed.source;
 				}
 				// with condition
@@ -445,9 +447,9 @@ LogicParser.prototype.end = function(){
 	var sorted = [];
 	this.popped.forEach(function(popped){
 		//if(popped.observables) {
-			var bind = !!popped.observables.length;
+			var bind = !!popped.observables.length || !!popped.maybeObservables.length;
 			sorted.push(
-				{index: popped.startIndex, start: true, bind: bind, observables: popped.observables},
+				{index: popped.startIndex, start: true, bind: bind, observables: popped.observables, maybe: popped.maybeObservables},
 				{index: popped.endIndex, start: false, bind: bind, end: popped.end}
 			);
 		//}
@@ -459,7 +461,8 @@ LogicParser.prototype.end = function(){
 	for(var i=0; i<sorted.length; i++) {
 		var popped = sorted[i];
 		this.source.splice(popped.index + shift++, 0, popped.start ? (popped.bind ? this.runtime + "." + this.transpiler.feature("bind") + "(this, " + this.element + ", " + this.bind + ", " + this.anchor +
-			", [" + uniq(popped.observables).join(", ") + "], 0, 0, function(" + this.element + ", " + this.bind + ", " + this.anchor + "){" : "") : popped.end + (popped.bind ? "})" : "") + ";");
+			", [" + uniq(popped.observables).join(", ") + "]" + (popped.maybe.length ? ".concat(" + this.runtime + "." + this.transpiler.feature("filterObservables") + "([" + uniq(popped.maybe) + "]))" : "") +
+			", 0, 0, function(" + this.element + ", " + this.bind + ", " + this.anchor + "){" : "") : popped.end + (popped.bind ? "})" : "") + ";");
 	}
 };
 
@@ -1493,6 +1496,10 @@ Transpiler.prototype.open = function(){
 			if(!computed && tagName == ":debug" || iattributes["debug"]) {
 				this.source.push("if(" + this.runtime + ".debug){");
 				currentClosing.unshift("}");
+			}
+
+			if(iattributes.ref) {
+				this.source.push(iattributes.ref + " = ");
 			}
 
 			if(selector) {
