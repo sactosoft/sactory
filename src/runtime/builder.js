@@ -178,6 +178,10 @@ Builder.prototype.visible = function(value, reversed, bind){
  */
 Builder.prototype.style = function(name, value, bind){
 	var node = document.createElement("style");
+	/* debug:
+	node.setAttribute(":usage", "inline-pseudo-class");
+	node.setAttribute(":for", this.runtimeId);
+	*/
 	var className = SactoryConfig.newPrefix();
 	var wrap;
 	var dot = name.indexOf('.');
@@ -281,7 +285,7 @@ Builder.prototype["class"] = function(value, bind){
 /**
  * @since 0.22.0
  */
-Builder.prototype.event = function(name, value, bind){
+Builder.prototype.event = function(context, name, value, bind){
 	var split = name.split(':');
 	var event = split.shift();
 	var listener = value || function(){};
@@ -290,6 +294,11 @@ Builder.prototype.event = function(name, value, bind){
 	split.reverse().forEach(function(mod){
 		var prev = listener;
 		switch(mod) {
+			case "this":
+				listener = function(event){
+					return prev.call(context, event);
+				};
+				break;
 			case "prevent":
 				listener = function(event){
 					event.preventDefault();
@@ -479,6 +488,23 @@ Builder.prototype.event = function(name, value, bind){
 				break;
 		}
 	});
+	if(event == "documentappend") {
+		// special event
+		event = "append";
+		var prev = listener;
+		var element = this.element;
+		listener = function(event){
+			if(document.contains(element)) prev.call(element, event);
+			else this.parentNode.__builder.eventImpl("append", listener, options, useCapture, bind);
+		};
+	}
+	this.eventImpl(event, listener, options, useCapture, bind);
+};
+
+/**
+ * @since 0.91.0
+ */
+Builder.prototype.eventImpl = function(event, listener, options, useCapture, bind){
 	this.element.addEventListener(event, listener, options, useCapture);
 	if(bind) {
 		var element = this.element;
@@ -546,12 +572,12 @@ Builder.prototype[Builder.TYPE_TWOWAY] = function(name, value, bind){
 /**
  * @since 0.69.0
  */
-Builder.prototype[Builder.TYPE_ADD] = function(name, value, bind, anchor){
+Builder.prototype[Builder.TYPE_ADD] = function(name, value, bind, anchor, context){
 	switch(name) {
 		case "text": return this.text(value, bind, anchor);
 		case "html": return this.html(value, bind, anchor);
 		case "class": return this["class"](value, bind);
-		default: this.event(name, SactoryObservable.unobserve(value), bind);
+		default: this.event(context, name, SactoryObservable.unobserve(value), bind);
 	}
 };
 
@@ -715,7 +741,7 @@ Builder.prototype.form = function(info, value, bind){
 		});
 	}
 	for(var i=0; i<events.length; i++) {
-		this.event(events[i], function(){
+		this.event(null, events[i], function(){
 			get.call(this, function(newValue){
 				converters.forEach(function(converter){
 					newValue = converter.call(newValue, newValue);

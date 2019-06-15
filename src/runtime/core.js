@@ -227,7 +227,9 @@ Sactory.update = function(context, options){
 				context.element = context.container = document.createElement(options.tagName);
 			}
 			/* debug:
-			context.element.setAttribute(":created", "");
+			if(context.element.setAttribute) {
+				context.element.setAttribute(":created", "");
+			}
 			*/
 		}
 	}
@@ -237,7 +239,7 @@ Sactory.update = function(context, options){
 	});
 	
 	args.forEach(function(arg){
-		context.element.__builder[arg.type](arg.name, arg.value, context.bind, context.anchor);
+		context.element.__builder[arg.type](arg.name, arg.value, context.bind, context.anchor, context.context);
 	});
 
 	if(options.transitions) {
@@ -262,7 +264,9 @@ Sactory.update = function(context, options){
 	}
 
 	/* debug:
-	context.element.setAttribute(":id", context.element.__builder.runtimeId);
+	if(context.element.setAttribute) {
+		context.element.setAttribute(":id", context.element.__builder.runtimeId);
+	}
 	*/
 	
 };
@@ -394,7 +398,7 @@ Sactory.mixin = function(element, bind, anchor, data){
 	if(data instanceof Node) {
 		Sactory.append({element: data, bind: bind}, element, anchor);
 	} else {
-		Sactory.text(element, bind, anchor, data);
+		Sactory.html(element, bind, anchor, data);
 	}
 };
 
@@ -424,11 +428,11 @@ Sactory.comment = function(element, bind, anchor, comment){
 /**
  * @since 0.78.0
  */
-Sactory.on = function(element, bind, name, value){
-	if(arguments.length == 5) {
-		arguments[2].__builder.event(arguments[3], arguments[4], bind);
+Sactory.on = function(context, element, bind, name, value){
+	if(arguments.length == 6) {
+		arguments[3].__builder.event(context, arguments[4], arguments[5], bind);
 	} else {
-		element.__builder.event(name, value, bind);
+		element.__builder.event(context, name, value, bind);
 	}
 };
 

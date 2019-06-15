@@ -293,20 +293,18 @@ window.onload = function(){
 				foreach(["js", "html", "css"] as type) {
 					<:bind-if :condition={ *content.show[type] } :change={ !!document.getElementById(type) != newValue.show[type] }>
 						<div id=type class="editor">
-							<#code>
-								var textarea = <textarea @value=*content.content[type] />;
-								// init the next tick so everything is already appended to the DOM
-								setTimeout(function(){
-									inputs[type] = CodeMirror.fromTextArea(textarea, {
+							<textarea @value=^content.content[type] #code>
+								@on("documentappend", function(){
+									inputs[type] = CodeMirror.fromTextArea(this, {
 										lineNumbers: true,
 										indentWithTabs: true,
 										smartIndent: false,
 										lineWrapping: true,
 										mode: type == "js" ? "javascript" : (type == "html" ? "htmlmixed" : "css")
 									});
-									<{textarea.nextElementSibling} +[[save]]:prevent=save />
-								}, 0);
-							</#code>
+									<{this.nextElementSibling} +[[save]]:prevent=save />
+								});
+							</textarea>
 							<select class="mode" *form=*content.mode[type]>
 								foreach(modes[type] as m) {
 									<option value=m +text=m />
@@ -318,7 +316,7 @@ window.onload = function(){
 			</section>
 		</section>
 
-		<section class="bottom" :append>
+		<section class="bottom">
 
 			<nav>
 				<div style="margin:8px 0 10px">
@@ -328,22 +326,19 @@ window.onload = function(){
 				</div>
 			</nav>
 
-			<section @visible=(*tab == "output") :append>
+			<section @visible=(*tab == "output")>
 				<:bind-if :condition={ !*result.error } #code>
-					var container = <iframe style="width:100%;height:100%;border:none" src="about:blank" />
-					window.sandbox = container.contentWindow;
-					<{container.contentWindow.document.head}>
-						<meta charset="UTF-8" />
-						<script src=("../dist/sactory" + (*debugMode ? ".debug" : "") + ".js") />.onload = function(){
-							/*try {
-								container.contentWindow.eval(*result.source.all);
-							} catch(e) {
-								console.error(e);
-								*result.error = e;
-							}*/
-							<script @textContent=("var $snippet=" + JSON.stringify('$' + *key) + ";" + *result.before + *result.source + *result.after) />
-						};
-					</>
+					<iframe style="width:100%;height:100%;border:none" src="about:blank">
+						@on("documentappend", function(){
+							window.sandbox = this.contentWindow;
+							<{this.contentWindow.document.head}>
+								<meta charset="UTF-8" />
+								<script src=("../dist/sactory" + (*debugMode ? ".debug" : "") + ".js") />.onload = function(){
+									<script @textContent=("var $snippet=" + JSON.stringify('$' + *key) + ";" + *result.before + *result.source + *result.after) />
+								};
+							</>
+						});
+					</iframe>
 				</:bind-if>
 			</section>
 
@@ -360,16 +355,16 @@ window.onload = function(){
 					foreach(["js", "html", "css"] as type) {
 						<:bind-if :condition={ *content.show[type] } :change={ !!@.querySelector("#output-" + type) != newValue.show[type] }>
 							<div id=("output-" + type) class="editor" #code>
-								var textarea = <textarea @value=(*result[type] || "") />;
-								// init the next tick so everything is already appended to the DOM
-								setTimeout(function(){
-									outputs[type] = CodeMirror.fromTextArea(textarea, {
-										lineNumbers: true,
-										lineWrapping: true,
-										readOnly: true,
-										mode: "javascript"
+								<textarea @value=(^result[type] || "")>
+									@on("documentappend", function(){
+										outputs[type] = CodeMirror.fromTextArea(this, {
+											lineNumbers: true,
+											lineWrapping: true,
+											readOnly: true,
+											mode: "javascript"
+										});
 									});
-								}, 0);
+								</textarea>
 							</div>
 						</:bind-if>
 					}

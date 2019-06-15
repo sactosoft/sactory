@@ -600,7 +600,7 @@ JavascriptParser.prototype.next = function(match){
 							this.add(this.runtime + "." + this.transpiler.feature(match[1]) + "(" + this.element + ", " + this.bind + ", " + this.anchor + ", " + this.parseCodeToValue("skipEnclosedContent") + ")");
 							break;
 						case "on":
-							add(true, this.transpiler.feature("on"), this.element + ", " + this.bind + ", ");
+							add(true, this.transpiler.feature("on"), "this, " + this.element + ", " + this.bind + ", ");
 							break;
 						case "widget":
 							add(true, this.transpiler.feature("widget"));
@@ -1582,15 +1582,15 @@ Transpiler.prototype.open = function(){
 				update = false;
 				before.push([this.feature("createOrUpdate"), element, computed ? tagName : '"' + tagName + '"', createExprOptions.call(this)]);
 			} else if(create) {
-				update = false;
 				if(tagName == ":shadow") {
 					element = parent + ".attachShadow({mode: " + (iattributes.mode || "\"open\"") + "})";
-					append = false;
+					update = append = false;
 				} else {
 					if(tagName == ":fragment") {
 						element = "document.createDocumentFragment()";
 					} else {
 						before.push([this.feature("create"), computed ? tagName : '"' + tagName + '"', createExprOptions.call(this)]);
+						update = false;
 					}
 				}
 			}
@@ -1603,7 +1603,7 @@ Transpiler.prototype.open = function(){
 			if(append) {
 				var append = [this.feature("append"), parent, this.anchor].concat(newMode !== undefined ? [this.currentMode.parser.afterappend() || 0, this.currentMode.parser.beforeremove() || 0] : []);
 				if(optional) append[0] = "[" + element + " ? \"" + this.feature("noop") + "\" : \"append\"]";
-				(iattributes.append ? before : after).push(append);
+				after.push(append);
 			}
 			if(next == '/') {
 				this.parser.expect('>');
@@ -1862,7 +1862,11 @@ Transpiler.prototype.transpile = function(input){
 var dependencies = {
 	// core
 	create: ["update"],
+	createOrUpdate: ["create", "update"],
+	clone: ["update"],
+	updateSlot: ["update"],
 	appendAnchor: ["update"],
+	mixin: ["append", "html"],
 	comment: ["append"],
 	// bind
 	bind: ["createAnchor"],
@@ -1871,8 +1875,8 @@ var dependencies = {
 	// observable
 	maybeComputedObservable: ["filterObservables", "computedObservable"],
 	// cssb
+	convertStyle: ["compileStyle"],
 	compileAndBindStyle: ["convertStyle"],
-	convertStyle: ["compileStyle"]
 };
 
 if(typeof window == "object") {
