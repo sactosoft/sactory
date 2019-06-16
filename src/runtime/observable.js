@@ -24,6 +24,8 @@ function Observable(value) {
 
 Observable.prototype.deep = false;
 
+Observable.prototype.diff = false;
+
 Observable.prototype.computed = false;
 
 Observable.prototype.replace = function(value){
@@ -99,6 +101,7 @@ Observable.prototype.toString = function(){
  * @since 0.42.0
  */
 Object.defineProperty(Observable.prototype, "value", {
+	configurable: true,
 	get: function(){
 		return this.internal.value;
 	},
@@ -173,6 +176,29 @@ DeepObservable.prototype.mergeImpl = function(value, object){
 
 /**
  * @class
+ * @since 0.92.0
+ */
+function DiffObservable(value) {
+	Observable.call(this, value);
+}
+
+DiffObservable.prototype = Object.create(Observable.prototype);
+
+DiffObservable.prototype.diff = true;
+
+Object.defineProperty(DiffObservable.prototype, "value", {
+	configurable: true,
+	get: function(){
+		return this.internal.value;
+	},
+	set: function(value){
+		if(value !== this.internal.value) {
+			this.update(value);
+		}
+	}
+});
+
+/**
  * @since 0.54.0
  */
 function makeSavedObservable(T, defaultValue, storage) {
@@ -398,6 +424,13 @@ Sactory.observable.deep = function(value, storage, key){
 /**
  * @since 0.81.0
  */
+Sactory.observable.diff = function(value, storage, key){
+	return Sactory.observableImpl(DiffObservable, value, storage, key);
+};
+
+/**
+ * @since 0.81.0
+ */
 Sactory.computedObservableImpl = function(T, context, bind, observables, fun, maybe){
 	if(maybe) Array.prototype.push.apply(observables, Sactory.filterObservables(maybe));
 	var ret = new T(fun.call(context));
@@ -429,6 +462,13 @@ Sactory.computedObservable = function(context, bind, observables, fun, maybe){
  */
 Sactory.computedObservable.deep = function(context, bind, observables, fun, maybe){
 	return Sactory.computedObservableImpl(DeepObservable, context, bind, observables, fun, maybe);
+};
+
+/**
+ * @since 0.92.0
+ */
+Sactory.computedObservable.diff = function(context, bind, observables, fun, maybe){
+	return Sactory.computedObservableImpl(DiffObservable, context, bind, observables, fun, maybe);
 };
 
 /**

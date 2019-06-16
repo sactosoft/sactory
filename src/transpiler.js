@@ -580,6 +580,7 @@ JavascriptParser.prototype.next = function(match){
 							break;
 						case "watch":
 						case "watch.deep":
+						case "watch.diff":
 							// new observable
 							var type = match[1].substr(5);
 							this.parser.index += match[0].length;
@@ -1394,7 +1395,7 @@ Transpiler.prototype.open = function(){
 									forms.push([this.stringifyAttribute(attr), attr.value]);
 									break;
 								default:
-									this.parser.error("Unknown semi compile-time attribute '" + attr.name + "'.");
+									this.parser.error("Unknown semi compile-time attribute '" + name + "'.");
 							}
 							if(add) this.compileAttributeParts(attr);
 							else break;
