@@ -1,4 +1,5 @@
 var Polyfill = require("../polyfill");
+var Builder = require("./builder");
 var SactoryConfig = require("./config");
 
 Object.defineProperty(Node, "ANCHOR_NODE", {
@@ -461,6 +462,17 @@ Sactory.nextId = function(){
  */
 Sactory.prevId = function(){
 	return currentId;
+};
+
+/**
+ * @since 0.93.0
+ */
+Sactory.ready = function(callback){
+	if(document.readyState == "complete") {
+		callback();
+	} else {
+		window.addEventListener("load", callback);
+	}
 };
 
 /* debug:

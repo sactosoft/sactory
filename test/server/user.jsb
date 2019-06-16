@@ -54,13 +54,18 @@ module.exports = function(app){
 			@ = Sactory.createDocument();
 			
 			<:head>
-				<title @text="Users" />
+				<title @textContent="Users" />
+				<script>
+					function bigger() {
+						this.style.width = "256px";
+					}
+				</script>
 			</:head>
 			<:body>
 				data.data.forEach(user => {
 					<div class="user">
-						<img class="avatar" src=user.avatar />
-						<a href=("/user/" + user.id) @text=(user.first_name + ' ' + user.last_name) />
+						<img class="avatar" src=user.avatar +click="bigger" />
+						<a href=("/user/" + user.id) @textContent=(user.first_name + ' ' + user.last_name) />
 					</div>
 				});
 			</:body>
@@ -125,7 +130,7 @@ module.exports = function(app){
 					}
 				</style>
 			</:head>
-			<:body #html>
+			<:body #html :logic>
 				<img src=user.avatar alt="Avatar" />
 				<h3 class="name" style="color:#333" @style.font-size="44px">
 					&lt;${user.first_name} ${user.last_name}&gt;
@@ -139,14 +144,12 @@ module.exports = function(app){
 					</style>
 					This user id is ${user.id}
 				</div>
-				<#code>
-					for(let type of types) {
-						<button class=("button " + type) @text=type />
-					}
-				</#code>
+				for(let type of types) {
+					<button class=("button " + type) @textContent=type />
+				}
 			</:body>
 			
-			res.send(@.toString());
+			res.send(@.render());
 			
 		});
 	

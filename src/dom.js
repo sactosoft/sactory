@@ -24,8 +24,9 @@ function appendImpl(child) {
 
 class Document extends Node {
 
-	constructor() {
+	constructor(ownerDocument) {
 		super();
+		this.ownerDocument = ownerDocument;
 		this.parentNode = null;
 		this.childNodes = [];
 	}
@@ -102,15 +103,15 @@ class Document extends Node {
 	}
 
 	createElement(tagName) {
-		return new Element(tagName);
+		return new Element(tagName, this.ownerDocument);
 	}
 
 	createTextNode(data) {
-		return new Text(data);
+		return new Text(data, this.ownerDocument);
 	}
 
 	createComment(data) {
-		return new Comment(data);
+		return new Comment(data, this.ownerDocument);
 	}
 
 	getElementById(value) {
@@ -178,6 +179,69 @@ class Document extends Node {
 	}
 
 	render() {
+		return null;
+	}
+
+}
+
+class HTMLDocument extends Document {
+
+	constructor() {
+		super();
+		this.ownerDocument = this;
+		this.documentElement = this.appendChild(this.createElement("html"));
+		this.head = this.documentElement.appendChild(this.createElement("head"));
+		this.body = this.documentElement.appendChild(this.createElement("body"));
+		this.characterSetElement = this.head.appendChild(this.createElement("meta"));
+		this.titleElement = null;
+		this.scriptElement = null;
+		this.scriptElementAnchor = this.head.appendChild(this.createTextNode(""));
+		this.eventsElement = null;
+		this.characterSet = "UTF-8";
+		this.events = [];
+	}
+
+	get characterSet() {
+		return this.characterSetElement.getAttribute("charset");
+	}
+
+	set characterSet(value) {
+		this.characterSetElement.setAttribute("charset", value);
+	}
+
+	get title() {
+		return this.titleElement ? this.titleElement.textContent : "";
+	}
+
+	set title(value) {
+		if(!this.titleElement) this.titleElement = this.head.appendChild(this.createElement("title"));
+		this.titleElement.textContent = value;
+	}
+
+	addEventListener(element, type, value) {
+		if(!element.sactoryClassName) {
+			element.__builder.addClass(element.sactoryClassName = "sa" + element.__builder.runtimeId);
+		}
+		this.events.push({element, type, value: value + ""});
+	}
+
+	render() {
+		if(this.events.length) {
+			if(!this.scriptElement) {
+				this.scriptElement = this.head.insertBefore(this.createElement("script"), this.scriptElementAnchor);
+				this.scriptElement.setAttribute("src", "/dist/sactory.min.js");
+			}
+			if(!this.eventsElement) {
+				this.eventsElement = this.head.appendChild(this.createElement("script"));
+			} else {
+				this.eventsElement.textContent = "";
+			}
+			var text = "Sactory.ready(function(){";
+			this.events.forEach(event => {
+				text += "Sactory.on(window, document.querySelector(\"." + event.element.sactoryClassName + "\"), null, " + JSON.stringify(event.type) + ", " + event.value + ");";
+			});
+			this.eventsElement.textContent = text + "});";
+		}
 		return "<!DOCTYPE html>" + this.childNodes.map(a => a.render()).join("");
 	}
 
@@ -271,8 +335,8 @@ function lazy(obj, prop, fun) {
 
 class Element extends Document {
 
-	constructor(tagName) {
-		super();
+	constructor(tagName, ownerDocument) {
+		super(ownerDocument);
 		this.tagName = tagName;
 		this.attributes = {};
 		lazy(this, "dataset", createDataProxy);
@@ -284,7 +348,7 @@ class Element extends Document {
 	}
 
 	cloneNode(deep) {
-		var node = new Element(this.tagName);
+		var node = new Element(this.tagName, this.ownerDocument);
 		for(var key in this.attributes) node.attributes[key] = this.attributes[key];
 		if(deep) this.childNodes.forEach(a => node.appendChild(a.cloneNode(true)));
 		return node;
@@ -407,8 +471,8 @@ class Element extends Document {
 
 class Text extends Document {
 
-	constructor(data) {
-		super();
+	constructor(data, ownerDocument) {
+		super(ownerDocument);
 		this.textContent = data;
 	}
 
@@ -417,7 +481,7 @@ class Text extends Document {
 	}
 
 	cloneNode(deep) {
-		return new Text(this.textContent);
+		return new Text(this.textContent, this.ownerDocument);
 	}
 
 	render() {
@@ -432,8 +496,8 @@ class Text extends Document {
 
 class Comment extends Document {
 
-	constructor(data) {
-		super();
+	constructor(data, ownerDocument) {
+		super(ownerDocument);
 		this.textContent = data;
 	}
 
@@ -442,7 +506,7 @@ class Comment extends Document {
 	}
 
 	cloneNode(deep) {
-		return new Comment(this.textContent);
+		return new Comment(this.textContent, this.ownerDocument);
 	}
 
 	render() {
@@ -455,6 +519,7 @@ class Comment extends Document {
 
 global.Node = Node;
 global.Document = Document;
+global.HTMLDocument = HTMLDocument;
 global.Element = Element;
 global.Text = Text;
 global.Comment = Comment;
