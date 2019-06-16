@@ -53,11 +53,7 @@ Builder.prototype.subscribe = function(bind, subscription){
 };
 	
 Builder.prototype.attrImpl = function(name, value){
-	if(value === null) {
-		this.element.removeAttribute(name);
-	} else {
-		this.element.setAttribute(name, value);
-	}
+	this.element.setAttribute(name, value);
 };
 	
 Builder.prototype.attr = function(name, value, bind){

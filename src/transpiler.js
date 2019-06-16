@@ -191,6 +191,7 @@ TextParser.prototype.addText = function(expr){
 
 TextParser.prototype.addCurrent = function(){
 	if(this.attributes.trimmed && this.current.length == 1 && this.current[0].text && /^\s*$/.test(this.current[0].value)) {
+		// just whitespace
 		this.add(this.current[0].value);
 	} else {
 		var expr = [];
@@ -203,7 +204,7 @@ TextParser.prototype.addCurrent = function(){
 			} else {
 				Array.prototype.push.apply(observables, curr.value.observables);
 				Array.prototype.push.apply(maybeObservables, curr.value.maybeObservables);
-				expr.push(curr.value.source); 
+				expr.push('(' + curr.value.source + ')'); 
 			}
 		}
 		if(expr.length) {
@@ -324,7 +325,7 @@ LogicParser.prototype.parseLogic = function(expected, type){
 		if(type === 0) {
 			// variable
 			var semicolon = this.parser.find([';'], true, {comments: true, strings: false});
-			this.add(expected + semicolon.pre + semicolon.match);
+			this.add(expected + this.transpiler.parseCode(semicolon.pre).source + semicolon.match);
 		} else {
 			// statement
 			var statement = Polyfill.startsWith.call(expected, "else") ? this.popped.pop() : {
