@@ -292,7 +292,7 @@ Builder.prototype.event = function(context, name, value, bind){
 		switch(mod) {
 			case "this":
 				listener = function(event){
-					return prev.call(context, event);
+					return prev.call(context, event, this);
 				};
 				break;
 			case "prevent":
@@ -490,7 +490,7 @@ Builder.prototype.event = function(context, name, value, bind){
 		var prev = listener;
 		var element = this.element;
 		listener = function(event){
-			if(document.contains(element)) prev.call(element, event);
+			if(element.ownerDocument.contains(element)) prev.call(element, event);
 			else this.parentNode.__builder.eventImpl("append", listener, options, useCapture, bind);
 		};
 	}

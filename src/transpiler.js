@@ -629,6 +629,9 @@ JavascriptParser.prototype.next = function(match){
 						case "animations.add":
 							add(true, this.transpiler.feature("addAnimation"));
 							break;
+						case "quote":
+							add(true, this.transpiler.feature("quote"));
+							break;
 						case "rgb":
 						case "rgba":
 						case "lighten":
@@ -1574,6 +1577,7 @@ Transpiler.prototype.open = function(){
 				currentClosing.unshift("})");
 			}
 
+			// before
 			if(slotName) {
 				before.push([this.feature("updateSlot"), createExprOptions.call(this), this.slots, '"' + tagName + '"', '"' + slotName + '"', "function(" + this.element + ", " + this.anchor + "){"]);
 				call = update = append = false;
@@ -1599,6 +1603,11 @@ Transpiler.prototype.open = function(){
 			if(update) {
 				before.push([this.feature("update"), createExprOptions.call(this)]);
 			}
+			if(iattributes.clear) {
+				before.push([this.feature("clear")]);
+			}
+
+			// after
 			if(forms.length) {
 				after.push([this.feature("forms"), forms.map(function(value){ return "[" + value.join(", ") + "]"; }).join(", ")]);
 			}
@@ -1607,6 +1616,7 @@ Transpiler.prototype.open = function(){
 				if(optional) append[0] = "[" + element + " ? \"" + this.feature("noop") + "\" : \"append\"]";
 				after.push(append);
 			}
+
 			if(next == '/') {
 				this.parser.expect('>');
 				inline = true;

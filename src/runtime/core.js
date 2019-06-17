@@ -83,11 +83,21 @@ Sactory.getWidgetsName = function(){
  */
 Sactory.Widget = function(){};
 
+Sactory.Widget.prototype.element = null;
+
 /**
  * @since 0.73.0
  */
 Sactory.Widget.prototype.render = function(args){
 	throw new Error("Widget's 'render' prototype function not implemented.");
+};
+
+/**
+ * @since 0.94.0
+ */
+Sactory.Widget.prototype.dispatchEvent = function(event){
+	if(!this.element) throw new Error("Cannot dispatch event: the widget has not been rendered yet.");
+	this.element.__builder.dispatchEvent(event);
 };
 
 /**
@@ -206,9 +216,8 @@ Sactory.update = function(context, options){
 			if(widget.prototype && widget.prototype.render) {
 				var instance = new widget(widgetArgs, options.namespace);
 				context.element = instance.render(context.slots, null, context.bind, null);
+				if(instance instanceof Sactory.Widget) instance.element = context.element;
 				context.element.__builder.widget = context.element.__builder.widgets[options.tagName] = instance;
-				if(typeof instance.onappend == "function") context.element.__builder.event("append", function(){ instance.onappend(context.element); }, context.bind);
-				if(typeof instance.onremove == "function") context.element.__builder.event("remove", function(){ instance.onremove(context.element); }, context.bind);
 			} else {
 				context.element = widget(context.slots, null, context.bind, null, widgetArgs, options.namespace);
 			}
@@ -389,6 +398,17 @@ Sactory.query = function(context, doc, parent, selector, all, fun){
 		}
 		if(selector) fun.call(context, selector, parent);
 		return selector;
+	}
+};
+
+/**
+ * @since 0.94.0
+ */
+Sactory.clear = function(context){
+	var child;
+	var element = context.container || context.element;
+	while(child = element.lastChild) {
+		element.removeChild(child);
 	}
 };
 

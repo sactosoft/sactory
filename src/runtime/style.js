@@ -142,6 +142,13 @@ Sactory.compileAndBindStyle = function(fun, element, bind, observables, maybe){
 	reload();
 };
 
+/**
+ * @since 0.94.0
+ */
+Sactory.quote = function(value){
+	return JSON.stringify(value + "");
+};
+
 // css functions
 
 Sactory.css = {};
