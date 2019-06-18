@@ -173,7 +173,9 @@ Sactory.update = function(context, options){
 						widgetExt[arg.name] = arg.value;
 						return;
 					} else {
-						obj = widgetExt[arg.name.substring(0, col)] = {};
+						var key = arg.name.substring(0, col);
+						if(!widgetExt.hasOwnProperty(key)) obj = widgetExt[key] = {};
+						else obj = widgetExt[key];
 						arg.name = arg.name.substr(col + 1);
 					}
 				} else {
@@ -228,7 +230,9 @@ Sactory.update = function(context, options){
 				context.container = context.element;
 			}
 			/* debug:
-			context.element.setAttribute(":widget", options.tagName);
+			if(context.element.setAttribute) {
+				context.element.setAttribute(":widget", options.tagName);
+			}
 			*/
 		} else {
 			if(options.namespace) {
@@ -269,7 +273,9 @@ Sactory.update = function(context, options){
 			widget(new SlotRegistry(""), context.element, context.bind, null, widgetExt[widgetName]);
 		}
 		/* debug:
-		context.element.setAttribute(":extend:" + widgetName, "");
+		if(context.element.setAttribute) {
+			context.element.setAttribute(":extend:" + widgetName, "");
+		}
 		*/
 	}
 

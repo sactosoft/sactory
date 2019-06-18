@@ -465,6 +465,14 @@ Sactory.computedObservable.deep = function(context, bind, observables, fun, mayb
 };
 
 /**
+ * @since 0.97.0
+ */
+Sactory.computedObservable.deps = function(context, bind, observables, fun, maybe, deps){
+	Array.prototype.push.apply(observables, deps instanceof Array ? deps : Array.prototype.slice.call(arguments, 5));
+	return Sactory.computedObservableImpl(Observable, context, bind, observables, fun, maybe);
+};
+
+/**
  * @since 0.92.0
  */
 Sactory.computedObservable.diff = function(context, bind, observables, fun, maybe){

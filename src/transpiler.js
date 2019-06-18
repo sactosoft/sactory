@@ -585,6 +585,7 @@ JavascriptParser.prototype.next = function(match){
 							break;
 						case "watch":
 						case "watch.deep":
+						case "watch.deps":
 						case "watch.diff":
 							// new observable
 							var type = match[1].substr(5);
@@ -592,7 +593,7 @@ JavascriptParser.prototype.next = function(match){
 							this.parser.parseTemplateLiteral = null;
 							var parsed = this.transpiler.parseCode(this.parser.readExpression());
 							this.transpiler.updateTemplateLiteralParser();
-							if(parsed.observables && parsed.observables.length || parsed.maybeObservables && parsed.maybeObservables.length) {
+							if(parsed.observables && parsed.observables.length || parsed.maybeObservables && parsed.maybeObservables.length || type == ".deps") {
 								// computed
 								this.add(this.runtime + "." + this.transpiler.feature("computedObservable") + type + "(this, " + this.bind + ", " + parsed.toSpreadValue());
 							} else {
@@ -1094,7 +1095,7 @@ Transpiler.prototype.parseCode = function(input, parentParser){
 			}
 		},
 		toSpreadValue: function(){
-			return "[" + observables.join(", ") + "], function(){return " + source + "}" + (maybeObservables.length ? ", [" + maybeObservables.join(", ") + "]" : "");
+			return "[" + observables.join(", ") + "], function(){return " + source + "}, [" + maybeObservables.join(", ") + "]";
 		}
 	};
 	return ret;
@@ -1215,6 +1216,7 @@ Transpiler.prototype.open = function(){
 		var append = true; // whether the element should be appended to the current element after its creation
 		var unique = false; // whether the new element should be appended always or only when its not already on the DOM
 		var parent = this.element; // element that the new element will be appended to, if not null
+		var updatedElement; // element that will be updated when optional
 		var element = this.element; // element that will be updated
 		var queryElement;
 		var iattributes = {}; // attributes used to give instructions to the transpiler, not used at runtime
@@ -1474,6 +1476,17 @@ Transpiler.prototype.open = function(){
 			return ret;
 		}).call(this);
 
+		if(iattributes.root) parent = parent + ".getRootNode({composed: " + (iattributes.composed || "false") + "})";
+		else if(iattributes.head) parent = "document.head";
+		else if(iattributes.body) parent = "document.body";
+		else if(iattributes.parent) parent = iattributes.parent;
+
+		if(parent == "\"\"" || iattributes.orphan) {
+			// an empty string and null have the same behaviour but null is faster as it avoids the query selector controls when appending
+			parent = "null";
+			append = false;
+		}
+
 		if(!computed) {
 			if(tagName.charAt(0) == ':') {
 				var name = tagName.substr(1);
@@ -1502,7 +1515,13 @@ Transpiler.prototype.open = function(){
 							create = append = false;
 							break;
 						case "fragment":
+							updatedElement = element;
+							element = "document.createDocumentFragment()";
+							create = false;
+							break;
 						case "shadow":
+							element = parent + ".attachShadow({mode: " + (iattributes.mode || "\"open\"") + "})";
+							create = update = append = false;
 							break;
 						case "anchor":
 							tagName = ":bind";
@@ -1572,16 +1591,6 @@ Transpiler.prototype.open = function(){
 			}
 		}
 
-		if(iattributes.root) parent = parent + ".getRootNode({composed: " + (iattributes.composed || "false") + "})";
-		else if(iattributes.head) parent = "document.head";
-		else if(iattributes.body) parent = "document.body";
-		else if(iattributes.parent) parent = iattributes.parent;
-
-		if(parent == "\"\"" || iattributes.orphan) {
-			// an empty string and null have the same behaviour but null is faster as it avoids the query selector controls when appending
-			parent = "null";
-			append = false;
-		}
 		if(newMode !== undefined) {
 			// every attribute is parsed as JSON, expect an empty string (default value) which is converter to true
 			var attributes = {};
@@ -1647,28 +1656,20 @@ Transpiler.prototype.open = function(){
 			// before
 			if(slotName) {
 				before.push([this.feature("updateSlot"), options, this.slots, '"' + tagName + '"', '"' + slotName + '"', "function(" + this.element + ", " + this.anchor + "){"]);
-				call = update = append = false;
+				call = append = false;
 				beforeClosing += "}";
 			} else if(iattributes.clone) {
 				before.push([this.feature("clone"), options]);
 			} else if(optional) {
-				update = false;
 				before.push([this.feature("createOrUpdate"), element, computed ? tagName : '"' + tagName + '"', options]);
 			} else if(create) {
-				if(tagName == ":shadow") {
-					element = parent + ".attachShadow({mode: " + (iattributes.mode || "\"open\"") + "})";
-					update = append = false;
-				} else {
-					if(tagName == ":fragment") {
-						element = "document.createDocumentFragment()";
-					} else {
-						before.push([this.feature("create"), computed ? tagName : '"' + tagName + '"', options]);
-						update = false;
-					}
+				before.push([this.feature("create"), computed ? tagName : '"' + tagName + '"', options]);
+			} else if(update) {
+				var optString = options.toString();
+				if(optString.length > 2) {
+					// only trigger update if needed
+					before.push([this.feature("update"), optString]);
 				}
-			}
-			if(update) {
-				before.push([this.feature("update"), options]);
 			}
 			if(iattributes.clear) {
 				before.push([this.feature("clear")]);
@@ -1680,7 +1681,7 @@ Transpiler.prototype.open = function(){
 			}
 			if(append) {
 				var append = [this.feature("append"), parent, this.anchor].concat(newMode !== undefined ? [this.currentMode.parser.afterappend() || 0, this.currentMode.parser.beforeremove() || 0] : []);
-				if(optional) append[0] = "[" + element + " ? \"" + this.feature("noop") + "\" : \"append\"]";
+				if(optional) append[0] = "[" + (updatedElement || element) + " ? \"" + this.feature("noop") + "\" : \"append\"]";
 				after.push(append);
 			}
 
@@ -1700,7 +1701,7 @@ Transpiler.prototype.open = function(){
 				return ", [" + runtime + (a[0].charAt(0) != "[" ? "." : "") + a.join(", ") + "]";
 			}
 
-			if(before.length) {
+			if(before.length || after.length) {
 				this.source.push(this.runtime + "(this, " + element + ", " + this.bind + ", " + this.anchor + before.map(mapNext).join("").slice(0, -1));
 				currentClosing.unshift("]" + after.map(mapNext).join("") + ")");
 			} else {
