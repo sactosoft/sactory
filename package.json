@@ -1,6 +1,6 @@
 {
 	"name": "sactory",
-	"version": "0.94.0",
+	"version": "0.95.0",
 	"description": "HTML-spiced javascript for DOM creation and manipulation",
 	"main": "index.js",
 	"scripts": {
@@ -10,8 +10,7 @@
 		"test:compile": "npm run compile -- ./test/ ./test/dist/",
 		"test:run": "node ./test/index.js",
 		"test": "npm run test:compile && npm run test:run",
-		"unittest": "node ./unittest.js",
-		"unittest-open": "npm run unittest && start ./unittest/index.html"
+		"unittest": "node ./unittest.js && start ./unittest/index.html"
 	},
 	"repository": {
 		"type": "git",

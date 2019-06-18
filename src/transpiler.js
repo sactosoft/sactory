@@ -316,16 +316,20 @@ LogicParser.prototype.parseLogic = function(expected, type){
 	var line;
 	if(
 		this.parser.input.substr(this.parser.index, expected.length - 1) == expected.substr(1) && // when the expected keyword is found
-		!/\S/.test(line = this.getLineText()) && // when is start of line
-		!/[a-zA-Z0-9_$]/.test(this.parser.input.charAt(this.parser.index + expected.length - 1)) // when is an exact keyword
+		!/\S/.test(line = this.getLineText()) && // and when it is at the start of line
+		!/[a-zA-Z0-9_$]/.test(this.parser.input.charAt(this.parser.index + expected.length - 1)) // and when it is an exact keyword
 	) {
 		this.parser.index += expected.length - 1;
 		this.trimEnd();
 		this.addCurrent();
 		if(type === 0) {
 			// variable
-			var semicolon = this.parser.find([';'], true, {comments: true, strings: false});
-			this.add(expected + this.transpiler.parseCode(semicolon.pre).source + semicolon.match);
+			var end = this.parser.find(['=', ';'], true, {comments: true, strings: false});
+			this.add(expected + end.pre + end.match);
+			if(end.match == '=') {
+				this.add(this.transpiler.parseCode(this.parser.readExpression()).source);
+				if(this.parser.readIf(';')) this.add(';');
+			}
 		} else {
 			// statement
 			var statement = Polyfill.startsWith.call(expected, "else") ? this.popped.pop() : {
@@ -1151,8 +1155,8 @@ Transpiler.prototype.close = function(tagName){
 			this.warn("Tag `" + closeInfo.tagName + "` is not closed properly (used `</" + tagName + ">` instead of `</" + closeInfo.tagName + ">`).", closeInfo.position);
 		}
 		if(closeInfo.mode) this.endMode();
-		this.namespaces.pop();
 		this.inheritance.pop();
+		this.level--;
 	}
 	if(this.closing.length) {
 		this.source.push(this.closing.pop());
@@ -1217,7 +1221,7 @@ Transpiler.prototype.open = function(){
 		var rattributes = []; // attributes used at runtime to modify the element
 		var sattributes = []; // variable name of the attributes passed using the spread syntax
 		var newMode = undefined;
-		var currentNamespace = this.namespaces[this.namespaces.length - 1];
+		var currentNamespace = null;
 		var currentInheritance = null;
 		var currentClosing = [];
 		var createAnchor;
@@ -1411,7 +1415,64 @@ Transpiler.prototype.open = function(){
 			next = false;
 		}
 		if(!next) this.parser.errorAt(position, "Tag was not closed.");
+		parser.index++;
+
 		if(iattributes.namespace) currentNamespace = iattributes.namespace;
+
+		var options = (function(){
+			var level = ++this.level;
+			var ret = {};
+			var inheritance = {};
+			this.inheritance.filter(function(info){
+				return info && ((!info.level || info.level.indexOf(level) != -1) && (!info.whitelist || info.whitelist.indexOf(tagName) != -1));
+			}).forEach(function(info){
+				for(var key in info.data) {
+					inheritance[key] = (inheritance[key] || []).concat(info.data[key]);
+				}
+			});
+			var args = !!(inheritance.args || rattributes.length);
+			if(computed) ret.widget = false;
+			if(iattributes.namespace) ret.namespace = iattributes.namespace;
+			else if(!computed && (tagName == "svg" || tagName == "mathml")) ret.namespace = '"' + tagName + '"';
+			if(args) {
+				ret.args = rattributes.map(function(attribute){
+					return this.runtime + "." + this.feature("attr") + "(" +
+						{'': 1, '@': 2, '+': 3, '-': 4, '$': 5, '$$': 6}[attribute.prefix] + ", " +
+						(attribute.computed ? attribute.name : '"' + (attribute.name || "") + '"') +
+						(attribute.value != "\"\"" || attribute.optional ? ", " + attribute.value : "") +
+						(attribute.optional ? ", 1" : "") + ")";
+				}.bind(this)).join(", ");
+			}
+			if(sattributes.length) ret.spread = sattributes.join(", ");
+			if(transitions.length) {
+				ret.transitions = transitions.map(function(transition){
+					return "[\"" + transition.type + "\", " + transition.name + ", " + (transition.value == "\"\"" ? "{}" : transition.value) + "]";
+				}).join(", ");
+			}
+			Object.defineProperty(ret, "toString", {
+				enumerable: false,
+				value: function(){
+					var str = [];
+					["widget", "namespace"].forEach(function(type){
+						if(ret.hasOwnProperty(type)) {
+							str.push(type + ":" + ret[type]);
+						} else {
+							var ivalue = inheritance[type];
+							if(ivalue) str.push(type + ":" + ivalue[ivalue.length - 1]);
+						}
+					});
+					["args", "spread", "transition"].forEach(function(type){
+						var ivalue = inheritance[type];
+						var rvalue = ret[type];
+						if(ivalue || rvalue) {
+							str.push(type + ":[" + (ivalue || []).concat(rvalue || []).join(", ") + "]");
+						}
+					});
+					return "{" + str.join(", ") + "}";
+				}
+			});
+			return ret;
+		}).call(this);
 
 		if(!computed) {
 			if(tagName.charAt(0) == ':') {
@@ -1446,6 +1507,41 @@ Transpiler.prototype.open = function(){
 						case "anchor":
 							tagName = ":bind";
 							iattributes.to = "[]";
+							create = update = append = false;
+							break;
+						case "inherit":
+							var c = currentInheritance = {data: options};
+							if(iattributes.level || iattributes.depth) {
+								if(!iattributes.level) c.level = [1];
+								else if(iattributes.level instanceof Array) c.level = iattributes.level.map(function(a){ return parseInt(a); });
+								else c.level = [parseInt(iattributes.level)];
+								if(iattributes.depth) {
+									var depth = parseInt(iattributes.depth);
+									if(isNaN(depth)) this.parser.error("Depth is not a valid number.");
+									var levels = [];
+									for(var i=0; i<depth; i++) {
+										c.level.forEach(function(level){
+											levels.push(level + i);
+										});
+									}
+									c.level = levels;
+								}
+								for(var i=0; i<c.level.length; i++) {
+									c.level[i] += this.level;
+								}
+							}
+							if(iattributes.whitelist) {
+								c.whitelist = iattributes.whitelist instanceof Array ? iattributes.whitelist : [iattributes.whitelist];
+								c.whitelist = c.whitelist.map(function(a){
+									return JSON.parse(a);
+								});
+							}
+							create = update = append = false;
+							break;
+						case "scope":
+						case "bind":
+						case "bind-if":
+						case "bind-each":
 						default:
 							create = update = append = false;
 					}
@@ -1455,16 +1551,15 @@ Transpiler.prototype.open = function(){
 				if(newMode !== undefined) create = update = append = false; // behave as a scope
 			} else if(tagName == '@') {
 				create = append = false;
-			} else {
-				if(tagName) {
-					if(this.tagNames.hasOwnProperty(tagName)) this.tagNames[tagName]++;
-					else this.tagNames[tagName] = 1;
-				}
-				if(!iattributes.namespace) {
-					if(tagName == "svg") currentNamespace = "\"svg\"";
-					else if(tagName == "math") currentNamespace = "\"mathml\"";
-				}
+			} else if(tagName) {
+				if(this.tagNames.hasOwnProperty(tagName)) this.tagNames[tagName]++;
+				else this.tagNames[tagName] = 1;
 			}
+		}
+		
+		if(!currentInheritance && options.namespace) {
+			// force inheritance to be triggered if not defined by the :inherit tag
+			currentInheritance = {data: {namespace: options.namespace}};
 		}
 
 		if(newMode === undefined) {
@@ -1481,35 +1576,7 @@ Transpiler.prototype.open = function(){
 		else if(iattributes.head) parent = "document.head";
 		else if(iattributes.body) parent = "document.body";
 		else if(iattributes.parent) parent = iattributes.parent;
-		function createExprOptions() {
-			var ret = "";
-			currentInheritance = "";
-			var inheritance = this.inheritance.join("");
-			var args = !!(inheritance || rattributes.length);
-			if(computed) ret += "widget:false,";
-			if(currentNamespace) ret += "namespace:" + currentNamespace + ",";
-			if(args) ret += "args:[";
-			if(inheritance) ret += inheritance;
-			for(var i=0; i<rattributes.length; i++) {
-				var attribute = rattributes[i];
-				var expr = this.runtime + "." + this.feature("attr") + "(" +
-					{'': 1, '@': 2, '+': 3, '-': 4, '$': 5, '$$': 6}[attribute.prefix] + ", " +
-					(attribute.computed ? attribute.name : '"' + (attribute.name || "") + '"') +
-					(attribute.value != "\"\"" || attribute.optional ? ", " + attribute.value : "") +
-					(attribute.optional ? ", 1" : "") + "),";
-				if(attribute.inherit) currentInheritance += expr;
-				ret += expr;
-			}
-			if(args) ret = ret.slice(0, -1) + "],";
-			if(sattributes.length) ret += "spread:[" + sattributes.join(",") + "],";
-			if(transitions.length) {
-				ret += "transitions:[" + transitions.map(function(transition){
-					return "[\"" + transition.type + "\", " + transition.name + ", " + (transition.value == "\"\"" ? "{}" : transition.value) + "]";
-				}).join(", ") + "],";
-			}
-			return "{" + ret.slice(0, -1) + "}";
-		}
-		parser.index++;
+
 		if(parent == "\"\"" || iattributes.orphan) {
 			// an empty string and null have the same behaviour but null is faster as it avoids the query selector controls when appending
 			parent = "null";
@@ -1562,8 +1629,8 @@ Transpiler.prototype.open = function(){
 			var inline = false;
 
 			var bindType = "";
-			if(tagName == ":bind-if" || tagName == ":if") bindType = "If";
-			else if(tagName == ":bind-each" || tagName == ":each") bindType = "Each";
+			if(tagName == ":bind-if") bindType = "If";
+			else if(tagName == ":bind-each") bindType = "Each";
 			else if(iattributes["if"]) {
 				bindType = "If";
 				iattributes.condition = iattributes["if"];
@@ -1579,14 +1646,14 @@ Transpiler.prototype.open = function(){
 
 			// before
 			if(slotName) {
-				before.push([this.feature("updateSlot"), createExprOptions.call(this), this.slots, '"' + tagName + '"', '"' + slotName + '"', "function(" + this.element + ", " + this.anchor + "){"]);
+				before.push([this.feature("updateSlot"), options, this.slots, '"' + tagName + '"', '"' + slotName + '"', "function(" + this.element + ", " + this.anchor + "){"]);
 				call = update = append = false;
 				beforeClosing += "}";
 			} else if(iattributes.clone) {
-				before.push([this.feature("clone"), createExprOptions.call(this)]);
+				before.push([this.feature("clone"), options]);
 			} else if(optional) {
 				update = false;
-				before.push([this.feature("createOrUpdate"), element, computed ? tagName : '"' + tagName + '"', createExprOptions.call(this)]);
+				before.push([this.feature("createOrUpdate"), element, computed ? tagName : '"' + tagName + '"', options]);
 			} else if(create) {
 				if(tagName == ":shadow") {
 					element = parent + ".attachShadow({mode: " + (iattributes.mode || "\"open\"") + "})";
@@ -1595,13 +1662,13 @@ Transpiler.prototype.open = function(){
 					if(tagName == ":fragment") {
 						element = "document.createDocumentFragment()";
 					} else {
-						before.push([this.feature("create"), computed ? tagName : '"' + tagName + '"', createExprOptions.call(this)]);
+						before.push([this.feature("create"), computed ? tagName : '"' + tagName + '"', options]);
 						update = false;
 					}
 				}
 			}
 			if(update) {
-				before.push([this.feature("update"), createExprOptions.call(this)]);
+				before.push([this.feature("update"), options]);
 			}
 			if(iattributes.clear) {
 				before.push([this.feature("clear")]);
@@ -1663,9 +1730,8 @@ Transpiler.prototype.open = function(){
 			}
 			this.source.push(currentClosing);
 			this.addSemicolon();
+			this.level--;
 		} else {
-			if(currentInheritance === null) createExprOptions.call(this); // always call to trigger attribute inheritance
-			this.namespaces.push(currentNamespace);
 			this.inheritance.push(currentInheritance);
 			this.closing.push(currentClosing);
 			this.tags.push({
@@ -1700,12 +1766,11 @@ Transpiler.prototype.parseAttributeName = function(prefixes, req, from){
 		};
 	}
 	if(prefixes) {
-		if(this.parser.readIf('~')) attr.inherit = true;
 		if(this.parser.readIf('?')) attr.optional = true;
 		var prefix = this.parser.readAttributePrefix();
 		if(prefix !== false) attr.prefix = prefix;
-		if(attr.prefix == ':' && (attr.inherit || attr.optional)) this.parser.error("Compile-time attributes cannot be inherited nor optional.");
-		if(attr.prefix == '#' && (attr.inherit || attr.optional)) this.parser.error("Mode attributes cannot be inherited nor optional.");
+		if(attr.prefix == ':' && attr.optional) this.parser.error("Compile-time attributes cannot be optional.");
+		if(attr.prefix == '#' && attr.optional) this.parser.error("Mode attributes cannot be optional.");
 	}
 	var required = req && attr.prefix != '$';
 	while(true) {
@@ -1810,11 +1875,12 @@ Transpiler.prototype.transpile = function(input){
 	if(this.options.scope) this.before += this.element + "=" + this.options.scope + ";";
 	
 	this.tags = [];
-	this.namespaces = [];
 	this.inheritance = [];
 	this.closing = [];
 	this.modes = [];
 	this.currentMode;
+
+	this.level = 0;
 	
 	this.startMode(defaultMode, {}).start();
 	
