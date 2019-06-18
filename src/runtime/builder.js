@@ -38,8 +38,9 @@ Builder.TYPE_ATTR = 1;
 Builder.TYPE_PROP = 2;
 Builder.TYPE_ADD = 3;
 Builder.TYPE_REMOVE = 4;
-Builder.TYPE_WIDGET = 5;
-Builder.TYPE_EXTEND_WIDGET = 6;
+Builder.TYPE_CONCAT = 5;
+Builder.TYPE_WIDGET = 6;
+Builder.TYPE_EXTEND_WIDGET = 7;
 
 Builder.prototype.widgets = {};
 
@@ -267,8 +268,7 @@ Builder.prototype["class"] = function(value, bind){
 				builder.removeClassName(lastValue);
 			});
 		}
-	} else {
-		if(!value) value = "";
+	} else if(value) {
 		this.addClassName(value);
 		if(bind) {
 			bind.addRollback(function(){
@@ -561,31 +561,36 @@ Builder.prototype[Builder.TYPE_ATTR] = function(name, value, bind){
 /**
  * @since 0.69.0
  */
-Builder.prototype[Builder.TYPE_TWOWAY] = function(name, value, bind){
-	this.twoway(name, value, bind);
-};
-
-/**
- * @since 0.69.0
- */
 Builder.prototype[Builder.TYPE_ADD] = function(name, value, bind, anchor, context){
-	switch(name) {
-		case "text": return this.text(value, bind, anchor);
-		case "html": return this.html(value, bind, anchor);
-		case "class": return this["class"](value, bind);
-		default: this.event(context, name, SactoryObservable.unobserve(value), bind);
-	}
+	this.event(context, name, SactoryObservable.unobserve(value), bind);
 };
 
 /**
  * @since 0.69.0
  */
 Builder.prototype[Builder.TYPE_REMOVE] = function(name, value, bind){
-	value = SactoryObservable.unobserve(value);
-	if(name == "class") {
-		this.removeClassName(value || "");
-	} else {
-		this.element.removeEventListener(name, value);
+	this.element.removeEventListener(name, SactoryObservable.unobserve(value));
+};
+
+/**
+ * @since 0.96.0
+ */
+Builder.prototype[Builder.TYPE_CONCAT] = function(name, value, bind, anchor){
+	switch(name) {
+		case "text": return this.text(value, bind, anchor);
+		case "html": return this.html(value, bind, anchor);
+		case "class": return this["class"](value, bind);
+		default:
+			if(Polyfill.startsWith.call(name, "class:")) {
+				var className = name.substr(6);
+				if(SactoryObservable.isObservable(value)) {
+					this["class"](SactoryObservable.computedObservable.diff(null, bind, [value], function(){ return value.value && className; }), bind);
+				} else {
+					this["class"](value, bind);
+				}
+			} else {
+				throw new Error("Unknown concat attribute '" + name + "'.");
+			}
 	}
 };
 

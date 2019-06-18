@@ -253,12 +253,12 @@ window.onload = function(){
 		}
 	</style>
 	
-	<:body +class=*alignment +class=(*result.errors.length && "has-errors") +class=(*result.warnings.length && "has-warnings") #html :logic :trimmed>
+	<:body ~class=*alignment ~class:has-errors=*result.errors.length ~class:has-warnings=*result.warnings.length #html :logic :trimmed>
 
 		<section class="top">
 			<section class="filename">
 				if(hash) {
-					<span +text=hash.name />
+					<span @textContent=hash.name />
 				} else {
 					<input *form=*file />
 					if(window.localStorage) {
@@ -266,7 +266,7 @@ window.onload = function(){
 							foreach(Object.keys(window.localStorage).sort() as key) {
 								if(key.substr(0, 8) == "storage.") {
 									var value = key.substr(8);
-									<option value=value +text=value />
+									<option value=value @textContent=value />
 								}
 							}
 						</select>
@@ -287,7 +287,7 @@ window.onload = function(){
 					<option value="x">Horizontal</option>
 				</select>
 				<a id="github" href="https://github.com/sactory/sactory" target="_blank" @hidden=true />
-				<span style="float:right;font-weight:bold;color:darkviolet;cursor:pointer" +text=("Sactory v" + Sactory.VERSION) +click={ this.previousElementSibling.click() } />
+				<span style="float:right;font-weight:bold;color:darkviolet;cursor:pointer" @textContent=("Sactory v" + Sactory.VERSION) +click={ this.previousElementSibling.click() } />
 			</section>
 			<section class="input">
 				foreach(["js", "html", "css"] as type) {
@@ -307,7 +307,7 @@ window.onload = function(){
 							</textarea>
 							<select class="mode" *form=*content.mode[type]>
 								foreach(modes[type] as m) {
-									<option value=m +text=m />
+									<option value=m @textContent=m />
 								}
 							</select>
 						</div>
@@ -321,7 +321,7 @@ window.onload = function(){
 			<nav>
 				<div style="margin:8px 0 10px">
 					foreach(Object.keys(tabs) as key) {
-						<span class="item" +class=key +text=tabs[key] +class=(*tab == key ? "active" : "") +click={ *tab = key } />
+						<span class="item" ~class=key ~class:active=(*tab == key) +click={ *tab = key } @textContent=tabs[key] />
 					}
 				</div>
 			</nav>

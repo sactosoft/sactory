@@ -1437,7 +1437,7 @@ Transpiler.prototype.open = function(){
 			if(args) {
 				ret.args = rattributes.map(function(attribute){
 					return this.runtime + "." + this.feature("attr") + "(" +
-						{'': 1, '@': 2, '+': 3, '-': 4, '$': 5, '$$': 6}[attribute.prefix] + ", " +
+						{'': 1, '@': 2, '+': 3, '-': 4, '~': 5, '$': 6, '$$': 7}[attribute.prefix] + ", " +
 						(attribute.computed ? attribute.name : '"' + (attribute.name || "") + '"') +
 						(attribute.value != "\"\"" || attribute.optional ? ", " + attribute.value : "") +
 						(attribute.optional ? ", 1" : "") + ")";
