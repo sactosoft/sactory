@@ -230,12 +230,14 @@ TextParser.prototype.pushExpr = function(value){
 };
 
 TextParser.prototype.trimEnd = function(){
+	var ret = "";
 	var end = this.current[this.current.length - 1];
 	if(end.text) {
 		var trimmed = Polyfill.trimEnd.call(end.value);
-		this.add(end.value.substr(trimmed.length));
+		ret = end.value.substr(trimmed.length);
 		end.value = trimmed;
 	}
+	return ret;
 };
 
 TextParser.prototype.replaceText = function(text){
@@ -320,8 +322,9 @@ LogicParser.prototype.parseLogic = function(expected, type){
 		!/[a-zA-Z0-9_$]/.test(this.parser.input.charAt(this.parser.index + expected.length - 1)) // and when it is an exact keyword
 	) {
 		this.parser.index += expected.length - 1;
-		this.trimEnd();
+		var trimmed = this.trimEnd();
 		this.addCurrent();
+		this.add(trimmed);
 		if(type === 0) {
 			// variable
 			var end = this.parser.find(['=', ';'], true, {comments: true, strings: false});
@@ -336,8 +339,14 @@ LogicParser.prototype.parseLogic = function(expected, type){
 				startIndex: this.source.length,
 				observables: [],
 				maybeObservables: [],
-				end: ""
+				end: "",
+				parts: []
 			};
+			var part = {
+				type: expected,
+				declStart: this.source.length
+			};
+			statement.parts.push(part);
 			if(type === 1) {
 				var transpiler = this.transpiler;
 				function reparse(source, parser) {
@@ -351,8 +360,7 @@ LogicParser.prototype.parseLogic = function(expected, type){
 				if(this.parser.peek() != '(') this.parser.error("Expected '(' after '" + expected + "'.");
 				var position = this.parser.position;
 				var source = reparse(this.parser.skipEnclosedContent(), this.parser);
-				var reverse = expected == "foreach_reverse";
-				if(reverse || expected == "foreach") {
+				if(expected == "foreach") {
 					var parser = new Parser(source.slice(1, -1), position);
 					parser.options = {comments: true, strings: true, regexp: true};
 					skipped += parser.skipImpl({comments: true, strings: false});
@@ -371,14 +379,17 @@ LogicParser.prototype.parseLogic = function(expected, type){
 					} else {
 						expr = parser.readExpression();
 					}
-					parser.expectSequence("as ");
-					var rest = parser.input.substr(parser.index);
+					var rest = "";
+					if(parser.input.substr(parser.index, 3) == "as ") {
+						parser.index += 3;
+						rest = parser.input.substr(parser.index);
+					}
 					if(expr) {
-						this.add(expr + skipped + (reverse ? ".slice(0).reverse()" : "") + ".forEach(function(" + rest + ")");
-						statement.end = ".bind(this))";
+						this.add(this.runtime + "." + this.transpiler.feature("forEach") + "(this, " + expr + ", function(" + rest + ")");
+						statement.end = ")";
 					} else {
-						this.add("for(var " + rest + "=" + from + ";" + rest + (reverse ? ">" : "<") + to + ";" + rest + (reverse ? "--" : "++") + "){!function(" + rest + ")");
-						statement.end = ".call(this, " + rest + ")}";
+						this.add(this.runtime + "." + this.transpiler.feature("range") + "(this, " + from + ", " + to + ", function(" + rest + ")");
+						statement.end = ")";
 					}
 				} else {
 					this.add(expected + skipped + source);
@@ -389,6 +400,7 @@ LogicParser.prototype.parseLogic = function(expected, type){
 			}
 			this.add(this.parser.skipImpl({}));
 			if(!(statement.inline = !this.parser.readIf('{'))) this.add('{');
+			part.declEnd = this.source.length;
 			this.statements.push(statement);
 		}
 		return true;
@@ -421,7 +433,7 @@ LogicParser.prototype.parse = function(handle, eof){
 			if(!this.parseLogic("else if", 1) && !this.parseLogic("else", 2)) this.pushText('e');
 			break;
 		case 'f':
-			if(!this.parseLogic("foreach_reverse", 1) && !this.parseLogic("foreach", 1) && !this.parseLogic("for", 1)) this.pushText('f');
+			if(!this.parseLogic("foreach", 1) && !this.parseLogic("for", 1)) this.pushText('f');
 			break;
 		case 'w':
 			if(!this.parseLogic("while", 1)) this.pushText('w');
@@ -431,11 +443,13 @@ LogicParser.prototype.parse = function(handle, eof){
 				var curr = this.current[this.current.length - 1];
 				curr.value = curr.value.slice(0, -1) + '}';
 			} else if(this.statements.length) {
-				this.trimEnd();
+				var trimmed = this.trimEnd();
 				this.addCurrent();
+				this.add(trimmed);
 				this.add('}');
 				var statement = this.statements.pop();
 				statement.endIndex = this.source.length;
+				statement.parts[statement.parts.length - 1].close = this.source.length - 1;
 				this.popped.push(statement);
 			} else {
 				this.pushText('}');
@@ -443,8 +457,9 @@ LogicParser.prototype.parse = function(handle, eof){
 			break;
 		case '\n':
 			if(this.statements.length && this.statements[this.statements.length - 1].inline) {
-				this.trimEnd();
+				var trimmed = this.trimEnd();
 				this.addCurrent();
+				this.add(trimmed);
 				var statement = this.statements.pop();
 				statement.endIndex = this.source.length;
 				this.popped.push(statement);
@@ -459,25 +474,49 @@ LogicParser.prototype.parse = function(handle, eof){
 };
 
 LogicParser.prototype.end = function(){
-	var sorted = [];
-	this.popped.forEach(function(popped){
-		//if(popped.observables) {
-			var bind = !!popped.observables.length || !!popped.maybeObservables.length;
-			sorted.push(
-				{index: popped.startIndex, start: true, bind: bind, observables: popped.observables, maybe: popped.maybeObservables},
-				{index: popped.endIndex, start: false, bind: bind, end: popped.end}
-			);
-		//}
-	});
-	sorted.sort(function(a, b){
-		return a.index - b.index;
-	});
-	var shift = 0;
-	for(var i=0; i<sorted.length; i++) {
-		var popped = sorted[i];
-		this.source.splice(popped.index + shift++, 0, popped.start ? (popped.bind ? this.runtime + "." + this.transpiler.feature("bind") + "(this, " + this.element + ", " + this.bind + ", " + this.anchor +
-			", [" + uniq(popped.observables).join(", ") + "]" + (popped.maybe.length ? ".concat(" + this.runtime + "." + this.transpiler.feature("filterObservables") + "([" + uniq(popped.maybe) + "]))" : "") +
-			", 0, 0, function(" + this.element + ", " + this.bind + ", " + this.anchor + "){" : "") : popped.end + (popped.bind ? "})" : "") + ";");
+	for(var i=0; i<this.popped.length; i++) {
+		var popped = this.popped[i];
+		var bind = !!popped.observables.length || !!popped.maybeObservables.length;
+		if(bind) {
+			if(popped.parts[0].type == "if" && (popped.parts.length == 1 || popped.parts[1].type == "else")) {
+				// special bind-if(-else)
+				var partIf = popped.parts[0];
+				var partElse = popped.parts[1];
+				var condition = this.source[partIf.declStart].substr(2);
+				// remove all declarations as they will be replaced
+				var remove = function(start, end){
+					for(var i=start; i<end; i++) {
+						this.source[i] = "";
+					}
+				}.bind(this);
+				remove(partIf.declStart, partIf.declEnd);
+				if(partIf.close) remove(partIf.close, partIf.close + 1);
+				var observable = this.transpiler.nextVarName();
+				this.source[partIf.declStart] =
+					// declare a new computed observable with the condition
+					"var " + observable + "=" + this.runtime + "." + this.transpiler.feature("computedObservable") + "(this, " + this.bind + ", [" + uniq(popped.observables).join(", ") + "], function(){return " + condition + "}" +
+					(popped.maybeObservables.length ? ", [" + uniq(popped.maybeObservables) + "]" : "") + ");" +
+					// and bind to it
+					this.runtime + "." + this.transpiler.feature("bindIf") + "(this, " + this.element + ", " + this.bind + ", " + this.anchor + ", [" + observable + "], 0, 0, function(){return " + observable + ".value}, " +
+					"function(" + this.element + ", " + this.bind + ", " + this.anchor + "){";
+
+				if(partElse) {
+					remove(partElse.declStart, partElse.declEnd);
+					if(partElse.close) remove(partElse.close, partElse.close + 1);
+					this.source[partElse.declStart] = "}, function(" + this.element + ", " + this.bind + ", " + this.anchor + "){";
+				}
+			} else {
+				// normal bind
+				this.source[popped.startIndex] = this.runtime + "." + this.transpiler.feature("bind") + "(this, " + this.element + ", " + this.bind + ", " + this.anchor +
+					", [" + uniq(popped.observables).join(", ") + "]" + (popped.maybeObservables.length ? ".concat(" + this.runtime + "." + this.transpiler.feature("filterObservables") + "([" + uniq(popped.maybeObservables) + "]))" : "") +
+					", 0, 0, function(" + this.element + ", " + this.bind + ", " + this.anchor + "){" + this.source[popped.startIndex];
+			}
+			this.source[popped.endIndex] = "});" + this.source[popped.endIndex];
+		}
+		if(popped.end.length) {
+			// prepend end if needed
+			this.source[popped.endIndex] = popped.end + this.source[popped.endIndex];
+		}
 	}
 };
 

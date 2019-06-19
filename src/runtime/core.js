@@ -491,6 +491,36 @@ Sactory.prevId = function(){
 };
 
 /**
+ * @since 0.98.0
+ */
+Sactory.forEach = function(context, value, fun){
+	if(value.forEach) {
+		value.forEach(fun.bind(context));
+	} else {
+		// assuming it's an object
+		var index = 0;
+		for(var key in value) {
+			fun.call(context, key, value[key], index++, value);
+		}
+	}
+};
+
+/**
+ * @since 0.98.0
+ */
+Sactory.range = function(context, from, to, fun){
+	if(from < to) {
+		for(var i=from; i<to; i++) {
+			fun.call(context, i);
+		}
+	} else {
+		for(var i=to; i>from; i--) {
+			fun.call(context, i);
+		}
+	}
+};
+
+/**
  * @since 0.93.0
  */
 Sactory.ready = function(callback){

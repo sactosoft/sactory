@@ -13,7 +13,7 @@ window.addEventListener("load", function(){
 		// bind omitting :to (it's taken from :condition)
 		var timeout;
 		<:bind-if :condition={ !!*tagName; } :cleanup={ clearTimeout(timeout); }>
-			<@ +text=("Tag name is now " + *tagName) />
+			<@ ~text=("Tag name is now " + *tagName) />
 			var spread = {
 				"@style.border": "3px dashed red",
 				"@style.margin": "8px"
@@ -37,10 +37,10 @@ window.addEventListener("load", function(){
 					Show:
 					<input type="checkbox" *form=visible />
 				</label>
-				<button +click={ console.log("Button clicked") } +text="Button" @visible=*visible />
+				<button +click={ console.log("Button clicked") } ~text="Button" @visible=*visible />
 				<!-- a comment -->
 				timeout = setTimeout(function(){
-					<button +text="Another button" />
+					<button ~text="Another button" />
 				}, 5000);
 			</:bind>
 		</:bind-if>
@@ -92,7 +92,7 @@ window.addEventListener("load", function(){
 		</style>
 		var cookies = @watch(0, "cookies");
 		<div class="cookie"><img src="http://icons.iconarchive.com/icons/oxygen-icons.org/oxygen/256/Apps-preferences-web-browser-cookies-icon.png" +click={ *cookies++ } /></div>
-		<p +text=("Clicked " + *cookies + " cookies!") />
+		<p ~text=("Clicked " + *cookies + " cookies!") />
 	</div>
 
 	<svg>

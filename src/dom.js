@@ -1,5 +1,7 @@
 var entities = require("./json/entities.json");
 
+var selfClosing = /^(area|base|br|col|command|embed|hr|img|input|keygen|link|meta|param|source|track|wbr)$/i;
+
 class Node {
 
 	static get ELEMENT_NODE() {
@@ -462,7 +464,7 @@ class Element extends Document {
 			ret += " " + key + (value && "=" + JSON.stringify(value));
 		}
 		ret += ">";
-		if(/^(br|hr|img|input|link|meta)$/i.test(this.tagName)) return ret;
+		if(selfClosing.test(this.tagName)) return ret;
 		this.childNodes.forEach(child => ret += child.render());
 		return ret + "</" + this.tagName + ">";
 	}

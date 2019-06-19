@@ -272,7 +272,7 @@ window.onload = function(){
 						</select>
 					}
 				}
-				foreach(Object.keys(*content.show) as type) {
+				foreach(*content.show as type) {
 					<label style="margin-left:12px">
 						<input style="vertical-align:middle" *checkbox=*content.show[type] />
 						${type.toUpperCase()}
