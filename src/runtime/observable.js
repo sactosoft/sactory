@@ -24,7 +24,7 @@ function Observable(value) {
 
 Observable.prototype.deep = false;
 
-Observable.prototype.diff = false;
+Observable.prototype.diff = true;
 
 Observable.prototype.computed = false;
 
@@ -89,6 +89,10 @@ Observable.prototype.subscribe = function(callback, type){
 	};
 };
 
+Observable.prototype.valueOf = function(){
+	return this.internal.value;
+};
+
 Observable.prototype.toJSON = function(){
 	return this.internal.value && this.internal.value.toJSON ? this.internal.value.toJSON() : this.internal.value;
 };
@@ -106,7 +110,9 @@ Object.defineProperty(Observable.prototype, "value", {
 		return this.internal.value;
 	},
 	set: function(value){
-		this.update(value);
+		if(value !== this.internal.value) {
+			this.update(value);
+		}
 	}
 });
 
@@ -176,25 +182,23 @@ DeepObservable.prototype.mergeImpl = function(value, object){
 
 /**
  * @class
- * @since 0.92.0
+ * @since 0.97.0
  */
-function DiffObservable(value) {
+function AlwaysObservable(value) {
 	Observable.call(this, value);
 }
 
-DiffObservable.prototype = Object.create(Observable.prototype);
+AlwaysObservable.prototype = Object.create(Observable.prototype);
 
-DiffObservable.prototype.diff = true;
+AlwaysObservable.prototype.diff = false;
 
-Object.defineProperty(DiffObservable.prototype, "value", {
+Object.defineProperty(AlwaysObservable.prototype, "value", {
 	configurable: true,
 	get: function(){
 		return this.internal.value;
 	},
 	set: function(value){
-		if(value !== this.internal.value) {
-			this.update(value);
-		}
+		this.update(value);
 	}
 });
 
@@ -424,8 +428,8 @@ Sactory.observable.deep = function(value, storage, key){
 /**
  * @since 0.81.0
  */
-Sactory.observable.diff = function(value, storage, key){
-	return Sactory.observableImpl(DiffObservable, value, storage, key);
+Sactory.observable.always = function(value, storage, key){
+	return Sactory.observableImpl(AlwaysObservable, value, storage, key);
 };
 
 /**
@@ -475,8 +479,8 @@ Sactory.computedObservable.deps = function(context, bind, observables, fun, mayb
 /**
  * @since 0.92.0
  */
-Sactory.computedObservable.diff = function(context, bind, observables, fun, maybe){
-	return Sactory.computedObservableImpl(DiffObservable, context, bind, observables, fun, maybe);
+Sactory.computedObservable.always = function(context, bind, observables, fun, maybe){
+	return Sactory.computedObservableImpl(AlwaysObservable, context, bind, observables, fun, maybe);
 };
 
 /**

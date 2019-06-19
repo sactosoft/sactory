@@ -586,7 +586,7 @@ JavascriptParser.prototype.next = function(match){
 						case "watch":
 						case "watch.deep":
 						case "watch.deps":
-						case "watch.diff":
+						case "watch.always":
 							// new observable
 							var type = match[1].substr(5);
 							this.parser.index += match[0].length;
@@ -1315,6 +1315,7 @@ Transpiler.prototype.open = function(){
 							break;
 						}
 					}
+					var computable = attrs.every(function(a){ return a.prefix != '+' && a.prefix != '-'; });
 					var name = attrs.length == 1 ? attrs[0].name : "";
 					value = this.parser.readAttributeValue();
 					if(value.charAt(0) == '#') value = this.runtime + ".functions." + value.substr(1) + "()";
@@ -1329,7 +1330,8 @@ Transpiler.prototype.open = function(){
 							value = this.wrapFunction(value, false);
 						}
 					}
-					value = this.parseCode(value).toValue();
+					var parsed = this.parseCode(value);
+					value = computable ? parsed.toValue() : parsed.source;
 					skip(true);
 				}
 				for(var i in attrs) {
@@ -1463,7 +1465,7 @@ Transpiler.prototype.open = function(){
 							if(ivalue) str.push(type + ":" + ivalue[ivalue.length - 1]);
 						}
 					});
-					["args", "spread", "transition"].forEach(function(type){
+					["args", "spread", "transitions"].forEach(function(type){
 						var ivalue = inheritance[type];
 						var rvalue = ret[type];
 						if(ivalue || rvalue) {
@@ -1703,7 +1705,7 @@ Transpiler.prototype.open = function(){
 
 			if(before.length || after.length) {
 				this.source.push(this.runtime + "(this, " + element + ", " + this.bind + ", " + this.anchor + before.map(mapNext).join("").slice(0, -1));
-				currentClosing.unshift("]" + after.map(mapNext).join("") + ")");
+				currentClosing.unshift((before.length ? "]" : "") + after.map(mapNext).join("") + ")");
 			} else {
 				this.source.push(parent);
 			}

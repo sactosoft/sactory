@@ -489,7 +489,7 @@ Parser.prototype.readSingleExpression = function(skip){
 			index: this.index
 		};
 		if(skip) ret += this.skipImpl({strings: false});
-		var expr = this.readImpl(/^(\.#?[a-zA-Z0-9_$]+)/, false);
+		var expr = this.readImpl(/^(\.([*^]\??)?#?[a-zA-Z0-9_$]+)/, false);
 		if(expr) {
 			ret += expr;
 			if(skip) ret += this.skipImpl({strings: false});

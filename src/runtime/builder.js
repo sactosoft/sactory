@@ -584,7 +584,7 @@ Builder.prototype[Builder.TYPE_CONCAT] = function(name, value, bind, anchor){
 			if(Polyfill.startsWith.call(name, "class:")) {
 				var className = name.substr(6);
 				if(SactoryObservable.isObservable(value)) {
-					this["class"](SactoryObservable.computedObservable.diff(null, bind, [value], function(){ return value.value && className; }), bind);
+					this["class"](SactoryObservable.computedObservable(null, bind, [value], function(){ return value.value && className; }), bind);
 				} else {
 					this["class"](value, bind);
 				}

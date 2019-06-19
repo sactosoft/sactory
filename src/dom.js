@@ -103,7 +103,7 @@ class Document extends Node {
 	}
 
 	createElement(tagName) {
-		return new Element(tagName, this.ownerDocument);
+		return new Element(tagName.toLowerCase(), this.ownerDocument);
 	}
 
 	createTextNode(data) {
@@ -462,7 +462,7 @@ class Element extends Document {
 			ret += " " + key + (value && "=" + JSON.stringify(value));
 		}
 		ret += ">";
-		if(/^(br|img|input|link|meta)$/i.test(this.tagName)) return ret;
+		if(/^(br|hr|img|input|link|meta)$/i.test(this.tagName)) return ret;
 		this.childNodes.forEach(child => ret += child.render());
 		return ret + "</" + this.tagName + ">";
 	}
