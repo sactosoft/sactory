@@ -12,13 +12,41 @@ Sactory.select = function(array, selector){
 	return value;
 };
 
+function SelectorHolder() {
+	this.content = [];
+}
+
+SelectorHolder.prototype.value = function(key, value){
+	this.content.push({key: key, value: value});
+};
+
+SelectorHolder.prototype.stat = function(stat){
+	this.content.push({key: stat});
+};
+
+/**
+ * @since 0.99.0
+ */
+Sactory.root = function(){
+	return new SelectorHolder();
+};
+
+/**
+ * @since 0.99.0
+ */
+Sactory.select2 = function(parent, selector){
+	var ret = new SelectorHolder();
+	parent.content.push({selector: selector, value: ret.content});
+	return ret;
+};
+
 /**
  * Converts a css unit to a number and update the {@code unit} object that stores
  * the unit type.
  * @param {Object} unit - Storage for the unit. The same expression should use the same storage.
  * @param {string|*} value - The value that, if of type string, is checked for unit conversion.
  * @returns The value stripped from the unit and converted to number, if a unit was found, or the unmodified value.
- * @throws If a unit has already been used in the same expression and it's different from the current one.
+ * @throws {Error} If a unit has already been used in the same expression and it's different from the current one.
  * @since 0.37.0
  */
 Sactory.unit = function(unit, value){

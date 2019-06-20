@@ -368,7 +368,7 @@ Sactory.append = function(context, parent, anchor, afterappend, beforeremove){
 		else parent.appendChild(context.element);
 		if(afterappend) afterappend.call(context.element);
 		if(context.element.__builder && context.element.dispatchEvent) context.element.__builder.dispatchEvent("append");
-		if(beforeremove) context.element.__builder.event("remove", beforeremove, context.bind);
+		if(beforeremove) context.element.__builder.event(context.context, "remove", beforeremove, context.bind);
 		if(context.bind) context.bind.appendChild(context.element);
 	}
 };
