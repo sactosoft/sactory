@@ -41,17 +41,16 @@ var defaultMode;
 /**
  * @since 0.15.0
  */
-Transpiler.defineMode = function(names, parser, options){
+Transpiler.defineMode = function(names, parser, isDefault){
 	var id = modeRegistry.length;
 	modeRegistry.push({
 		name: names[0],
-		parser: parser,
-		options: options
+		parser: parser
 	});
 	names.forEach(function(name){
 		modeNames[name] = id;
 	});
-	if(options.isDefault) defaultMode = id;
+	if(isDefault) defaultMode = id;
 	return id;
 };
 
@@ -65,23 +64,8 @@ Transpiler.getModeByName = function(name){
 /**
  * @since 0.53.0
  */
-Transpiler.replaceMode = function(mode, parser, options){
+Transpiler.replaceMode = function(mode, parser){
 	modeRegistry[mode].parser = parser;
-	if(options) modeRegistry[mode].options = options;
-};
-
-/**
- * @since 0.53.0
- */
-Transpiler.getModeParser = function(mode){
-	return (modeRegistry[mode] || {}).parser;
-};
-
-/**
- * @since 0.53.0
- */
-Transpiler.getModeOptions = function(mode){
-	return (modeRegistry[mode] || {}).options;
 };
 
 /**
@@ -90,7 +74,7 @@ Transpiler.getModeOptions = function(mode){
 Transpiler.startMode = function(mode, transpiler, parser, source, attributes){
 	var m = modeRegistry[mode];
 	var ret = new m.parser(transpiler, parser, source, attributes || {});
-	ret.options = parser.options = m.options;
+	ret.options = parser.options = m.parser.getOptions();
 	return ret;
 };
 
@@ -296,9 +280,6 @@ function LogicParser(transpiler, parser, source, attributes) {
 	this.count = 0;
 	this.statements = [];
 	this.popped = [];
-	if(!attributes.logic) {
-		this.parse = TextParser.prototype.parse.bind(this);
-	}
 }
 
 LogicParser.prototype = Object.create(TextParser.prototype);
@@ -386,10 +367,10 @@ LogicParser.prototype.parseLogic = function(expected, type){
 					}
 					if(expr) {
 						this.add(this.runtime + "." + this.transpiler.feature("forEach") + "(this, " + expr + ", function(" + rest + ")");
-						statement.end = ")";
+						statement.end = ");";
 					} else {
 						this.add(this.runtime + "." + this.transpiler.feature("range") + "(this, " + from + ", " + to + ", function(" + rest + ")");
-						statement.end = ")";
+						statement.end = ");";
 					}
 				} else {
 					this.add(expected + skipped + source);
@@ -413,8 +394,12 @@ LogicParser.prototype.parseLogic = function(expected, type){
 	}
 };
 
+LogicParser.prototype.find = function(){
+	return this.parser.find(['$', '#', '<', 'v', 'c', 'l', 'i', 'e', 'f', 'w', '}', '\n'], false, false);
+};
+
 LogicParser.prototype.parse = function(handle, eof){
-	var result = this.parser.find(['$', '#', '<', 'v', 'c', 'l', 'i', 'e', 'f', 'w', '}', '\n'], false, false);
+	var result = this.find();
 	this.pushText(result.pre);
 	switch(result.match) {
 		case 'c':
@@ -451,6 +436,7 @@ LogicParser.prototype.parse = function(handle, eof){
 				statement.endIndex = this.source.length;
 				statement.parts[statement.parts.length - 1].close = this.source.length - 1;
 				this.popped.push(statement);
+				this.onStatementEnd(statement);
 			} else {
 				this.pushText('}');
 			}
@@ -472,6 +458,8 @@ LogicParser.prototype.parse = function(handle, eof){
 			this.parseImpl(result.pre, result.match, handle, eof);
 	}
 };
+
+LogicParser.prototype.onStatementEnd = function(statement){};
 
 LogicParser.prototype.end = function(){
 	for(var i=0; i<this.popped.length; i++) {
@@ -522,6 +510,19 @@ LogicParser.prototype.end = function(){
 
 /**
  * @class
+ * @since 0.99.0
+ */
+function OptionalLogicParser(transpiler, parser, source, attributes) {
+	LogicParser.call(this, transpiler, parser, source, attributes);
+	if(!attributes.logic) {
+		this.parse = TextParser.prototype.parse.bind(this);
+	}
+}
+
+OptionalLogicParser.prototype = Object.create(LogicParser.prototype);
+
+/**
+ * @class
  * @since 0.15.0
  */
 function JavascriptParser(transpiler, parser, source, attributes) {
@@ -530,6 +531,10 @@ function JavascriptParser(transpiler, parser, source, attributes) {
 	this.maybeObservables = [];
 	this.parentheses = [];
 }
+
+JavascriptParser.getOptions = function(){
+	return {isDefault: true, code: true, regexp: true};
+};
 
 JavascriptParser.prototype = Object.create(BreakpointParser.prototype);
 
@@ -681,6 +686,7 @@ JavascriptParser.prototype.next = function(match){
 						case "lighten":
 						case "darken":
 						case "grayscale":
+						case "invert":
 						case "mix":
 						case "random":
 							add(true, this.transpiler.feature("css." + match[1]));
@@ -740,10 +746,14 @@ JavascriptParser.prototype.next = function(match){
  * @since 0.15.0
  */
 function HTMLParser(transpiler, parser, source, attributes) {
-	LogicParser.call(this, transpiler, parser, source, attributes);
+	OptionalLogicParser.call(this, transpiler, parser, source, attributes);
 }
 
-HTMLParser.prototype = Object.create(LogicParser.prototype);
+HTMLParser.getOptions = function(){
+	return {comments: false, strings: false};
+};
+
+HTMLParser.prototype = Object.create(OptionalLogicParser.prototype);
 
 HTMLParser.prototype.replaceText = Text.replaceEntities || (function(){
 	var converter;
@@ -762,6 +772,10 @@ function ScriptParser(transpiler, parser, source, attributes) {
 	TextParser.call(this, transpiler, parser, source, attributes);
 }
 
+ScriptParser.getOptions = function(){
+	return {comments: false, strings: false, children: false, tags: ["script"]};
+};
+
 ScriptParser.prototype = Object.create(TextParser.prototype);
 
 ScriptParser.prototype.handle = function(){
@@ -773,10 +787,163 @@ ScriptParser.prototype.handle = function(){
  * @since 0.15.0
  */
 function CSSParser(transpiler, parser, source, attributes) {
-	LogicParser.call(this, transpiler, parser, source, attributes);
+	OptionalLogicParser.call(this, transpiler, parser, source, attributes);
 }
 
-CSSParser.prototype = Object.create(LogicParser.prototype);
+CSSParser.getOptions = function(){
+	return {comments: true, inlineComments: false, strings: true, children: false};
+};
+
+CSSParser.prototype = Object.create(OptionalLogicParser.prototype);
+
+/**
+ * @class
+ * @since 0.99.0
+ */
+function SSBParser(transpiler, parser, source, attributes) {
+	LogicParser.call(this, transpiler, parser, source, attributes);
+	this.observables = [];
+	this.maybeObservables = [];
+	this.expr = [];
+	this.scopes = [transpiler.nextVarName()];
+	this.scope = attributes.scope;
+	this.scoped = !!attributes.scoped;
+}
+
+SSBParser.getOptions = function(){
+	return {strings: true, children: false, tags: ["style"]};
+};
+
+SSBParser.prototype = Object.create(LogicParser.prototype);
+
+SSBParser.prototype.parseCodeImpl = function(source){
+	var parsed = this.transpiler.parseCode(source, this.parser);
+	if(parsed.observables) Array.prototype.push.apply(this.observables, parsed.observables);
+	if(parsed.maybeObservables) Array.prototype.push.apply(this.maybeObservables, parsed.maybeObservables);
+	return parsed.source;
+};
+
+SSBParser.prototype.addScope = function(selector){
+	var scope = this.transpiler.nextVarName();
+	this.add("var " + scope + "=" + this.runtime + "." + this.transpiler.feature("select") + "(" + this.scopes[this.scopes.length - 1] + "," + selector + ");");
+	this.scopes.push(scope);
+};
+
+SSBParser.prototype.removeScope = function(){
+	this.scopes.pop();
+};
+
+SSBParser.prototype.skip = function(){
+	var skipped = this.parser.skip();
+	if(skipped) this.add(skipped);
+};
+
+SSBParser.prototype.start = function(){
+	this.add(this.runtime + "." + this.transpiler.feature("compileAndBindStyle") + "(function(){");
+	this.add("var " + this.scopes[0] + "=[];");
+	if(this.scoped) this.addScope("'.' + " + this.runtime + ".config.prefix + " + this.element + ".__builder.runtimeId");
+	else if(this.scope) this.addScope(JSON.stringify('.' + this.scope));
+};
+
+SSBParser.prototype.find = function(){
+	return this.parser.find(['$', '<', 'v', 'c', 'l', 'i', 'e', 'f', 'w', '{', '}', '\n', ':', ';'], false, false);
+};
+
+SSBParser.prototype.lastValue = function(callback){
+	var end;
+	if(this.current.length) {
+		if(this.current[0].text) {
+			// trim start
+			var value = this.current[0].value;
+			var trimmed = Polyfill.trimStart.call(value);
+			this.add(value.substring(0, value.length - trimmed.length));
+			this.current[0].value = trimmed;
+		}
+		//TODO trim end
+	}
+	callback.call(this, this.current.filter(function(part){
+		return !part.text || part.value.length;
+	}).map(function(part){
+		if(part.text) {
+			return stringify(part.value);
+		} else {
+			Array.prototype.push.apply(this.observables, part.value.observables);
+			Array.prototype.push.apply(this.maybeObservables, part.value.maybeObservables);
+			return '(' + part.value.source + ')';
+		}
+	}.bind(this)).join(" + "));
+	if(end) this.add(end);
+	this.current = [];
+};
+
+SSBParser.prototype.parseImpl = function(pre, match, handle, eof){
+	switch(match) {
+		case '{':
+			this.lastValue(function(value){
+				this.addScope(value);
+			});
+			this.statements.push({
+				selector: true,
+				observables: [],
+				maybeObservables: [],
+				end: "",
+				parts: [{}]
+			});
+			break;
+		case ':':
+			this.currentKey = this.current.length;
+			//this.pushText(':');
+			break;
+		case ';':
+			var before = this.scopes[this.scopes.length - 1] + ".push({";
+			if(this.currentKey) {
+				var after = this.current.slice(this.currentKey);
+				this.current.length = this.currentKey;
+				this.lastValue(function(value){
+					this.add(before + "key:" + value + ",");
+				});
+				this.currentKey = null;
+				this.current = after;
+			} else {
+				this.add(before);
+			}
+			this.lastValue(function(value){
+				this.add("value:" + value + "});");
+			});
+			break;
+		default:
+			TextParser.prototype.parseImpl.call(this, pre, match, handle, eof);
+	}
+};
+
+SSBParser.prototype.onStatementEnd = function(statement){
+	if(statement.selector) this.removeScope();
+};
+
+SSBParser.prototype.end = function(){
+	// replace unneeded closing braces and add statement.end needed for foreach
+	this.popped.forEach(function(popped){
+		if(popped.selector) {
+			this.source[popped.endIndex - 1] = "";
+		} else if(popped.end.length) {
+			this.source[popped.endIndex] = popped.end + this.source[popped.endIndex];
+		}
+	}.bind(this));
+	// add return statement
+	this.add("return " + this.scopes[0] + "}, " + this.element + ", " + this.bind + ", [" + uniq(this.observables).join(", ") + "], [" + this.maybeObservables.join(", ") + "])");
+};
+
+SSBParser.prototype.actionImpl = function(type){
+	if(this.scoped) return "function(){ this.parentNode.__builder." + type + "Class(" + this.runtime + ".config.prefix + this.__builder.runtimeId); }";
+};
+
+SSBParser.prototype.afterappend = function(){
+	return this.actionImpl("add");
+};
+
+SSBParser.prototype.beforeremove = function(){
+	return this.actionImpl("remove");
+};
 
 /**
  * @class
@@ -791,6 +958,10 @@ function CSSBParser(transpiler, parser, source, attributes) {
 	this.scope = attributes.scope;
 	this.scoped = !!attributes.scoped;
 }
+
+CSSBParser.getOptions = function(){
+	return {strings: true, children: false, tags: ["style"]};
+};
 
 CSSBParser.prototype = Object.create(SourceParser.prototype);
 
@@ -1028,19 +1199,20 @@ Transpiler.Internal = {
 	LogicParser: LogicParser,
 	JavascriptParser: JavascriptParser,
 	HTMLParser: HTMLParser,
-	SourceParser: SourceParser,
+	ScriptParser: ScriptParser,
 	CSSParser: CSSParser,
 	CSSBParser: CSSBParser
 };
 
 // register default modes
 
-Transpiler.defineMode(["code", "javascript", "js"], JavascriptParser, {isDefault: true, code: true, regexp: true});
-Transpiler.defineMode(["html"], HTMLParser, {comments: false, strings: false});
-Transpiler.defineMode(["text"], HTMLParser, {comments: false, strings: false, children: false});
-Transpiler.defineMode(["script"], ScriptParser, {comments: false, strings: false, children: false, tags: ["script"]});
-Transpiler.defineMode(["css"], CSSParser, {comments: true, inlineComments: false, strings: true, children: false});
-Transpiler.defineMode(["cssb", "style"], CSSBParser, {strings: true, children: false, tags: ["style"]});
+Transpiler.defineMode(["code", "javascript", "js"], JavascriptParser, true);
+Transpiler.defineMode(["html"], HTMLParser);
+Transpiler.defineMode(["script"], ScriptParser);
+Transpiler.defineMode(["css"], CSSParser);
+Transpiler.defineMode(["cssb", "style"], CSSBParser);
+
+Transpiler.defineMode(["ssb"], SSBParser);
 
 function Transpiler(options) {
 	this.options = options || {};
@@ -1625,7 +1797,8 @@ Transpiler.prototype.open = function(){
 		if(newMode === undefined) {
 			for(var i=0; i<modeRegistry.length; i++) {
 				var info = modeRegistry[i];
-				if(info.options.tags && info.options.tags.indexOf(tagName) != -1) {
+				var tags = info.parser.getOptions().tags;
+				if(tags && tags.indexOf(tagName) != -1) {
 					newMode = i;
 					break;
 				}
