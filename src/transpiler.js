@@ -387,6 +387,7 @@ LogicParser.prototype.parseLogic = function(expected, type){
 			if(!(statement.inline = !this.parser.readIf('{'))) this.add('{');
 			part.declEnd = this.source.length;
 			this.statements.push(statement);
+			this.onStatementStart(statement);
 		}
 		return true;
 	} else {
@@ -450,10 +451,11 @@ LogicParser.prototype.parse = function(handle, eof){
 				var trimmed = this.trimEnd();
 				this.addCurrent();
 				this.add(trimmed);
+				this.add('\n');
 				var statement = this.statements.pop();
 				statement.endIndex = this.source.length;
 				this.popped.push(statement);
-				this.add('\n');
+				this.onStatementEnd(statement);
 			} else {
 				this.pushText('\n');
 			}
@@ -462,6 +464,8 @@ LogicParser.prototype.parse = function(handle, eof){
 			this.parseImpl(result.pre, result.match, handle, eof);
 	}
 };
+
+LogicParser.prototype.onStatementStart = function(statement){};
 
 LogicParser.prototype.onStatementEnd = function(statement){};
 
@@ -687,12 +691,18 @@ JavascriptParser.prototype.next = function(match){
 							break;
 						case "rgb":
 						case "rgba":
-						case "lighten":
+						case "hsl":
+						case "hsla":
 						case "darken":
+						case "lighten":
+						case "saturate":
+						case "desaturate":
 						case "grayscale":
+						case "greyscale":
 						case "invert":
+						case "pastel":
 						case "mix":
-						case "random":
+						case "contrast":
 							add(true, this.transpiler.feature("css." + match[1]));
 							break;
 						default:
@@ -812,6 +822,7 @@ function SSBParser(transpiler, parser, source, attributes) {
 	this.scopes = [transpiler.nextVarName()];
 	this.scope = attributes.scope;
 	this.scoped = !!attributes.scoped;
+	this.inExpr = false;
 }
 
 SSBParser.getOptions = function(){
@@ -822,7 +833,7 @@ SSBParser.prototype = Object.create(LogicParser.prototype);
 
 SSBParser.prototype.addScope = function(selector){
 	var scope = this.transpiler.nextVarName();
-	this.add("var " + scope + "=" + this.runtime + "." + this.transpiler.feature("select2") + "(" + this.scopes[this.scopes.length - 1] + ", " + selector + ");");
+	this.add("var " + scope + "=" + this.runtime + "." + this.transpiler.feature("select") + "(" + this.scopes[this.scopes.length - 1] + ", " + selector + ");");
 	this.scopes.push(scope);
 };
 
@@ -843,10 +854,10 @@ SSBParser.prototype.start = function(){
 };
 
 SSBParser.prototype.find = function(){
-	return this.parser.find(['$', '<', 'v', 'c', 'l', 'i', 'e', 'f', 'w', '{', '}', ';'], false, true);
+	return this.parser.find(['$', '<', 'v', 'c', 'l', 'i', 'e', 'f', 'w', '{', '}', ';'], false, false);
 };
 
-SSBParser.prototype.lastValue = function(callback){
+SSBParser.prototype.lastValue = function(callback, parser){
 	var end;
 	if(this.current.length) {
 		if(this.current[0].text) {
@@ -872,7 +883,7 @@ SSBParser.prototype.lastValue = function(callback){
 		} else {
 			Array.prototype.push.apply(this.observables, part.value.observables);
 			Array.prototype.push.apply(this.maybeObservables, part.value.maybeObservables);
-			return '(' + part.value.source + ')';
+			return parser ? parser(part.value.source) : '(' + part.value.source + ')';
 		}
 	}.bind(this)).join(" + "));
 	if(end) this.add(end);
@@ -892,6 +903,7 @@ SSBParser.prototype.parseImpl = function(pre, match, handle, eof){
 				end: "",
 				parts: [{}]
 			});
+			this.inExpr = false;
 			break;
 		case ';':
 			var scope = this.scopes[this.scopes.length - 1];
@@ -901,10 +913,11 @@ SSBParser.prototype.parseImpl = function(pre, match, handle, eof){
 				if(current.text) {
 					var column = current.value.indexOf(':');
 					if(column != -1) {
+						var transpiler = this.transpiler;
 						var value = this.current.slice(i + 1);
 						value.unshift({text: true, value: current.value.substr(column + 1)});
 						current.value = current.value.substring(0, column);
-						this.current.length = i + 1;
+						this.current = this.current.slice(0, i + 1);
 						this.lastValue(function(value){
 							this.add(scope + ".value(" + value);
 						});
@@ -912,6 +925,9 @@ SSBParser.prototype.parseImpl = function(pre, match, handle, eof){
 						this.current = value;
 						this.lastValue(function(value){
 							this.add(value + ");");
+						}, function(value){
+							console.log(value);
+							return SSBParser.createExpr(value, transpiler);
 						});
 						break;
 					}
@@ -922,14 +938,28 @@ SSBParser.prototype.parseImpl = function(pre, match, handle, eof){
 					this.add(scope + ".stat(" + value + ");");
 				});
 			}
+			this.inExpr = false;
 			break;
 		default:
 			TextParser.prototype.parseImpl.call(this, pre, match, handle, eof);
 	}
 };
 
+SSBParser.prototype.parse = function(handle, eof){
+	if(!this.inExpr) {
+		this.add(this.parser.skip());
+		this.inExpr = true;
+	}
+	LogicParser.prototype.parse.call(this, handle, eof);
+};
+
+SSBParser.prototype.onStatementStart = function(statement){
+	this.inExpr = false;
+};
+
 SSBParser.prototype.onStatementEnd = function(statement){
 	if(statement.selector) this.removeScope();
+	this.inExpr = false;
 };
 
 SSBParser.prototype.addFinalCurrent = function(){
@@ -1022,7 +1052,7 @@ SSBParser.createExpr = function(expr, transpiler){
 		is: false,
 		op: 0
 	};
-	return SSBParser.createExprImpl(expr, info, transpiler) && info.is && info.op && (info.computed + ")})({})") || expr;
+	return SSBParser.createExprImpl(expr, info, transpiler) && info.is && info.op && (info.computed + ")})({})") || ("(" + expr + ")");
 };
 
 // export parsers

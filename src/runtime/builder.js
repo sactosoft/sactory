@@ -478,6 +478,22 @@ Builder.prototype.event = function(context, name, value, bind){
 							};
 						}
 						break;
+					case "delay":
+						var delay = parseInt(dot[1]);
+						if(delay >= 0) {
+							var timeout;
+							listener = function(event){
+								if(timeout) clearTimeout(timeout);
+								var el = this;
+								timeout = setTimeout(function(){
+									timeout = 0;
+									prev.call(el, event);
+								}, delay);
+							};
+						} else {
+							throw new Error("Event delay must be higher or equals than 0.");
+						}
+						break;
 					default:
 						throw new Error("Unknown event modifier '" + mod + "'.");
 				}
@@ -685,7 +701,7 @@ Builder.prototype.form = function(info, value, bind){
 								var s = this.split(':');
 								var date = new Date();
 								date.setHours(s[0]);
-								date.setMinutes(s[0]);
+								date.setMinutes(s[1]);
 								date.setSeconds(0);
 								date.setMilliseconds(0);
 								return date;
