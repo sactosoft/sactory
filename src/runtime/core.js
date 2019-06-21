@@ -367,7 +367,7 @@ Sactory.append = function(context, parent, anchor, afterappend, beforeremove){
 		if(anchor && anchor.parentNode === parent) parent.insertBefore(context.element, anchor);
 		else parent.appendChild(context.element);
 		if(afterappend) afterappend.call(context.element);
-		if(context.element.__builder && context.element.dispatchEvent) context.element.__builder.dispatchEvent("append");
+		if(context.element.__builder && context.element.dispatchEvent) context.element.__builder.dispatchEvent("append"); //TODO only fire when listened for
 		if(beforeremove) context.element.__builder.event(context.context, "remove", beforeremove, context.bind);
 		if(context.bind) context.bind.appendChild(context.element);
 	}

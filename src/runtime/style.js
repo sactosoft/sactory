@@ -502,10 +502,14 @@ Sactory.css.invert = function(color){
  * @since 0.100.0
  */
 Sactory.css.pastel = function(color){
-	color = HSLColor.from(color);
-	color.s = .9 + color.s * .1;
-	color.l = .75 + color.l * .15;
-	return color;
+	if(arguments.length) {
+		color = HSLColor.from(color);
+		color.s = .9 + color.s * .1;
+		color.l = .75 + color.l * .15;
+		return color;
+	} else {
+		return new HSLColor(Math.random(), .9 + Math.random() * .1, .75 + Math.random() * .15);
+	}
 };
 
 /**
@@ -520,7 +524,7 @@ Sactory.css.mix = function(){
 		});
 	});
 	color.update(function(v){
-		return Math.round(v / length);
+		return v / length;
 	});
 	return color;
 };

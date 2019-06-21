@@ -200,7 +200,7 @@ Builder.prototype.style = function(name, value, bind){
 	} else {
 		node.textContent = wrap(value);
 	}
-	this["class"](className, bind);
+	this.className(className, bind);
 	document.head.appendChild(node);
 	if(bind) bind.appendChild(node);
 };
@@ -252,27 +252,58 @@ Builder.prototype.html = function(value, bind, anchor){
 };
 
 /**
- * @since 0.79.0
+ * @since 0.100.0
  */
-Builder.prototype["class"] = function(value, bind){
+Builder.prototype.className = function(className, bind){
 	var builder = this;
-	if(SactoryObservable.isObservable(value)) {
-		var lastValue = value.value || "";
-		this.subscribe(bind, value.subscribe(function(newValue, oldValue){
-			builder.removeClassName(oldValue || "");
-			builder.addClassName(lastValue = (newValue || ""));
+	if(SactoryObservable.isObservable(className)) {
+		var value = className.value;
+		this.subscribe(bind, className.subscribe(function(newValue){
+			builder.removeClassName(value);
+			builder.addClassName(value = newValue);
 		}));
-		this.addClassName(lastValue);
-		if(bind) {
-			bind.addRollback(function(){
-				builder.removeClassName(lastValue);
-			});
-		}
-	} else if(value) {
 		this.addClassName(value);
 		if(bind) {
 			bind.addRollback(function(){
 				builder.removeClassName(value);
+			});
+		}
+	} else {
+		this.addClassName(className);
+		if(bind) {
+			bind.addRollback(function(){
+				builder.removeClassName(className);
+			});
+		}
+	}
+};
+
+/**
+ * @since 0.100.0
+ */
+Builder.prototype.classNameIf = function(className, condition, bind){
+	var builder = this;
+	if(SactoryObservable.isObservable(condition)) {
+		this.subscribe(bind, condition.subscribe(function(newValue, oldValue){
+			if(newValue) {
+				// add class
+				builder.addClassName(className);
+			} else {
+				// remove class name
+				builder.removeClassName(className);
+			}
+		}));
+		if(condition.value) this.addClassName(className);
+		if(bind) {
+			bind.addRollback(function(){
+				if(condition.value) builder.removeClassName(className);
+			});
+		}
+	} else if(condition) {
+		this.addClassName(className);
+		if(bind) {
+			bind.addRollback(function(){
+				builder.removeClassName(className);
 			});
 		}
 	}
@@ -595,15 +626,10 @@ Builder.prototype[Builder.TYPE_CONCAT] = function(name, value, bind, anchor){
 	switch(name) {
 		case "text": return this.text(value, bind, anchor);
 		case "html": return this.html(value, bind, anchor);
-		case "class": return this["class"](value, bind);
+		case "class": return this.className(value, bind);
 		default:
 			if(Polyfill.startsWith.call(name, "class:")) {
-				var className = name.substr(6);
-				if(SactoryObservable.isObservable(value)) {
-					this["class"](SactoryObservable.computedObservable(null, bind, [value], function(){ return value.value && className; }), bind);
-				} else {
-					this["class"](value, bind);
-				}
+				this.classNameIf(name.substr(6), value, bind);
 			} else {
 				throw new Error("Unknown concat attribute '" + name + "'.");
 			}

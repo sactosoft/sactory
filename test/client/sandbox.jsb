@@ -43,14 +43,14 @@ window.onload = function(){
 		mode: {
 			js: "code",
 			html: "html :logic",
-			css: "cssb"
+			css: "ssb"
 		}
 	};
 
 	var modes = {
 		js: ["code"],
 		html: ["html", "html :logic", "html :trimmed", "html :logic :trimmed", "text", "text :logic"],
-		css: ["css", "css :logic", "cssb"]
+		css: ["css", "css :logic", "ssb"]
 	};
 
 	var content = hash ? @watch.deep(hash.content) : @watch.deep(defaultContent, *key);

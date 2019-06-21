@@ -926,7 +926,6 @@ SSBParser.prototype.parseImpl = function(pre, match, handle, eof){
 						this.lastValue(function(value){
 							this.add(value + ");");
 						}, function(value){
-							console.log(value);
 							return SSBParser.createExpr(value, transpiler);
 						});
 						break;

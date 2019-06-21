@@ -7,7 +7,7 @@
 	}
 
 	@render() {
-		return <?["button"] +class="btn" ?+class=(this.type && "btn-" + this.type) />
+		return <?["button"] ~class="btn" ?~class:btn-[this.type]=this.type />
 	}
 
 });
