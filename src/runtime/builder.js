@@ -71,7 +71,7 @@ Builder.prototype.attr = function(name, value, bind){
 Builder.prototype.propImpl = function(name, value){
 	var o = this.element;
 	if(name.charAt(0) == '@') {
-		o = o.__widgets;
+		o = this.widgets;
 		name = name.substr(1);
 		if(name.charAt(0) == '.') name = name.substr(1);
 	}
