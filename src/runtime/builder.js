@@ -509,7 +509,24 @@ Builder.prototype.event = function(context, name, value, bind){
 							};
 						}
 						break;
-					case "delay":
+					case "throttle":
+						var delay = parseInt(dot[1]);
+						if(delay >= 0) {
+							var timeout = false;
+							listener = function(event){
+								if(!timeout) {
+									prev.call(this, event);
+									timeout = true;
+									timeout = setTimeout(function(){
+										timeout = false;
+									}, delay);
+								}
+							};
+						} else {
+							throw new Error("Event delay must be higher or equals than 0.");
+						}
+						break;
+					case "debounce":
 						var delay = parseInt(dot[1]);
 						if(delay >= 0) {
 							var timeout;
