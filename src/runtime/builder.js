@@ -660,7 +660,7 @@ Builder.prototype.form = function(info, value, bind){
 	if(!SactoryObservable.isObservable(value)) throw new Error("Cannot two-way bind '" + this.element.tagName.toLowerCase() + "': the given value is not an observable.");
 	var splitted = info.split("::");
 	var events = splitted.slice(1);
-	var updateType = 1048576 + Math.floor(Math.random() * 1048576);
+	var updateType = SactoryObservable.UPDATE_TYPE_FORM_RANGE_START + Math.floor(Math.random() * SactoryObservable.UPDATE_TYPE_FORM_RANGE_START);
 	var inputType = this.element.type;
 	var get;
 	var converters = [];

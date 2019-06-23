@@ -124,6 +124,7 @@ Sactory.bind = function(context, element, bind, anchor, target, change, cleanup,
 		currentAnchor = Sactory.createAnchor(element, bind, anchor);
 		/* debug:
 		currentAnchor.bind = currentBind;
+		currentAnchor.textContent = " bind ";
 		*/
 	}
 	change = SactoryObservable.unobserve(change);
@@ -174,11 +175,79 @@ Sactory.bindIf = function(context, element, bind, anchor, target, change, cleanu
  * @since 0.40.0
  */
 Sactory.bindEach = function(context, element, bind, anchor, target, change, cleanup, fun){
-	Sactory.bind(context, element, bind, anchor, target, change, cleanup, function(element, bind, anchor, value){
-		for(var i=0; i<value.length; i++) {
-			fun.call(this, element, bind, anchor, value[i], i, value);
+	var currentBind = (bind || Sactory.bindFactory).fork();
+	var firstAnchor, lastAnchor;
+	if(element) {
+		firstAnchor = Sactory.createAnchor(element, bind, anchor);
+		lastAnchor = Sactory.createAnchor(element, bind, anchor);
+		/* debug:
+		firstAnchor.textContent = " bind-each:first ";
+		lastAnchor.textContent = " bind-each:last ";
+		*/
+	}
+	var binds = [];
+	function add(action, bind, anchor, value, index, array) {
+		fun.call(context, element, bind, anchor, value, index, array);
+		binds[action]({bind: bind, anchor: anchor});
+	}
+	function updateAll() {
+		target.value.forEach(function(value, index, array){
+			add("push", currentBind.fork(), element ? Sactory.createAnchor(element, currentBind, lastAnchor) : null, value, index, array);
+		});
+	}
+	target.subscribe(function(array, _, type, data){
+		switch(type) {
+			case SactoryObservable.UPDATE_TYPE_ARRAY_PUSH:
+				Array.prototype.forEach.call(data, function(value, i){
+					add("push", currentBind.fork(), element ? Sactory.createAnchor(element, currentBind, lastAnchor) : null, value, array.length - data.length + i, array);
+				});
+				break;
+			case SactoryObservable.UPDATE_TYPE_ARRAY_POP:
+				var popped = binds.pop();
+				if(popped) {
+					popped.bind.rollback();
+					if(popped.anchor) popped.anchor.parentNode.removeChild(popped.anchor);
+				}
+				break;
+			case SactoryObservable.UPDATE_TYPE_ARRAY_UNSHIFT:
+				Array.prototype.forEach.call(data, function(value){
+					add("unshift", currentBind.fork(), element ? Sactory.createAnchor(element, currentBind, firstAnchor.nextSibling) : null, value, 0, array);
+				});
+				break;
+			case SactoryObservable.UPDATE_TYPE_ARRAY_SHIFT:
+				var shifted = binds.shift();
+				if(shifted) {
+					shifted.bind.rollback();
+					if(shifted.anchor) shifted.anchor.parentNode.removeChild(shifted.anchor);
+				}
+				break;
+			case SactoryObservable.UPDATE_TYPE_ARRAY_SPLICE:
+				// insert new elements then call splice on binds and rollback
+				var index = data[0];
+				var ptr = binds[index];
+				var anchorTo = ptr && ptr.anchor && ptr.anchor.nextSibling;
+				Array.prototype.slice.call(data, 2).forEach(function(value, i){
+					data[i + 2] = {
+						value: value
+					};
+				});
+				Array.prototype.splice.apply(binds, data).forEach(function(removed){
+					removed.bind.rollback();
+					if(removed.anchor) removed.anchor.parentNode.removeChild(removed.anchor);
+				});
+				Array.prototype.slice.call(data, 2).forEach(function(info, i){
+					info.bind = currentBind.fork();
+					info.anchor = anchorTo ? Sactory.createAnchor(element, currentBind, anchorTo) : null;
+					fun.call(context, element, info.bind, info.anchor, info.value, i + index, array);
+				});
+				break;
+			default:
+				currentBind.rollback();
+				binds = [];
+				updateAll();
 		}
 	});
+	updateAll();
 };
 
 /**

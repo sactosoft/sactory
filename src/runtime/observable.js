@@ -2,6 +2,14 @@ var Polyfill = require("../polyfill");
 
 var Sactory = {};
 
+Sactory.UPDATE_TYPE_ARRAY_PUSH = 1048571;
+Sactory.UPDATE_TYPE_ARRAY_POP = 1048572;
+Sactory.UPDATE_TYPE_ARRAY_UNSHIFT = 1048573;
+Sactory.UPDATE_TYPE_ARRAY_SHIFT = 1048574;
+Sactory.UPDATE_TYPE_ARRAY_SPLICE = 1048575;
+Sactory.UPDATE_TYPE_FORM_RANGE_START = 1048576;
+Sactory.UPDATE_TYPE_FORM_RANGE_LENGTH = 1048576;
+
 /**
  * @class
  * @since 0.42.0
@@ -14,6 +22,7 @@ function Observable(value) {
 		subscriptions: {}
 	};
 	this.updateType = undefined;
+	this.updateDate = undefined;
 	/* debug:
 	var id = Math.floor(Math.random() * 100000);
 	Object.defineProperty(this, "id", {
@@ -43,16 +52,17 @@ Observable.prototype.replace = function(value){
  * @since 0.42.0
  */
 Observable.prototype.update = function(value){
-	this.updateImpl(arguments.length ? this.replace(value) : this.internal.value, this.updateType);
+	this.updateImpl(arguments.length ? this.replace(value) : this.internal.value, this.updateType, this.updateData);
 	this.updateType = undefined;
+	this.updateDate = undefined;
 };
 
-Observable.prototype.updateImpl = function(value, type){
+Observable.prototype.updateImpl = function(value, type, data){
 	var oldValue = this.internal.value;
 	this.internal.value = value;
 	for(var i in this.internal.subscriptions) {
 		var subscription = this.internal.subscriptions[i];
-		if(!subscription.type || subscription.type !== type) subscription.callback(value, oldValue);
+		if(!subscription.type || subscription.type !== type) subscription.callback(value, oldValue, type, data);
 	}
 };
 
@@ -268,12 +278,24 @@ function ObservableArray(observable, value) {
 
 ObservableArray.prototype = Object.create(Array.prototype);
 
-["copyWithin", "fill", "pop", "push", "reverse", "shift", "sort", "splice", "unshift"].forEach(function(fun){
-	if(Array.prototype[fun]) {
-		Object.defineProperty(ObservableArray.prototype, fun, {
+[
+	{name: "copyWithin"},
+	{name: "fill"},
+	{name: "pop", type: Sactory.UPDATE_TYPE_ARRAY_POP},
+	{name: "push", type: Sactory.UPDATE_TYPE_ARRAY_PUSH},
+	{name: "reverse"},
+	{name: "shift", type: Sactory.UPDATE_TYPE_ARRAY_SHIFT},
+	{name: "sort"},
+	{name: "splice", type: Sactory.UPDATE_TYPE_ARRAY_SPLICE},
+	{name: "unshift", type: Sactory.UPDATE_TYPE_ARRAY_UNSHIFT}
+].forEach(function(fun){
+	if(Array.prototype[fun.name]) {
+		Object.defineProperty(ObservableArray.prototype, fun.name, {
 			enumerable: false,
 			value: function(){
-				var ret = Array.prototype[fun].apply(this, arguments);
+				var ret = Array.prototype[fun.name].apply(this, arguments);
+				this.observable.updateType = fun.type;
+				this.observable.updateData = arguments;
 				this.observable.update();
 				return ret;
 			}
