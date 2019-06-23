@@ -172,7 +172,59 @@ Sactory.bindIf = function(context, element, bind, anchor, target, change, cleanu
 };
 
 /**
- * @since 0.40.0
+ * @since 0.102.0
+ */
+Sactory.bindIfElse = function(context, element, bind, anchor, conditions){
+	var functions = Array.prototype.slice.call(arguments, 5);
+	var currentBindDependencies = (bind || Sactory.bindFactory).fork();
+	var currentBindContent = (bind || Sactory.bindFactory).fork();
+	var currentAnchor;
+	if(element) {
+		currentAnchor = Sactory.createAnchor(element, bind, anchor);
+	}
+	var active = 0xFEE1DEAD;
+	var results;
+	function reload() {
+		// reset results
+		results = conditions.map(function(condition){
+			return null;
+		});
+		// calculate new results and call body
+		for(var i=0; i<results.length; i++) {
+			var condition = conditions[i];
+			if(!condition[1] || (results[i] = !!condition[1]())) {
+				active = i;
+				functions[i].call(context, element, currentBindContent, currentAnchor);
+				return;
+			}
+		}
+		// no result found
+		active = 0xFEE1DEAD;
+	}
+	function recalc() {
+		currentBindContent.rollback();
+		reload();
+	}
+	conditions.forEach(function(condition, i){
+		condition[0].forEach(function(dependency){
+			currentBindDependencies.subscribe(dependency.subscribe(function(){
+				if(i <= active) {
+					// the change may affect what is being displayed
+					var result = !!condition[1]();
+					if(result != results[i]) {
+						// the condition has changes, need to recalc
+						results[i] = result;
+						recalc();
+					}
+				}
+			}));
+		});
+	});
+	reload();
+};
+
+/**
+ * @since 0.102.0
  */
 Sactory.bindEach = function(context, element, bind, anchor, target, change, cleanup, fun){
 	var currentBind = (bind || Sactory.bindFactory).fork();
@@ -195,7 +247,7 @@ Sactory.bindEach = function(context, element, bind, anchor, target, change, clea
 			add("push", currentBind.fork(), element ? Sactory.createAnchor(element, currentBind, lastAnchor) : null, value, index, array);
 		});
 	}
-	target.subscribe(function(array, _, type, data){
+	currentBind.subscribe(target.subscribe(function(array, _, type, data){
 		switch(type) {
 			case SactoryObservable.UPDATE_TYPE_ARRAY_PUSH:
 				Array.prototype.forEach.call(data, function(value, i){
@@ -246,7 +298,7 @@ Sactory.bindEach = function(context, element, bind, anchor, target, change, clea
 				binds = [];
 				updateAll();
 		}
-	});
+	}));
 	updateAll();
 };
 
