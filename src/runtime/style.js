@@ -513,6 +513,19 @@ Sactory.css.pastel = function(color){
 };
 
 /**
+ * @since 0.102.0
+ */
+Sactory.css.sepia = function(color){
+	color = RGBColor.from(color);
+	return new RGBColor(
+		color.r * .393 + color.g * .769 + color.b * .189,
+		color.r * .349 + color.g * .686 + color.b * .168,
+		color.r * .272 + color.g * .534 + color.b * .131,
+		color.a
+	);
+};
+
+/**
  * @since 0.38.0
  */
 Sactory.css.mix = function(){

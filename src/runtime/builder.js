@@ -1,4 +1,6 @@
 var Polyfill = require("../polyfill");
+var Const = require("../const");
+
 var SactoryConfig = require("./config");
 var SactoryObservable = require("./observable");
 var SactoryBind = require("./bind");
@@ -33,14 +35,6 @@ function Builder(element) {
 	});
 
 }
-
-Builder.TYPE_ATTR = 1;
-Builder.TYPE_PROP = 2;
-Builder.TYPE_ADD = 3;
-Builder.TYPE_REMOVE = 4;
-Builder.TYPE_CONCAT = 5;
-Builder.TYPE_WIDGET = 6;
-Builder.TYPE_EXTEND_WIDGET = 7;
 
 Builder.prototype.widgets = {};
 
@@ -593,9 +587,16 @@ Builder.prototype.removeClassName = function(className){
 };
 
 /**
+ * @since 0.69.0
+ */
+Builder.prototype[Const.BUILDER_TYPE_NONE] = function(name, value, bind){
+	this.attr(name, value, bind);
+};
+
+/**
  * @since 0.63.0
  */
-Builder.prototype[Builder.TYPE_PROP] = function(name, value, bind){
+Builder.prototype[Const.BUILDER_TYPE_PROP] = function(name, value, bind){
 	switch(name) {
 		case "visible": return this.visible(value, false, bind);
 		case "hidden": return this.visible(value, true, bind);
@@ -616,30 +617,9 @@ Builder.prototype[Builder.TYPE_PROP] = function(name, value, bind){
 };
 
 /**
- * @since 0.69.0
- */
-Builder.prototype[Builder.TYPE_ATTR] = function(name, value, bind){
-	this.attr(name, value, bind);
-};
-
-/**
- * @since 0.69.0
- */
-Builder.prototype[Builder.TYPE_ADD] = function(name, value, bind, anchor, context){
-	this.event(context, name, SactoryObservable.unobserve(value), bind);
-};
-
-/**
- * @since 0.69.0
- */
-Builder.prototype[Builder.TYPE_REMOVE] = function(name, value, bind){
-	this.element.removeEventListener(name, SactoryObservable.unobserve(value));
-};
-
-/**
  * @since 0.96.0
  */
-Builder.prototype[Builder.TYPE_CONCAT] = function(name, value, bind, anchor){
+Builder.prototype[Const.BUILDER_TYPE_CONCAT] = function(name, value, bind, anchor){
 	switch(name) {
 		case "text": return this.text(value, bind, anchor);
 		case "html": return this.html(value, bind, anchor);
@@ -654,13 +634,20 @@ Builder.prototype[Builder.TYPE_CONCAT] = function(name, value, bind, anchor){
 };
 
 /**
+ * @since 0.69.0
+ */
+Builder.prototype[Const.BUILDER_TYPE_ON] = function(name, value, bind, anchor, context){
+	this.event(context, name, SactoryObservable.unobserve(value), bind);
+};
+
+/**
  * @since 0.46.0
  */
 Builder.prototype.form = function(info, value, bind){
 	if(!SactoryObservable.isObservable(value)) throw new Error("Cannot two-way bind '" + this.element.tagName.toLowerCase() + "': the given value is not an observable.");
 	var splitted = info.split("::");
 	var events = splitted.slice(1);
-	var updateType = SactoryObservable.UPDATE_TYPE_FORM_RANGE_START + Math.floor(Math.random() * SactoryObservable.UPDATE_TYPE_FORM_RANGE_START);
+	var updateType = Const.OBSERVABLE_UPDATE_TYPE_FORM_RANGE_START + Math.floor(Math.random() * Const.OBSERVABLE_UPDATE_TYPE_FORM_RANGE_LENGTH);
 	var inputType = this.element.type;
 	var get;
 	var converters = [];

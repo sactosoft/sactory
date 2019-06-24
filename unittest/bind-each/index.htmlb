@@ -1,0 +1,21 @@
+<button +click={ *values.push(count++) }>Push</button>
+<button +click={ *values.pop() }>Pop</button>
+<button +click={ *values.unshift(count++) }>Unshift</button>
+<button +click={ *values.shift() }>Shift</button>
+<button +click={ *values.splice(2, 1) }>Remove 3rd</button>
+<button +click={ *values.splice(3, 1, count++) }>Replace 4th</button>
+
+<hr />
+
+foreach(*values as value) {
+	var color = @rgb();
+	<span
+		@style.padding=4
+		@style.border-radius="3px"
+		@style.background=color
+		@style.color=@contrast(color)>${window.value = value}</span>
+}
+
+<hr />
+
+[${*values.join(", ")}]

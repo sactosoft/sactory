@@ -1,5 +1,5 @@
 var Polyfill = require("../polyfill");
-var Builder = require("./builder");
+var Const = require("../const");
 var SactoryConfig = require("./config");
 
 Object.defineProperty(Node, "ANCHOR_NODE", {
@@ -31,13 +31,11 @@ function Sactory(context, element, bind, anchor) {
 
 // constants
 
-var NAMESPACES = {
-	"xhtml": "http://www.w3.org/1999/xhtml",
-	"svg": "http://www.w3.org/2000/svg",
-	"mathml": "http://www.w3.org/1998/mathml",
-	"xul": "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul",
-	"xbl": "http://www.mozilla.org/xbl"
-};
+Sactory.NS_XHTML = "http://www.w3.org/1999/xhtml";
+Sactory.NS_SVG = "http://www.w3.org/2000/svg";
+Sactory.NS_MATHML = "http://www.w3.org/1998/mathml";
+Sactory.NS_XUL = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
+Sactory.NS_XBL = "http://www.mozilla.org/xbl";
 
 // widgets
 
@@ -164,8 +162,8 @@ Sactory.update = function(context, options){
 			return !a.optional || a.value !== undefined;
 		});
 		options.args.forEach(function(arg){
-			var ext = arg.type == Builder.TYPE_EXTEND_WIDGET;
-			if(ext || arg.type == Builder.TYPE_WIDGET) {
+			var ext = arg.type == Const.BUILDER_TYPE_EXTEND_WIDGET;
+			if(ext || arg.type == Const.BUILDER_TYPE_WIDGET) {
 				var obj;
 				if(ext) {
 					var col = arg.name.indexOf(':');
@@ -206,7 +204,7 @@ Sactory.update = function(context, options){
 	if(options.spread) {
 		options.spread.forEach(function(spread){
 			for(var key in spread) {
-				args.push({type: Builder.TYPE_ATTR, name: key, value: spread[key]});
+				args.push({type: Const.BUILDER_TYPE_NONE, name: key, value: spread[key]});
 			}
 		});
 	}
@@ -236,7 +234,7 @@ Sactory.update = function(context, options){
 			*/
 		} else {
 			if(options.namespace) {
-				context.element = context.container = document.createElementNS(NAMESPACES[options.namespace] || options.namespace, options.tagName);
+				context.element = context.container = document.createElementNS(options.namespace, options.tagName);
 			} else {
 				context.element = context.container = document.createElement(options.tagName);
 			}

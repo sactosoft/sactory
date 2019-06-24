@@ -291,7 +291,7 @@ window.onload = function(){
 			</section>
 			<section class="input">
 				foreach(["js", "html", "css"] as type) {
-					<:bind-if :condition={ *content.show[type] } :change={ !!document.getElementById(type) != newValue.show[type] }>
+					if(*content.show[type]) {
 						<div id=type class="editor">
 							<textarea @value=^content.content[type] #code>
 								@on("documentappend", function(){
@@ -311,7 +311,7 @@ window.onload = function(){
 								}
 							</select>
 						</div>
-					</:bind-if>
+					}
 				}
 			</section>
 		</section>
@@ -327,8 +327,8 @@ window.onload = function(){
 			</nav>
 
 			<section @visible=(*tab == "output")>
-				<:bind-if :condition={ !*result.error } #code>
-					<iframe style="width:100%;height:100%;border:none" src="about:blank">
+				if(!*result.error) {
+					<iframe style="width:100%;height:100%;border:none" src="about:blank" #code>
 						@on("documentappend", function(){
 							window.sandbox = this.contentWindow;
 							<{this.contentWindow.document.head}>
@@ -339,7 +339,7 @@ window.onload = function(){
 							</>
 						});
 					</iframe>
-				</:bind-if>
+				}
 			</section>
 
 			<section @visible=(*tab == "error")>
@@ -353,7 +353,7 @@ window.onload = function(){
 			if(*tab == "code") {
 				<section>
 					foreach(["js", "html", "css"] as type) {
-						<:bind-if :condition={ *content.show[type] } :change={ !!@.querySelector("#output-" + type) != newValue.show[type] }>
+						if(*content.show[type]) {
 							<div id=("output-" + type) class="editor" #code>
 								<textarea @value=(^result[type] || "")>
 									@on("documentappend", function(){
@@ -366,7 +366,7 @@ window.onload = function(){
 									});
 								</textarea>
 							</div>
-						</:bind-if>
+						}
 					}
 				</section>
 			}

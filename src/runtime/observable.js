@@ -1,14 +1,7 @@
 var Polyfill = require("../polyfill");
+var Const = require("../const");
 
 var Sactory = {};
-
-Sactory.UPDATE_TYPE_ARRAY_PUSH = 1048571;
-Sactory.UPDATE_TYPE_ARRAY_POP = 1048572;
-Sactory.UPDATE_TYPE_ARRAY_UNSHIFT = 1048573;
-Sactory.UPDATE_TYPE_ARRAY_SHIFT = 1048574;
-Sactory.UPDATE_TYPE_ARRAY_SPLICE = 1048575;
-Sactory.UPDATE_TYPE_FORM_RANGE_START = 1048576;
-Sactory.UPDATE_TYPE_FORM_RANGE_LENGTH = 1048576;
 
 /**
  * @class
@@ -281,13 +274,13 @@ ObservableArray.prototype = Object.create(Array.prototype);
 [
 	{name: "copyWithin"},
 	{name: "fill"},
-	{name: "pop", type: Sactory.UPDATE_TYPE_ARRAY_POP},
-	{name: "push", type: Sactory.UPDATE_TYPE_ARRAY_PUSH},
+	{name: "pop", type: Const.OBSERVABLE_UPDATE_TYPE_ARRAY_POP},
+	{name: "push", type: Const.OBSERVABLE_UPDATE_TYPE_ARRAY_PUSH},
 	{name: "reverse"},
-	{name: "shift", type: Sactory.UPDATE_TYPE_ARRAY_SHIFT},
+	{name: "shift", type: Const.OBSERVABLE_UPDATE_TYPE_ARRAY_SHIFT},
 	{name: "sort"},
-	{name: "splice", type: Sactory.UPDATE_TYPE_ARRAY_SPLICE},
-	{name: "unshift", type: Sactory.UPDATE_TYPE_ARRAY_UNSHIFT}
+	{name: "splice", type: Const.OBSERVABLE_UPDATE_TYPE_ARRAY_SPLICE},
+	{name: "unshift", type: Const.OBSERVABLE_UPDATE_TYPE_ARRAY_UNSHIFT}
 ].forEach(function(fun){
 	if(Array.prototype[fun.name]) {
 		Object.defineProperty(ObservableArray.prototype, fun.name, {

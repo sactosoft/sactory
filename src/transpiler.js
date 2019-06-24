@@ -6,6 +6,8 @@ var Parser = require("./parser");
 
 var version = require("../version");
 
+var Const = require("./const");
+
 var performance = require("perf_hooks").performance;
 
 function hash(str) {
@@ -321,14 +323,18 @@ LogicParser.prototype.parseLogic = function(expected, type){
 		} else {
 			// statement
 			var statement = Polyfill.startsWith.call(expected, "else") ? this.popped.pop() : {
+				type: expected,
 				startIndex: this.source.length,
 				observables: [],
 				maybeObservables: [],
+				inlineable: true,
 				end: "",
 				parts: []
 			};
 			var part = {
 				type: expected,
+				observables: [],
+				maybeObservables: [],
 				declStart: this.source.length
 			};
 			statement.parts.push(part);
@@ -338,6 +344,8 @@ LogicParser.prototype.parseLogic = function(expected, type){
 					var parsed = transpiler.parseCode(source, parser);
 					Array.prototype.push.apply(statement.observables, parsed.observables);
 					Array.prototype.push.apply(statement.maybeObservables, parsed.maybeObservables);
+					Array.prototype.push.apply(part.observables, parsed.observables);
+					Array.prototype.push.apply(part.maybeObservables, parsed.maybeObservables);
 					return parsed.source;
 				}
 				// with condition
@@ -370,12 +378,16 @@ LogicParser.prototype.parseLogic = function(expected, type){
 						rest = parser.input.substr(parser.index);
 					}
 					if(expr) {
-						this.add(this.runtime + "." + this.transpiler.feature("forEach") + "(this, " + expr + ", function(" + rest + ")");
-						statement.end = ");";
+						this.add(this.runtime + "." + this.transpiler.feature("forEach") + "(this, ")
+						this.add(expr);
+						this.add(", function(");
+						this.add(rest + ")");
 					} else {
+						statement.type = part.type = "range";
 						this.add(this.runtime + "." + this.transpiler.feature("range") + "(this, " + from + ", " + to + ", function(" + rest + ")");
-						statement.end = ");";
 					}
+					statement.inlineable = false;
+					statement.end = ");";
 				} else {
 					this.add(expected + skipped + source);
 				}
@@ -384,7 +396,7 @@ LogicParser.prototype.parseLogic = function(expected, type){
 				this.add(expected);
 			}
 			this.add(this.parser.skipImpl({}));
-			if(!(statement.inline = !this.parser.readIf('{'))) this.add('{');
+			if(!(statement.inline = part.inline = !this.parser.readIf('{')) || !statement.inlineable) this.add('{');
 			part.declEnd = this.source.length;
 			this.statements.push(statement);
 			this.onStatementStart(statement);
@@ -453,7 +465,9 @@ LogicParser.prototype.parse = function(handle, eof){
 				this.add(trimmed);
 				this.add('\n');
 				var statement = this.statements.pop();
+				if(!statement.inlineable) this.source[this.source.length - 1] += '}';
 				statement.endIndex = this.source.length;
+				statement.parts[statement.parts.length - 1].close = this.source.length - 1;
 				this.popped.push(statement);
 				this.onStatementEnd(statement);
 			} else {
@@ -474,40 +488,43 @@ LogicParser.prototype.end = function(){
 		var popped = this.popped[i];
 		var bind = !!popped.observables.length || !!popped.maybeObservables.length;
 		if(bind) {
-			if(popped.parts[0].type == "if" && (popped.parts.length == 1 || popped.parts[1].type == "else")) {
-				// special bind-if(-else)
-				var partIf = popped.parts[0];
-				var partElse = popped.parts[1];
-				var condition = this.source[partIf.declStart].substr(2);
-				// remove all declarations as they will be replaced
-				var remove = function(start, end){
-					for(var i=start; i<end; i++) {
-						this.source[i] = "";
+			if(popped.type == "if") {
+				// calculate conditions and remove them from source
+				var conditions = [];
+				var replacement = ", function(" + this.element + ", " + this.bind + ", " + this.anchor + ")";
+				popped.parts.forEach(function(part){
+					var source = this.source[part.declStart].substr(part.type.length);
+					if(part.type == "else") {
+						conditions.push("[]");
+					} else {
+						conditions.push("[function(){return " + source + "}, [" + uniq(part.observables) + "]" +
+							(part.maybeObservables.length ? ", [" + uniq(part.maybeObservables) + "]" : "") + "]");
 					}
-				}.bind(this);
-				remove(partIf.declStart, partIf.declEnd);
-				if(partIf.close) remove(partIf.close, partIf.close + 1);
-				var observable = this.transpiler.nextVarName();
-				this.source[partIf.declStart] =
-					// declare a new computed observable with the condition
-					"var " + observable + "=" + this.runtime + "." + this.transpiler.feature("computedObservable") + "(this, " + this.bind + ", [" + uniq(popped.observables).join(", ") + "], function(){return " + condition + "}" +
-					(popped.maybeObservables.length ? ", [" + uniq(popped.maybeObservables) + "]" : "") + ");" +
-					// and bind to it
-					this.runtime + "." + this.transpiler.feature("bindIf") + "(this, " + this.element + ", " + this.bind + ", " + this.anchor + ", [" + observable + "], 0, 0, function(){return " + observable + ".value}, " +
-					"function(" + this.element + ", " + this.bind + ", " + this.anchor + "){";
-
-				if(partElse) {
-					remove(partElse.declStart, partElse.declEnd);
-					if(partElse.close) remove(partElse.close, partElse.close + 1);
-					this.source[partElse.declStart] = "}, function(" + this.element + ", " + this.bind + ", " + this.anchor + "){";
-				}
+					this.source[part.declStart] = replacement;
+					if(part.inline) {
+						this.source[part.declStart] += "{";
+						this.source[part.close] += "}";
+					}
+				}.bind(this));
+				this.source[popped.startIndex] = this.runtime + "." + this.transpiler.feature("bindIfElse") + "(this, " + this.element + ", " + this.bind + ", " + this.anchor +
+					", [" + conditions.join(", ") + "]" + this.source[popped.startIndex];
+				this.source[popped.endIndex] = ");" + this.source[popped.endIndex];
+			} else if(popped.type == "foreach") {
+				// the source is divided in 4 parts
+				var expr = this.source[popped.startIndex + 1];
+				this.source[popped.startIndex] = "";
+				this.source[popped.startIndex + 1] = "";
+				this.source[popped.startIndex + 2] = this.runtime + "." + this.transpiler.feature("bindEach" + (popped.maybeObservables.length ? "Maybe" : "")) +
+					"(this, " + this.element + ", " + this.bind + ", " + this.anchor + ", " + (popped.maybeObservables.length ? popped.maybeObservables[0] : popped.observables[0]) +
+					", function(){return " + expr + "}, function(" + this.element + ", " + this.bind + ", " + this.anchor + ", ";
+				// no need to close as the end is the same as the Sactory.forEach function call
 			} else {
 				// normal bind
 				this.source[popped.startIndex] = this.runtime + "." + this.transpiler.feature("bind") + "(this, " + this.element + ", " + this.bind + ", " + this.anchor +
 					", [" + uniq(popped.observables).join(", ") + "]" + (popped.maybeObservables.length ? ".concat(" + this.runtime + "." + this.transpiler.feature("filterObservables") + "([" + uniq(popped.maybeObservables) + "]))" : "") +
-					", 0, 0, function(" + this.element + ", " + this.bind + ", " + this.anchor + "){" + this.source[popped.startIndex];
+					", function(" + this.element + ", " + this.bind + ", " + this.anchor + "){" + this.source[popped.startIndex];
+				this.source[popped.endIndex] = "});" + this.source[popped.endIndex];
 			}
-			this.source[popped.endIndex] = "});" + this.source[popped.endIndex];
 		}
 		if(popped.end.length) {
 			// prepend end if needed
@@ -701,6 +718,7 @@ JavascriptParser.prototype.next = function(match){
 						case "greyscale":
 						case "invert":
 						case "pastel":
+						case "sepia":
 						case "mix":
 						case "contrast":
 							add(true, this.transpiler.feature("css." + match[1]));
@@ -957,7 +975,12 @@ SSBParser.prototype.onStatementStart = function(statement){
 };
 
 SSBParser.prototype.onStatementEnd = function(statement){
-	if(statement.selector) this.removeScope();
+	if(statement.selector) {
+		this.removeScope();
+	} else {
+		Array.prototype.push.apply(this.observables, statement.observables);
+		Array.prototype.push.apply(this.maybeObservables, statement.maybeObservables);
+	}
 	this.inExpr = false;
 };
 
@@ -1511,11 +1534,24 @@ Transpiler.prototype.open = function(){
 			var args = !!(inheritance.args || rattributes.length);
 			if(computed) ret.widget = false;
 			if(iattributes.namespace) ret.namespace = iattributes.namespace;
-			else if(!computed && (tagName == "svg" || tagName == "mathml")) ret.namespace = '"' + tagName + '"';
+			else if(iattributes.xhtml) ret.namespace = this.runtime + ".NS_XHTML";
+			else if(iattributes.svg) ret.namespace = this.runtime + ".NS_SVG";
+			else if(iattributes.mathml) ret.namespace = this.runtime + ".NS_MATHML";
+			else if(iattributes.xul) ret.namespace = this.runtime + ".NS_XUL";
+			else if(iattributes.xbl) ret.namespace = this.runtime + ".NS_XBL";
+			else if(!computed) {
+				if(tagName == "svg") ret.namespace = this.runtime + ".NS_SVG";
+				else if(tagName == "mathml") ret.namespace = this.runtime + ".NS_MATHML";
+			}
 			if(args) {
 				ret.args = rattributes.map(function(attribute){
 					return this.runtime + "." + this.feature("attr") + "(" +
-						{'': 1, '@': 2, '+': 3, '-': 4, '~': 5, '$': 6, '$$': 7}[attribute.prefix] + ", " +
+						{'': Const.BUILDER_TYPE_NONE,
+						'@': Const.BUILDER_TYPE_PROP,
+						'~': Const.BUILDER_TYPE_CONCAT,
+						'+': Const.BUILDER_TYPE_ON,
+						'$': Const.BUILDER_TYPE_WIDGET,
+						'$$': Const.BUILDER_TYPE_EXTEND_WIDGET}[attribute.prefix] + ", " +
 						(attribute.computed ? attribute.name : '"' + (attribute.name || "") + '"') +
 						(attribute.value != "\"\"" || attribute.optional ? ", " + attribute.value : "") +
 						(attribute.optional ? ", 1" : "") + ")";
@@ -1714,19 +1750,9 @@ Transpiler.prototype.open = function(){
 			var call = true;
 			var inline = false;
 
-			var bindType = "";
-			if(tagName == ":bind-if") bindType = "If";
-			else if(tagName == ":bind-each") bindType = "Each";
-			else if(iattributes["if"]) {
-				bindType = "If";
-				iattributes.condition = iattributes["if"];
-			} else if(iattributes.each) {
-				bindType = "Each";
-				iattributes.to = iattributes.each;
-			}
-			if(bindType || tagName == ":bind") {
-				this.source.push(this.runtime + "." + this.feature("bind" + bindType) + "(" + ["this", parent, this.bind, this.anchor, iattributes.to || "0", iattributes.change || "0", iattributes.cleanup || "0"].join(", ") +
-					(bindType == "If" ? ", " + iattributes.condition : "") + ", function(" + [this.element, this.bind, this.anchor, iattributes.as || this.value, iattributes.index || this.index, iattributes.array || this.array].join(", ") + "){");
+			if(tagName == ":bind") {
+				this.source.push(this.runtime + "." + this.feature("bind") + "(" + ["this", parent, this.bind, this.anchor, iattributes.to].join(", ") +
+					", function(" + [this.element, this.bind, this.anchor, iattributes.as || this.value].join(", ") + "){");
 				currentClosing.unshift("})");
 			}
 

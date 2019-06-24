@@ -1,3 +1,6 @@
+var Const = require("../const");
+
+var SactoryCore = require("./core");
 var SactoryObservable = require("./observable");
 
 var Sactory = {};
@@ -106,7 +109,7 @@ Sactory.createAnchor = function(element, bind, anchor){
 /**
  * @since 0.11.0
  */
-Sactory.bind = function(context, element, bind, anchor, target, change, cleanup, fun){
+Sactory.bind = function(context, element, bind, anchor, target, fun){
 	var currentBind = (bind || Sactory.bindFactory).fork();
 	var currentAnchor = null;
 	var oldValue;
@@ -118,7 +121,6 @@ Sactory.bind = function(context, element, bind, anchor, target, change, cleanup,
 	}
 	function rollback() {
 		currentBind.rollback();
-		if(cleanup) cleanup();
 	}
 	if(element) {
 		currentAnchor = Sactory.createAnchor(element, bind, anchor);
@@ -127,10 +129,6 @@ Sactory.bind = function(context, element, bind, anchor, target, change, cleanup,
 		currentAnchor.textContent = " bind ";
 		*/
 	}
-	change = SactoryObservable.unobserve(change);
-	cleanup = SactoryObservable.unobserve(cleanup);
-	if(change && typeof change != "function") throw new Error("The change argument provided to :bind is not a function.");
-	if(cleanup && typeof cleanup != "function") throw new Error("The cleanup argument provided to :bind is not a function.");
 	if(target.observe) target = target.observe;
 	if(target.forEach) {
 		target.forEach(function(ob){
@@ -142,33 +140,13 @@ Sactory.bind = function(context, element, bind, anchor, target, change, cleanup,
 		record();
 	} else if(SactoryObservable.isObservable(target)) {
 		subscribe(target.subscribe(function(value){
-			if(!change || change(oldValue, value)) {
-				rollback();
-				record(value);
-			} else {
-				oldValue = value;
-			}
+			rollback();
+			record(value);
 		}));
 		record(target.value);
 	} else {
 		throw new Error("Cannot bind to the given value: not an observable or an array of observables.");
 	}
-};
-
-/**
- * @since 0.40.0
- */
-Sactory.bindIf = function(context, element, bind, anchor, target, change, cleanup, condition, fun, fallback){
-	if(!target && SactoryObservable.isObservable(condition) && condition.computed) {
-		target = condition.dependencies;
-		if(target.length == 1) target = target[0];
-	}
-	condition = SactoryObservable.unobserve(condition);
-	if(typeof condition != "function") throw new Error("The condition provided to :bind-if is not a function.");
-	Sactory.bind(context, element, bind, anchor, target, change, cleanup, function(element, bind, anchor, value){
-		if(condition()) fun.call(this, element, bind, anchor, value);
-		else if(fallback) fallback.call(this, element, bind, anchor, value);
-	});
 };
 
 /**
@@ -182,6 +160,12 @@ Sactory.bindIfElse = function(context, element, bind, anchor, conditions){
 	if(element) {
 		currentAnchor = Sactory.createAnchor(element, bind, anchor);
 	}
+	// filter maybe observables
+	conditions.forEach(function(condition){
+		if(condition[2]) {
+			Array.prototype.push.apply(condition[1], SactoryObservable.filterObservables(condition[2]));
+		}
+	});
 	var active = 0xFEE1DEAD;
 	var results;
 	function reload() {
@@ -192,7 +176,7 @@ Sactory.bindIfElse = function(context, element, bind, anchor, conditions){
 		// calculate new results and call body
 		for(var i=0; i<results.length; i++) {
 			var condition = conditions[i];
-			if(!condition[1] || (results[i] = !!condition[1]())) {
+			if(!condition[0] || (results[i] = !!condition[0].call(context))) {
 				active = i;
 				functions[i].call(context, element, currentBindContent, currentAnchor);
 				return;
@@ -206,19 +190,21 @@ Sactory.bindIfElse = function(context, element, bind, anchor, conditions){
 		reload();
 	}
 	conditions.forEach(function(condition, i){
-		condition[0].forEach(function(dependency){
-			currentBindDependencies.subscribe(dependency.subscribe(function(){
-				if(i <= active) {
-					// the change may affect what is being displayed
-					var result = !!condition[1]();
-					if(result != results[i]) {
-						// the condition has changes, need to recalc
-						results[i] = result;
-						recalc();
+		if(condition[1]) {
+			condition[1].forEach(function(dependency){
+				currentBindDependencies.subscribe(dependency.subscribe(function(){
+					if(i <= active) {
+						// the change may affect what is being displayed
+						var result = !!condition[0].call(context);
+						if(result != results[i]) {
+							// the condition has changes, need to recalc
+							results[i] = result;
+							recalc();
+						}
 					}
-				}
-			}));
-		});
+				}));
+			});
+		}
 	});
 	reload();
 };
@@ -226,80 +212,105 @@ Sactory.bindIfElse = function(context, element, bind, anchor, conditions){
 /**
  * @since 0.102.0
  */
-Sactory.bindEach = function(context, element, bind, anchor, target, change, cleanup, fun){
-	var currentBind = (bind || Sactory.bindFactory).fork();
-	var firstAnchor, lastAnchor;
-	if(element) {
-		firstAnchor = Sactory.createAnchor(element, bind, anchor);
-		lastAnchor = Sactory.createAnchor(element, bind, anchor);
-		/* debug:
-		firstAnchor.textContent = " bind-each:first ";
-		lastAnchor.textContent = " bind-each:last ";
-		*/
-	}
-	var binds = [];
-	function add(action, bind, anchor, value, index, array) {
-		fun.call(context, element, bind, anchor, value, index, array);
-		binds[action]({bind: bind, anchor: anchor});
-	}
-	function updateAll() {
-		target.value.forEach(function(value, index, array){
-			add("push", currentBind.fork(), element ? Sactory.createAnchor(element, currentBind, lastAnchor) : null, value, index, array);
+Sactory.bindEach = function(context, element, bind, anchor, target, getter, fun){
+	if(getter.call(context).forEach) {
+		var currentBind = (bind || Sactory.bindFactory).fork();
+		var firstAnchor, lastAnchor;
+		if(element) {
+			firstAnchor = Sactory.createAnchor(element, bind, anchor);
+			lastAnchor = Sactory.createAnchor(element, bind, anchor);
+			/* debug:
+			firstAnchor.textContent = " bind-each:first ";
+			lastAnchor.textContent = " bind-each:last ";
+			*/
+		}
+		var binds = [];
+		function add(action, bind, anchor, value, index, array) {
+			fun.call(context, element, bind, anchor, value, index, array);
+			binds[action]({bind: bind, anchor: anchor});
+		}
+		function updateAll() {
+			getter.call(context).forEach(function(value, index, array){
+				add("push", currentBind.fork(), element ? Sactory.createAnchor(element, currentBind, lastAnchor) : null, value, index, array);
+			});
+		}
+		currentBind.subscribe(target.subscribe(function(array, _, type, data){
+			switch(type) {
+				case Const.OBSERVABLE_UPDATE_TYPE_ARRAY_PUSH:
+					Array.prototype.forEach.call(data, function(value, i){
+						add("push", currentBind.fork(), element ? Sactory.createAnchor(element, currentBind, lastAnchor) : null, value, array.length - data.length + i, array);
+					});
+					break;
+				case Const.OBSERVABLE_UPDATE_TYPE_ARRAY_POP:
+					var popped = binds.pop();
+					if(popped) {
+						popped.bind.rollback();
+						if(popped.anchor) popped.anchor.parentNode.removeChild(popped.anchor);
+					}
+					break;
+				case Const.OBSERVABLE_UPDATE_TYPE_ARRAY_UNSHIFT:
+					Array.prototype.forEach.call(data, function(value){
+						add("unshift", currentBind.fork(), element ? Sactory.createAnchor(element, currentBind, firstAnchor.nextSibling) : null, value, 0, array);
+					});
+					break;
+				case Const.OBSERVABLE_UPDATE_TYPE_ARRAY_SHIFT:
+					var shifted = binds.shift();
+					if(shifted) {
+						shifted.bind.rollback();
+						if(shifted.anchor) shifted.anchor.parentNode.removeChild(shifted.anchor);
+					}
+					break;
+				case Const.OBSERVABLE_UPDATE_TYPE_ARRAY_SPLICE:
+					// insert new elements then call splice on binds and rollback
+					var index = data[0];
+					var ptr = binds[index];
+					var anchorTo = ptr && ptr.anchor && ptr.anchor.nextSibling;
+					var args = [];
+					Array.prototype.slice.call(data, 2).forEach(function(value){
+						args.push({value: value});
+					});
+					Array.prototype.splice.apply(binds, Array.prototype.slice.call(data, 0, 2).concat(args)).forEach(function(removed){
+						removed.bind.rollback();
+						if(removed.anchor) removed.anchor.parentNode.removeChild(removed.anchor);
+					});
+					args.forEach(function(info, i){
+						info.bind = currentBind.fork();
+						info.anchor = anchorTo ? Sactory.createAnchor(element, currentBind, anchorTo) : null;
+						fun.call(context, element, info.bind, info.anchor, info.value, i + index, array);
+					});
+					break;
+				default:
+					currentBind.rollback();
+					binds = [];
+					updateAll();
+			}
+		}));
+		updateAll();
+	} else {
+		// use normal bind and Sactory.forEach
+		Sactory.bind(context, element, bind, anchor, target, function(element, bind, anchor){
+			SactoryCore.forEach(context, getter.call(context), function(){
+				var args = [element, bind, anchor];
+				Array.prototype.push.apply(args, arguments);
+				fun.apply(context, args);
+			});
 		});
 	}
-	currentBind.subscribe(target.subscribe(function(array, _, type, data){
-		switch(type) {
-			case SactoryObservable.UPDATE_TYPE_ARRAY_PUSH:
-				Array.prototype.forEach.call(data, function(value, i){
-					add("push", currentBind.fork(), element ? Sactory.createAnchor(element, currentBind, lastAnchor) : null, value, array.length - data.length + i, array);
-				});
-				break;
-			case SactoryObservable.UPDATE_TYPE_ARRAY_POP:
-				var popped = binds.pop();
-				if(popped) {
-					popped.bind.rollback();
-					if(popped.anchor) popped.anchor.parentNode.removeChild(popped.anchor);
-				}
-				break;
-			case SactoryObservable.UPDATE_TYPE_ARRAY_UNSHIFT:
-				Array.prototype.forEach.call(data, function(value){
-					add("unshift", currentBind.fork(), element ? Sactory.createAnchor(element, currentBind, firstAnchor.nextSibling) : null, value, 0, array);
-				});
-				break;
-			case SactoryObservable.UPDATE_TYPE_ARRAY_SHIFT:
-				var shifted = binds.shift();
-				if(shifted) {
-					shifted.bind.rollback();
-					if(shifted.anchor) shifted.anchor.parentNode.removeChild(shifted.anchor);
-				}
-				break;
-			case SactoryObservable.UPDATE_TYPE_ARRAY_SPLICE:
-				// insert new elements then call splice on binds and rollback
-				var index = data[0];
-				var ptr = binds[index];
-				var anchorTo = ptr && ptr.anchor && ptr.anchor.nextSibling;
-				Array.prototype.slice.call(data, 2).forEach(function(value, i){
-					data[i + 2] = {
-						value: value
-					};
-				});
-				Array.prototype.splice.apply(binds, data).forEach(function(removed){
-					removed.bind.rollback();
-					if(removed.anchor) removed.anchor.parentNode.removeChild(removed.anchor);
-				});
-				Array.prototype.slice.call(data, 2).forEach(function(info, i){
-					info.bind = currentBind.fork();
-					info.anchor = anchorTo ? Sactory.createAnchor(element, currentBind, anchorTo) : null;
-					fun.call(context, element, info.bind, info.anchor, info.value, i + index, array);
-				});
-				break;
-			default:
-				currentBind.rollback();
-				binds = [];
-				updateAll();
-		}
-	}));
-	updateAll();
+};
+
+/**
+ * @since 0.102.0
+ */
+Sactory.bindEachMaybe = function(context, element, bind, anchor, target, getter, fun){
+	if(SactoryObservable.isObservable(target)) {
+		Sactory.bindEach(context, element, bind, anchor, target, getter, fun);
+	} else {
+		SactoryCore.forEach(context, getter.call(context), function(){
+			var args = [element, bind, anchor];
+			Array.prototype.push.apply(args, arguments);
+			fun.apply(context, args);
+		});
+	}
 };
 
 /**

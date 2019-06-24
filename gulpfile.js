@@ -21,7 +21,7 @@ function make(filename, className, sources) {
 	.pipe(replace(/var Sactory = {};?/gm, ""))
 	.pipe(replace(/(var [a-zA-Z0-9_]+ = )?require\(\"[a-zA-Z0-9_\-\.\/]*\"\)[a-zA-Z0-9_\.]*;/gm, ""))
 	.pipe(replace(/module\.exports = [a-zA-Z0-9_\.]*;/gm, ""))
-	.pipe(replace(/(Util|Sactory[A-Z][a-z]+)/gm, className))
+	.pipe(replace(/(Sactory[A-Z][a-z]+)/gm, className))
 	.pipe(header(
 		"!function(a){\n\tif(typeof define == 'function' && define.amd) {\n\t\tdefine(a);\n\t} else {\n\t\twindow." + className + " = a();\n\t}\n" +
 		"}(function(){\n\nvar toString = function(){return Object.toString().replace(/Object/, '" +  className + "').replace(/native/, 'sactory');};\n" + className + ".toString = toString.toString = toString;\n" +
@@ -48,6 +48,7 @@ function make(filename, className, sources) {
 gulp.task("dist:sactory", function(){
 	return make("sactory", "Sactory", [
 		"polyfill",
+		"const",
 		"runtime/config", // must be first
 		"runtime/animation",
 		"runtime/bind",
@@ -62,6 +63,7 @@ gulp.task("dist:sactory", function(){
 gulp.task("dist:transpiler", function(){
 	return make("transpiler", "Transpiler", [
 		"polyfill",
+		"const",
 		"parser",
 		"transpiler"
 	]);
