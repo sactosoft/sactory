@@ -703,8 +703,9 @@ JavascriptParser.prototype.next = function(match){
 						case "animations.add":
 							add(true, this.transpiler.feature("addAnimation"));
 							break;
+						case "ready":
 						case "quote":
-							add(true, this.transpiler.feature("quote"));
+							add(true, this.transpiler.feature(match[1]));
 							break;
 						case "rgb":
 						case "rgba":
@@ -1972,7 +1973,7 @@ Transpiler.prototype.transpile = function(input){
 	this.before =
 		"/*! Transpiled" + (this.options.filename ? " from " + this.options.filename : "") + " using Sactory v" +
 		(typeof Sactory != "undefined" ? Sactory.VERSION : version.version) + ". Do not edit manually. */" +
-		"!function(a){if(typeof define=='function'&&define.amd){define(['sactory'], a)}else{a(Sactory)}}" +
+		"!function(a){if(typeof define=='function'&&define.amd){define(['sactory'], a)}else if(typeof Sactory=='function'){a(Sactory)}else{a(require('sactory'))}}" +
 		"(function(" + this.runtime + ", " + this.element + ", " + this.bind + ", " + this.anchor + ", " + this.slots + "){";
 	this.source = [];
 
