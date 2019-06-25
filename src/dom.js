@@ -1,6 +1,88 @@
+var Parser = require("./parser");
+
 var entities = require("./json/entities.json");
 
 var selfClosing = /^(area|base|br|col|command|embed|hr|img|input|keygen|link|meta|param|source|track|wbr)$/i;
+
+class HTMLParser extends Parser {
+
+	constructor(input) {
+		super(input);
+		this.options = {comments: false, strings: false};
+	}
+
+	readTagName() {
+		return this.find([' ', '\n', '\t', '/', '>'], false, false);
+	}
+
+	readAttributeName() {
+		return this.find([' ', '\n', '\t', '/', '>', '='], false, false);
+	}
+
+	parseNextTag(document, current) {
+		var text = this.find(['<'], false, false).pre;
+		if(text.length) {
+			current.appendChild(document.createTextNode(Text.replaceEntities(text)));
+		}
+		if(!this.eof()) {
+			if(this.readIf('!')) {
+				// probably a comment
+				this.expect('-');
+				this.expect('-');
+				current.appendChild(document.createComment(this.findSequence("-->").slice(0, -3)));
+			} else if(this.readIf('/')) {
+				// closing a tag
+				this.readTagName();
+				if(current.parentNode) current = current.parentNode;
+			} else {
+				// opening a tag
+				var last = this.readTagName();
+				var element = document.createElement(last.pre);
+				while(last.match && last.match != '/' && last.match != '>') {
+					this.skip();
+					last = this.readAttributeName();
+					if(last.pre.length) {
+						var attr = last.pre;
+						if(last.match == '=' || this.skip() && this.readIf('=')) {
+							this.skip();
+							var quote = this.readIf('"') || this.readIf("'");
+							if(quote) {
+								last = this.find([quote], false, false);
+								element.setAttribute(attr, Text.replaceEntities(last.pre));
+								last.match = this.read();
+							} else {
+								last = this.readTagName();
+								element.setAttribute(attr, last.pre);
+							}
+						} else {
+							element.setAttribute(attr, "");
+						}
+					}
+				}
+				current.appendChild(element);
+				if(last.match == '/') {
+					this.skip();
+					last.match = this.peek();
+				}
+				if(element.tagName == "script") {
+					// special case for scripts
+					element.textContent = this.findSequence("</script>").slice(0, -9);
+				} else if(!selfClosing.test(element.tagName)) {
+					current = element;
+				}
+				//TODO assert last.match == '>'
+			}
+			this.parseNextTag(document, current);
+		}
+	}
+
+	parseHTML(document) {
+		var fragment = document.createDocumentFragment();
+		this.parseNextTag(document, fragment);
+		return fragment;
+	}
+
+}
 
 class Node {
 
@@ -14,6 +96,10 @@ class Node {
 
 	static get COMMENT_NODE() {
 		return 8;
+	}
+
+	static get DOCUMENT_FRAGMENT_NODE() {
+		return 11;
 	}
 
 }
@@ -72,19 +158,30 @@ class Document extends Node {
 	}
 
 	appendChild(child) {
-		this.childNodes.push(child);
-		return appendImpl.call(this, child);
+		if(child.nodeType == Node.DOCUMENT_FRAGMENT_NODE) {
+			child.childNodes.forEach(fchild => this.appendChild(fchild));
+			return child;
+		} else {
+			this.childNodes.push(child);
+			return appendImpl.call(this, child);
+		}
 	}
 
 	insertBefore(newNode, referenceNode) {
-		if(!referenceNode) return this.appendChild(newNode);
-		for(var i=0; i<this.childNodes.length; i++) {
-			if(this.childNodes[i] === referenceNode) {
-				this.childNodes.splice(i, 0, newNode);
-				return appendImpl.call(this, newNode);
+		if(!referenceNode) {
+			return this.appendChild(newNode);
+		} else if(newNode.nodeType == Node.DOCUMENT_FRAGMENT_NODE) {
+			newNode.childNodes.forEach(fchild => this.insertBefore(fchild, referenceNode));
+			return newNode;
+		} else {
+			for(var i=0; i<this.childNodes.length; i++) {
+				if(this.childNodes[i] === referenceNode) {
+					this.childNodes.splice(i, 0, newNode);
+					return appendImpl.call(this, newNode);
+				}
 			}
+			throw new Error("The node before which the new node is to be inserted is not a child of this node.");
 		}
-		throw new Error("The node before which the new node is to be inserted is not a child of this node.");
 	}
 
 	removeChild(child) {
@@ -105,7 +202,12 @@ class Document extends Node {
 	}
 
 	createElement(tagName) {
-		return new Element(tagName.toLowerCase(), this.ownerDocument);
+		tagName = tagName.toLowerCase();
+		if(tagName == "script" || tagName == "style") {
+			return new UnencodedElement(tagName, this.ownerDocument);
+		} else {
+			return new Element(tagName, this.ownerDocument);
+		}
 	}
 
 	createTextNode(data) {
@@ -114,6 +216,10 @@ class Document extends Node {
 
 	createComment(data) {
 		return new Comment(data, this.ownerDocument);
+	}
+
+	createDocumentFragment() {
+		return new DocumentFragment(this.ownerDocument);
 	}
 
 	getElementById(value) {
@@ -222,7 +328,7 @@ class HTMLDocument extends Document {
 
 	addEventListener(element, type, value) {
 		if(!element.sactoryClassName) {
-			element.__builder.addClass(element.sactoryClassName = "sa" + element.__builder.runtimeId);
+			element.__builder.addClass(element.sactoryClassName = "sa" + this.events.length);
 		}
 		this.events.push({element, type, value: value + ""});
 	}
@@ -356,13 +462,17 @@ class Element extends Document {
 		return node;
 	}
 
+	killChildren() {
+		this.childNodes.forEach(a => a.parentNode = null);
+		this.childNodes = [];
+	}
+
 	get textContent() {
 		return this.childNodes.filter(a => a.nodeType != Node.COMMENT_NODE).map(a => a.textContent).join("");
 	}
 
 	set textContent(data) {
-		this.childNodes.forEach(a => a.parentNode = null);
-		this.childNodes = [];
+		this.killChildren();
 		if(data) this.appendChild(this.createTextNode(data));
 	}
 
@@ -379,7 +489,8 @@ class Element extends Document {
 	}
 
 	set innerHTML(data) {
-		//TODO
+		this.killChildren();
+		this.appendChild(new HTMLParser(data).parseHTML(this));
 	}
 
 	get outerHTML() {
@@ -457,16 +568,30 @@ class Element extends Document {
 
 	removeEventListener(event, listener, options) {}
 
-	render() {
+	renderTagName() {
 		var ret = "<" + this.tagName;
 		for(var key in this.attributes) {
 			var value = this.attributes[key];
 			ret += " " + key + (value && "=" + JSON.stringify(value));
 		}
-		ret += ">";
-		if(selfClosing.test(this.tagName)) return ret;
-		this.childNodes.forEach(child => ret += child.render());
-		return ret + "</" + this.tagName + ">";
+		return ret + ">";
+	}
+
+	render() {
+		if(selfClosing.test(this.tagName)) return this.renderTagName();
+		else return this.renderTagName() + this.innerHTML + "</" + this.tagName + ">";
+	}
+
+}
+
+class UnencodedElement extends Element {
+
+	constructor(tagName, ownerDocument) {
+		super(tagName, ownerDocument);
+	}
+
+	render() {
+		return this.renderTagName() + this.textContent + "</" + this.tagName + ">";
 	}
 
 }
@@ -517,6 +642,18 @@ class Comment extends Document {
 
 }
 
+class DocumentFragment extends Element {
+
+	constructor(ownerDocument) {
+		super("", ownerDocument);
+	}
+
+	render() {
+		return this.innerHTML;
+	}
+
+}
+
 // export to the global scope
 
 global.Node = Node;
@@ -525,3 +662,4 @@ global.HTMLDocument = HTMLDocument;
 global.Element = Element;
 global.Text = Text;
 global.Comment = Comment;
+global.DocumentFragment = DocumentFragment;

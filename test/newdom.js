@@ -1,6 +1,6 @@
 
 require("../src/dom");
-var document = new Document();
+var document = new HTMLDocument();
 
 var element = document.createElement("div");
 element.textContent = "Hello <>";
@@ -32,4 +32,17 @@ element.appendChild(section);
 	section.appendChild(a);
 });
 
-console.log(document.querySelectorAll("section.container a, input[type='password'][value]"));
+section.innerHTML = `
+	<!-- a comment -->
+	<div class="container">
+		Password: <input type="password">
+		<button disabled>Submit</button>
+	</div>
+	<script>
+		console.log(1 < 2);
+	</script>
+`;
+
+document.body.appendChild(element);
+
+console.log(document.render());
