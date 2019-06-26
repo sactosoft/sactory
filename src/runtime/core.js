@@ -16,7 +16,7 @@ function Sactory(context, element, bind, anchor) {
 	var context = {
 		context: context,
 		element: element,
-		container: element,
+		content: element,
 		bind: bind,
 		anchor: anchor
 	};
@@ -36,6 +36,10 @@ Sactory.NS_SVG = "http://www.w3.org/2000/svg";
 Sactory.NS_MATHML = "http://www.w3.org/1998/mathml";
 Sactory.NS_XUL = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
 Sactory.NS_XBL = "http://www.mozilla.org/xbl";
+
+Sactory.SL_CONTAINER = "__container";
+Sactory.SL_CONTENT = "__content";
+Sactory.SL_INPUT = "__input";
 
 // widgets
 
@@ -111,12 +115,21 @@ function SlotRegistry(name) {
  * @since 0.73.0
  */
 SlotRegistry.prototype.add = function(anchor, name, element){
-	this.slots[name || "__container"] = {element: element, anchor: anchor};
+	this.slots[name || Sactory.SL_CONTENT] = {element: element, anchor: anchor};
 	/* debug:
 	if(element) {
-		element.setAttribute(":slot", (element.hasAttribute(":slot") ? element.getAttribute(":slot") + "," : "") + (name || "__container"));
+		element.setAttribute(":slot", (element.hasAttribute(":slot") ? element.getAttribute(":slot") + "," : "") + (name || Sactory.SL_CONTENT));
 	}
 	*/
+};
+
+/**
+ * @since 0.104.0
+ */
+SlotRegistry.prototype.addAll = function(anchor, names, element){
+	for(var i in names) {
+		this.add(anchor, names[i], element);
+	}
 };
 
 // init global functions used at runtime
@@ -221,12 +234,14 @@ Sactory.update = function(context, options){
 			} else {
 				context.element = widget(context.slots, null, context.bind, null, widgetArgs, options.namespace);
 			}
-			if(context.slots.slots.__container) {
-				context.container = context.slots.slots.__container.element;
-				context.anchor = context.slots.slots.__container.anchor;
+			if(context.slots.slots[Sactory.SL_CONTENT]) {
+				context.content = context.slots.slots[Sactory.SL_CONTENT].element;
+				context.anchor = context.slots.slots[Sactory.SL_CONTENT].anchor;
 			} else {
-				context.container = context.element;
+				context.content = context.element;
 			}
+			if(context.slots.slots[Sactory.SL_CONTAINER]) context.element = context.container = context.slots.slots[Sactory.SL_CONTAINER].element;
+			if(context.slots.slots[Sactory.SL_INPUT]) context.input = context.slots.slots[Sactory.SL_INPUT].element;
 			/* debug:
 			if(context.element.setAttribute) {
 				context.element.setAttribute(":widget", options.tagName);
@@ -234,9 +249,9 @@ Sactory.update = function(context, options){
 			*/
 		} else {
 			if(options.namespace) {
-				context.element = context.container = document.createElementNS(options.namespace, options.tagName);
+				context.element = context.content = document.createElementNS(options.namespace, options.tagName);
 			} else {
-				context.element = context.container = document.createElement(options.tagName);
+				context.element = context.content = document.createElement(options.tagName);
 			}
 			/* debug:
 			if(context.element.setAttribute) {
@@ -290,7 +305,7 @@ Sactory.update = function(context, options){
  */
 Sactory.create = function(context, tagName, options){
 	options.tagName = tagName;
-	context.element = context.container = null; // delete parents
+	context.element = context.content = null; // delete parents
 	context.anchor = null; // invalidate the current anchor so the children will not use it
 	Sactory.update(context, options);
 };
@@ -310,7 +325,7 @@ Sactory.createOrUpdate = function(context, condition, tagName, options){
  * @since 0.71.0
  */
 Sactory.clone = function(context, options){
-	context.element = context.container = context.element.cloneNode(true);
+	context.element = context.content = context.element.cloneNode(true);
 	context.anchor = null; // invalidate the current anchor so the children will not use it
 	Sactory.update(context, options);
 };
@@ -345,7 +360,7 @@ Sactory.body = function(context, slots, fun){
 	if(context.slots && Object.keys(context.slots.slots).length) {
 		slots = (slots || []).concat(context.slots);
 	}
-	fun.call(context.context, context.container, context.anchor, slots);
+	fun.call(context.context, context.content, context.anchor, slots);
 };
 
 /**
@@ -353,7 +368,7 @@ Sactory.body = function(context, slots, fun){
  */
 Sactory.forms = function(context){
 	Array.prototype.slice.call(arguments, 1).forEach(function(value){
-		context.element.__builder.form(value[0], value[1], context.bind);
+		(context.input || context.content).__builder.form(value[0], value[1], context.bind);
 	});
 };
 
@@ -410,7 +425,7 @@ Sactory.query = function(context, doc, parent, selector, all, fun){
  */
 Sactory.clear = function(context){
 	var child;
-	var element = context.container || context.element;
+	var element = context.content || context.element;
 	while(child = element.lastChild) {
 		element.removeChild(child);
 	}

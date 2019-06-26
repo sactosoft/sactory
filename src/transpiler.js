@@ -1794,7 +1794,11 @@ Transpiler.prototype.open = function(){
 				inline = true;
 				call = false;
 			}
-			if(before && (call || iattributes.slot)) {
+			if(!(iattributes.slot instanceof Array)) iattributes.slot = iattributes.slot ? [iattributes.slot] : [];
+			if(iattributes["slot-content"]) iattributes.slot.push(this.runtime + ".SL_CONTENT");
+			if(iattributes["slot-container"]) iattributes.slot.push(this.runtime + ".SL_CONTAINER");
+			if(iattributes["slot-input"]) iattributes.slot.push(this.runtime + ".SL_INPUT");
+			if(before && (call || iattributes.slot.length)) {
 				// create body
 				before.push([this.feature("body"), this.slots, "function(" + this.element + ", " + this.anchor + ", " + this.slots + "){"]);
 				beforeClosing += "}";
@@ -1816,15 +1820,8 @@ Transpiler.prototype.open = function(){
 
 		}
 
-		if(iattributes.slot) {
-			var add = function(slot){
-				this.source.push(this.slotsRegistry + ".add(null, " + slot + ", " + this.element + ");");
-			}.bind(this);
-			if(iattributes.slot instanceof Array) {
-				iattributes.slot.forEach(add);
-			} else {
-				add(iattributes.slot);
-			}
+		if(iattributes.slot.length) {
+			this.source.push(this.slotsRegistry + ".addAll(null, [" + iattributes.slot.join(", ") + "], " + this.element + ");");
 		}
 
 		currentClosing = currentClosing.join("");
