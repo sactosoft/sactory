@@ -210,6 +210,10 @@ class Document extends Node {
 		}
 	}
 
+	createElementNS(tagName) {
+		return this.createElement(tagName);
+	}
+
 	createTextNode(data) {
 		return new Text(data, this.ownerDocument);
 	}
@@ -546,6 +550,15 @@ class Element extends Document {
 	set disabled(value) {
 		if(value) this.setAttribute("disabled", "");
 		else this.removeAttribute("disabled");
+	}
+
+	get selected() {
+		return this.getAttribute("selected") !== null;
+	}
+
+	set selected(value) {
+		if(value) this.setAttribute("selected", "");
+		else this.removeAttribute("selected");
 	}
 
 	get type() {
