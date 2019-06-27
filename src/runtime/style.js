@@ -173,12 +173,23 @@ Sactory.quote = function(value){
 
 Sactory.css = {};
 
+function Color(type) {
+	this.type = type;
+}
+
+Color.prototype.toJSON = function(){
+	return this.toString();
+};
+
 function RGBColor(r, g, b, a) {
+	Color.call(this, "rgb");
 	this.r = r;
 	this.g = g;
 	this.b = b;
 	this.a = typeof a == "number" ? a : 1;
 }
+
+RGBColor.prototype = Object.create(Color.prototype);
 
 RGBColor.prototype.update = function(fun){
 	this.r = fun(this.r, 'r');
@@ -269,11 +280,14 @@ RGBColor.from = function(color){
  * @since 0.100.0
  */
 function HSLColor(h, s, l, a) {
+	Color.call(this, "hsl");
 	this.h = h;
 	this.s = s;
 	this.l = l;
 	this.a = typeof a == "number" ? a : 1;
 }
+
+HSLColor.prototype = Object.create(Color.prototype);
 
 HSLColor.prototype.toHSLString = function(){
 	return "hsl(" + Math.round(this.h * 360) + ", " + Math.round(this.s * 100) + "%, " + Math.round(this.l * 100) + "%)";

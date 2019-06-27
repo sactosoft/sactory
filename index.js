@@ -16,7 +16,5 @@ module.exports = merge(
 	require("./src/runtime/animation"),
 	require("./src/runtime/bind"),
 	require("./src/runtime/observable"),
-	require("./src/runtime/style"),
-	require("./src/transpiler"),
-	require("./src/watcher")
+	require("./src/runtime/style")
 );
