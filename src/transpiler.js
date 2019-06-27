@@ -2064,24 +2064,32 @@ if(typeof window == "object") {
 	var count = 0;
 
 	function evalScripts() {
-		Array.prototype.forEach.call(document.querySelectorAll("script[type='text/x-builder'], style[type='text/x-builder']"), function(builder){
+		Array.prototype.forEach.call(document.querySelectorAll("script[type='text/x-sactory'], style[type='text/x-sactory']"), function(builder){
 			var id = count++ + "";
 			var content;
 			if(builder.tagName == "STYLE") {
 				builder.removeAttribute("type");
 				content = builder.outerHTML;
-				builder.setAttribute("type", "text/x-builder");
+				builder.setAttribute("type", "text/x-sactory");
 			}
 			builder.dataset.sactoryFrom = id;
 			builder.dataset.to = "[data-sactory-to='" + id + "']";
 			var script = document.createElement("script");
 			script.dataset.sactoryTo = id;
 			script.dataset.from = "[data-sactory-from='" + id + "']";
-			var result = new Transpiler({namespace: id}).transpile(content || builder.textContent);
+			var transpiler = new Transpiler({namespace: id});
+			var result = transpiler.transpile(content || builder.textContent);
 			result.warnings.forEach(function(message){
 				console.warn(message);
 			});
-			script.textContent = result.source.all;
+			var currentScript = transpiler.nextVarName();
+			script.textContent =
+				result.source.before +
+				"var " + currentScript + "=document.querySelector(\"[data-sactory-from='" + id + "']\");" +
+				result.variables.element + "=" + currentScript + "&&" + currentScript + ".parentNode;" +
+				result.variables.anchor + "=" + currentScript + "&&" + currentScript + ".nextSibling;" +
+				result.source.contentOnly + 
+				result.source.after;
 			document.head.appendChild(script);
 		});
 	}
