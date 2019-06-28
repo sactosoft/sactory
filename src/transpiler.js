@@ -1781,7 +1781,11 @@ Transpiler.prototype.open = function(){
 
 			// after
 			if(forms.length) {
-				after.push([this.feature("forms"), forms.map(function(value){ return "[" + value.join(", ") + "]"; }).join(", ")]);
+				var v = this.value;
+				after.push([this.feature("forms"), forms.map(function(value){
+					value.push("function(" + v + "){" + value[1] + "=" + v + "}");
+					return "[" + value.join(", ") + "]";
+				}).join(", ")]);
 			}
 			if(append) {
 				var append = [this.feature("append"), parent, this.anchor].concat(newMode !== undefined ? [this.currentMode.parser.afterappend() || 0, this.currentMode.parser.beforeremove() || 0] : []);
@@ -1956,11 +1960,9 @@ Transpiler.prototype.transpile = function(input){
 	this.parentElement = this.nextVar();
 	this.bind = this.nextVar();
 	this.anchor = this.nextVar();
-	this.value = this.nextVar();
-	this.index = this.nextVar();
-	this.array = this.nextVar();
 	this.slots = this.nextVar();
 	this.slotsRegistry = this.nextVar();
+	this.value = this.nextVar();
 
 	this.tagNames = {};
 	var features = this.features = {};
@@ -2018,11 +2020,9 @@ Transpiler.prototype.transpile = function(input){
 			element: this.element,
 			bind: this.bind,
 			anchor: this.anchor,
-			value: this.value,
-			index: this.index,
-			array: this.array,
 			slots: this.slots,
-			slotsRegistry: this.slotsRegistry
+			slotsRegistry: this.slotsRegistry,
+			value: this.value
 		},
 		scope: this.options.scope,
 		sequence: this.count,

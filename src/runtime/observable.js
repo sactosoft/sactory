@@ -9,10 +9,12 @@ var Sactory = {};
  */
 function Observable(value) {
 	this.internal = {
+		originalValue: value,
 		value: this.replace(value),
 		snaps: {},
 		count: 0,
-		subscriptions: {}
+		subscriptions: {},
+		mods: []
 	};
 	this.updateType = undefined;
 	this.updateDate = undefined;
@@ -60,20 +62,6 @@ Observable.prototype.updateImpl = function(value, type, data){
 };
 
 /**
- * @since 0.49.0
- */
-Observable.prototype.snap = function(id){
-	this.internal.snaps[id] = this.internal.value;
-};
-
-/**
- * @since 0.49.0
- */
-Observable.prototype.snapped = function(id){
-	return id in this.internal.snaps ? this.internal.snaps[id] : this.internal.value;
-};
-
-/**
  * @since 0.42.0
  */
 Observable.prototype.subscribe = function(callback, type){
@@ -90,6 +78,13 @@ Observable.prototype.subscribe = function(callback, type){
 			delete subs[id];
 		}
 	};
+};
+
+/**
+ * @since 0.105.0
+ */
+Observable.prototype.reset = function(){
+	this.value = this.internal.originalValue;
 };
 
 Observable.prototype.valueOf = function(){
@@ -118,6 +113,37 @@ Object.defineProperty(Observable.prototype, "value", {
 		}
 	}
 });
+
+/**
+ * @since 0.105.0
+ */
+Observable.prototype.is = function(mod){
+	return this.internal.mods.indexOf(mod) != -1;
+};
+
+/**
+ * @since 0.105.0
+ */
+Observable.prototype.lazy = function(){
+	Object.defineProperty(this, "value", {
+		configurable: true,
+		get: function(){
+			if(this.internal.changed) {
+				this.internal.changed = false;
+				this.update(this.internal.value);
+			}
+			return this.internal.value;
+		},
+		set: function(value){
+			if(value !== this.internal.value) {
+				this.internal.changed = true;
+				this.internal.value = value;
+			}
+		}
+	});
+	this.internal.mods.push("lazy");
+	return this;
+};
 
 /**
  * @class

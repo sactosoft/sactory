@@ -368,7 +368,7 @@ Sactory.body = function(context, slots, fun){
  */
 Sactory.forms = function(context){
 	Array.prototype.slice.call(arguments, 1).forEach(function(value){
-		(context.input || context.content).__builder.form(value[0], value[1], context.bind);
+		(context.input || context.content).__builder.form(value[0], value[1], value[2], context.bind);
 	});
 };
 

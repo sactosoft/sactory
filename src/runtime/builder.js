@@ -323,13 +323,13 @@ Builder.prototype.event = function(context, name, value, bind){
 			case "prevent":
 				listener = function(event){
 					event.preventDefault();
-					return prev.call(this, event);
+					return prev.apply(this, arguments);
 				};
 				break;
 			case "stop":
 				listener = function(event){
 					event.stopPropagation();
-					return prev.call(this, event);
+					return prev.apply(this, arguments);
 				};
 				break;
 			case "once":
@@ -346,22 +346,22 @@ Builder.prototype.event = function(context, name, value, bind){
 				break;
 			case "trusted":
 				listener = function(event){
-					if(event.isTrusted) return prev.call(this, event);
+					if(event.isTrusted) return prev.apply(this, arguments);
 				};
 				break;
 			case "!trusted":
 				listener = function(event){
-					if(!event.isTrusted) return prev.call(this, event);
+					if(!event.isTrusted) return prev.apply(this, arguments);
 				};
 				break;
 			case "self":
 				listener = function(event){
-					if(event.target === this) return prev.call(this, event);
+					if(event.target === this) return prev.apply(this, arguments);
 				};
 				break;
 			case "!self":
 				listener = function(event){
-					if(event.target !== this) return prev.call(this, event);
+					if(event.target !== this) return prev.apply(this, arguments);
 				};
 				break;
 			case "alt":
@@ -369,7 +369,7 @@ Builder.prototype.event = function(context, name, value, bind){
 			case "meta":
 			case "shift":
 				listener = function(event){
-					if(event[mod + "Key"]) return prev.call(this, event);
+					if(event[mod + "Key"]) return prev.apply(this, arguments);
 				};
 				break;
 			case "!alt":
@@ -378,7 +378,7 @@ Builder.prototype.event = function(context, name, value, bind){
 			case "!shift":
 				mod = mod.substr(1);
 				listener = function(event){
-					if(!event[mod + "Key"]) return prev.call(this, event);
+					if(!event[mod + "Key"]) return prev.apply(this, arguments);
 				};
 				break;
 			default:
@@ -413,7 +413,7 @@ Builder.prototype.event = function(context, name, value, bind){
 						if(positive) {
 							listener = function(event){
 								for(var i in keys) {
-									if(keys[i](event)) return prev.call(this, event);
+									if(keys[i](event)) return prev.apply(this, arguments);
 								}
 							};
 						} else {
@@ -421,7 +421,7 @@ Builder.prototype.event = function(context, name, value, bind){
 								for(var i in keys) {
 									if(keys[i](event)) return;
 								}
-								return prev.call(this, event);
+								return prev.apply(this, arguments);
 							};
 						}
 						break;
@@ -429,11 +429,11 @@ Builder.prototype.event = function(context, name, value, bind){
 						var keys = dot.slice(1).map(function(a){ return a.toLowerCase().replace(/-/g, ""); });
 						if(positive) {
 							listener = function(event){
-								if(keys.indexOf(event.code.toLowerCase()) != -1) return prev.call(this, event);
+								if(keys.indexOf(event.code.toLowerCase()) != -1) return prev.apply(this, arguments);
 							};
 						} else {
 							listener = function(event){
-								if(keys.indexOf(event.code.toLowerCase()) == -1) return prev.call(this, event);
+								if(keys.indexOf(event.code.toLowerCase()) == -1) return prev.apply(this, arguments);
 							};
 						}
 						break;
@@ -442,11 +442,11 @@ Builder.prototype.event = function(context, name, value, bind){
 						var keys = dot.slice(1).map(function(a){ return parseInt(a); });
 						if(positive) {
 							listener = function(event){
-								if(keys.indexOf(event.keyCode || event.which) != -1) return prev.call(this, event);
+								if(keys.indexOf(event.keyCode || event.which) != -1) return prev.apply(this, arguments);
 							};
 						} else {
 							listener = function(event){
-								if(keys.indexOf(event.keyCode || event.which) == -1) return prev.call(this, event);
+								if(keys.indexOf(event.keyCode || event.which) == -1) return prev.apply(this, arguments);
 							};
 						}
 						break;
@@ -475,11 +475,11 @@ Builder.prototype.event = function(context, name, value, bind){
 						});
 						if(positive) {
 							listener = function(event){
-								if(buttons.indexOf(event.button) != -1) return prev.call(this, event);
+								if(buttons.indexOf(event.button) != -1) return prev.apply(this, arguments);
 							};
 						} else {
 							listener = function(event){
-								if(buttons.indexOf(event.button) == -1) return prev.call(this, event);
+								if(buttons.indexOf(event.button) == -1) return prev.apply(this, arguments);
 							};
 						}
 						break;
@@ -495,11 +495,11 @@ Builder.prototype.event = function(context, name, value, bind){
 						});
 						if(positive) {
 							listener = function(event){
-								if(locations.indexOf(event.location) != -1) return prev.call(this, event);
+								if(locations.indexOf(event.location) != -1) return prev.apply(this, arguments);
 							};
 						} else {
 							listener = function(event){
-								if(locations.indexOf(event.location) == -1) return prev.call(this, event);
+								if(locations.indexOf(event.location) == -1) return prev.apply(this, arguments);
 							};
 						}
 						break;
@@ -509,7 +509,7 @@ Builder.prototype.event = function(context, name, value, bind){
 							var timeout = false;
 							listener = function(event){
 								if(!timeout) {
-									prev.call(this, event);
+									prev.apply(this, arguments);
 									timeout = true;
 									timeout = setTimeout(function(){
 										timeout = false;
@@ -526,10 +526,11 @@ Builder.prototype.event = function(context, name, value, bind){
 							var timeout;
 							listener = function(event){
 								if(timeout) clearTimeout(timeout);
-								var el = this;
+								var $this = this;
+								var $arguments = arguments;
 								timeout = setTimeout(function(){
 									timeout = 0;
-									prev.call(el, event);
+									prev.call($this, $arguments);
 								}, delay);
 							};
 						} else {
@@ -548,7 +549,7 @@ Builder.prototype.event = function(context, name, value, bind){
 		var prev = listener;
 		var element = this.element;
 		listener = function(event){
-			if(element.ownerDocument.contains(element)) prev.call(element, event);
+			if(element.ownerDocument.contains(element)) prev.apply(element, arguments);
 			else this.parentNode.__builder.eventImpl("append", listener, options, useCapture, bind);
 		};
 	}
@@ -643,8 +644,8 @@ Builder.prototype[Const.BUILDER_TYPE_ON] = function(name, value, bind, anchor, c
 /**
  * @since 0.46.0
  */
-Builder.prototype.form = function(info, value, bind){
-	if(!SactoryObservable.isObservable(value)) throw new Error("Cannot two-way bind '" + this.element.tagName.toLowerCase() + "': the given value is not an observable.");
+Builder.prototype.form = function(info, value, update, bind){
+	var isObservable = SactoryObservable.isObservable(value);
 	var splitted = info.split("::");
 	var events = splitted.slice(1);
 	var updateType = Const.OBSERVABLE_UPDATE_TYPE_FORM_RANGE_START + Math.floor(Math.random() * Const.OBSERVABLE_UPDATE_TYPE_FORM_RANGE_LENGTH);
@@ -658,31 +659,35 @@ Builder.prototype.form = function(info, value, bind){
 			callback(this.checked);
 		};
 	} else if(inputType == "radio") {
-		// make sure that the radio buttons that depend on the same observable have
-		// the same name and are in the same radio group
-		if(!this.element.name) {
-			this.element.name = value.radioGroupName || (value.radioGroupName = SactoryConfig.newPrefix());
+		if(isObservable) {
+			// make sure that the radio buttons that depend on the same observable have
+			// the same name and are in the same radio group
+			if(!this.element.name) {
+				this.element.name = value.radioGroupName || (value.radioGroupName = SactoryConfig.newPrefix());
+			}
+			// subscription that sets `checked` to true when the value of the
+			// observable is equal to the attribute value of the element
+			var element = this.element;
+			this.subscribe(bind, SactoryObservable.observe(value, function(value){
+				element.checked = value == element.value;
+			}, updateType));
 		}
-		// subscription that returns sets `checked` to true when the value of the
-		// observable is equal to the attribute value of the element
-		var element = this.element;
-		this.subscribe(bind, SactoryObservable.observe(value, function(value){
-			element.checked = value == element.value;
-		}, updateType));
 		get = function(callback){
 			// the event is called only when radio is selected
 			callback(this.value);
 		};
 	} else if(this.element.multiple) {
-		// a multiple select does not bind to a property, instead it updates the options,
-		// setting the selected property, everytime the observable is updated
-		var options = this.element.options;
-		this.subscribe(bind, SactoryObservable.observe(value, function(value){
-			// options is a live collection, no need to get the value again from the element
-			Array.prototype.forEach.call(options, function(option){
-				option.selected = value.indexOf(option.value) != -1;
-			});
-		}, updateType));
+		if(isObservable) {
+			// a multiple select does not bind to a property, instead it updates the options,
+			// setting the selected property, everytime the observable is updated
+			var options = this.element.options;
+			this.subscribe(bind, SactoryObservable.observe(value, function(value){
+				// options is a live collection, no need to get the value again from the element
+				Array.prototype.forEach.call(options, function(option){
+					option.selected = value.indexOf(option.value) != -1;
+				});
+			}, updateType));
+		}
 		// the get function maps the values of the selected options (obtained from the
 		// `selectedOptions` property or a polyfill)
 		get = function(callback){
@@ -714,10 +719,19 @@ Builder.prototype.form = function(info, value, bind){
 				case "number":
 				case "num":
 				case "float":
-					return parseFloat;
+					return function(){
+						return +this;
+					};
 				case "int":
 				case "integer":
-					return parseInt;
+					return function(){
+						return Polyfill.trunc(+this);
+					};
+				case "str":
+				case "string":
+					return function(){
+						return this + "";
+					};
 				case "date":
 					switch(inputType) {
 						case "date":
@@ -768,24 +782,28 @@ Builder.prototype.form = function(info, value, bind){
 			}
 		}());
 	});
-	if(value.computed && value.dependencies.length == 1 && value.dependencies[0].deep) {
-		// it's the child of a deep observable
-		var deep = value.dependencies[0];
-		var path = deep.lastPath.slice(0, -1);
-		var key = deep.lastPath[deep.lastPath.length - 1];
-		converters.push(function(newValue){
-			var obj = deep.value;
-			path.forEach(function(p){
-				obj = obj[p];
+	if(isObservable) {
+		if(value.computed && value.dependencies.length == 1 && value.dependencies[0].deep) {
+			// it's the child of a deep observable
+			var deep = value.dependencies[0];
+			var path = deep.lastPath.slice(0, -1);
+			var key = deep.lastPath[deep.lastPath.length - 1];
+			converters.push(function(newValue){
+				var obj = deep.value;
+				path.forEach(function(p){
+					obj = obj[p];
+				});
+				value.updateType = updateType;
+				obj[key] = newValue;
 			});
-			value.updateType = updateType;
-			obj[key] = newValue;
-		});
+		} else {
+			converters.push(function(newValue){
+				value.updateType = updateType;
+				value.value = newValue;
+			});
+		}
 	} else {
-		converters.push(function(newValue){
-			value.updateType = updateType;
-			value.value = newValue;
-		});
+		converters.push(update);
 	}
 	for(var i=0; i<events.length; i++) {
 		this.event(null, events[i], function(){

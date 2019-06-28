@@ -31,4 +31,8 @@ Polyfill.assign = Object.assign || function(target, source){
 	return target;
 };
 
+Polyfill.trunc = Math.trunc || function(value){
+	return value - value % 1;
+};
+
 module.exports = Polyfill;
