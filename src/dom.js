@@ -210,10 +210,10 @@ class Document extends Node {
 		}
 	}
 
-	createElementNS(tagName) {
+	createElementNS(namespace, tagName) {
 		return this.createElement(tagName);
 	}
-
+	
 	createTextNode(data) {
 		return new Text(data, this.ownerDocument);
 	}

@@ -1102,7 +1102,10 @@ Transpiler.defineMode(["css"], CSSParser);
 Transpiler.defineMode(["ssb", "style"], SSBParser);
 
 function Transpiler(options) {
-	this.options = options || {};
+	this.options = Polyfill.assign({env: "none"}, options || {});
+	if(this.options.env == "none") {
+		this.nextVar = Transpiler.prototype.nextVarName.bind(this);
+	}
 }
 
 /**
@@ -1614,6 +1617,11 @@ Transpiler.prototype.open = function(){
 					if(alias.hasOwnProperty("mode")) newMode = alias.mode;
 				} else {
 					switch(name) {
+						case "window":
+						case "document":
+							element = name;
+							create = append = false;
+							break;
 						case "root":
 							element = element + ".getRootNode({composed: " + (iattributes.composed || "false") + "})";
 							create = append = false;
@@ -1822,10 +1830,10 @@ Transpiler.prototype.open = function(){
 
 			currentClosing.unshift(beforeClosing);
 
-		}
+			if(iattributes.slot.length) {
+				this.source.push(this.slotsRegistry + ".addAll(null, [" + iattributes.slot.join(", ") + "], " + this.element + ");");
+			}
 
-		if(iattributes.slot.length) {
-			this.source.push(this.slotsRegistry + ".addAll(null, [" + iattributes.slot.join(", ") + "], " + this.element + ");");
 		}
 
 		currentClosing = currentClosing.join("");
@@ -1953,7 +1961,7 @@ Transpiler.prototype.transpile = function(input){
 	
 	this.parser = new Parser(input);
 
-	this.count = hash(this.options.namespace + "") % 100000;
+	this.count = hash((this.options.namespace || this.options.filename) + "") % 100000;
 	
 	this.runtime = this.nextVar();
 	this.element = this.nextVar();
@@ -1969,11 +1977,11 @@ Transpiler.prototype.transpile = function(input){
 
 	this.warnings = [];
 	
-	this.before =
-		"/*! Transpiled" + (this.options.filename ? " from " + this.options.filename : "") + " using Sactory v" +
-		(typeof Sactory != "undefined" ? Sactory.VERSION : version.version) + ". Do not edit manually. */" +
-		"!function(a){if(typeof define=='function'&&define.amd){define(['sactory'], a)}else if(typeof Sactory=='function'){a(Sactory)}else{a(require('sactory'))}}" +
-		"(function(" + this.runtime + ", " + this.element + ", " + this.bind + ", " + this.anchor + ", " + this.slots + "){";
+	var vars = this.element + ", " + this.bind + ", " + this.anchor + ", " + this.slots;
+	this.before = "/*! Transpiled" + (this.options.filename ? " from " + this.options.filename : "") + " using Sactory v" + (typeof Sactory != "undefined" ? Sactory.VERSION : version.version) + ". Do not edit manually. */";
+	if(this.options.env == "requirejs") this.before += "define(['" + (this.options.runtime || "sactory") + "'], function(" + this.runtime + ", " + vars + "){";
+	else if(this.options.env == "commonjs") this.before += "var " + this.runtime + "=require('" + (this.options.runtime || "sactory") + "');var " + vars + ";";
+	else this.before += "var " + this.runtime + "=" + (this.options.runtime || "Sactory") + ";var " + vars + ";";
 	this.source = [];
 
 	if(this.options.scope) this.before += this.element + "=" + this.options.scope + ";";
@@ -1998,7 +2006,7 @@ Transpiler.prototype.transpile = function(input){
 	
 	this.endMode();
 	
-	this.after = "})";
+	this.after = this.options.env == "requirejs" ? "})" : "";
 
 	var source = this.source.join("");
 

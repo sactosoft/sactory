@@ -320,6 +320,11 @@ Builder.prototype.event = function(context, name, value, bind){
 					return prev.call(context, event, this);
 				};
 				break;
+			case "noargs":
+				listener = function(){
+					return prev.call(this);
+				};
+				break;
 			case "prevent":
 				listener = function(event){
 					event.preventDefault();
