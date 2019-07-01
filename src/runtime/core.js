@@ -169,44 +169,56 @@ Sactory.update = function(context, options){
 	var widgetArgs = {};
 	var widgetExt = {};
 
-	if(options.args) {
-		// filter out optional arguments
-		options.args = options.args.filter(function(a){
-			return !a.optional || a.value !== undefined;
+	if(options[Const.ARG_TYPE_INTERPOLATED_ATTRIBUTES]) {
+		if(!options[Const.ARG_TYPE_ATTRIBUTES]) options[Const.ARG_TYPE_ATTRIBUTES] = [];
+		options[Const.ARG_TYPE_INTERPOLATED_ATTRIBUTES].forEach(function(iattrs){
+			iattrs[1].forEach(function(iattr){
+				iattr.unshift(iattrs[0]);
+				options[Const.ARG_TYPE_ATTRIBUTES].push(iattr);
+			});
 		});
-		options.args.forEach(function(arg){
-			var ext = arg.type == Const.BUILDER_TYPE_EXTEND_WIDGET;
-			if(ext || arg.type == Const.BUILDER_TYPE_WIDGET) {
+	}
+
+	if(options[Const.ARG_TYPE_ATTRIBUTES]) {
+		// filter out optional arguments
+		options[Const.ARG_TYPE_ATTRIBUTES] = options[Const.ARG_TYPE_ATTRIBUTES].filter(function(a){
+			return !a[3] || a[0] !== undefined;
+		});
+		options[Const.ARG_TYPE_ATTRIBUTES].forEach(function(arg){
+			var ext = arg[1] == Const.BUILDER_TYPE_EXTEND_WIDGET;
+			if(ext || arg[1] == Const.BUILDER_TYPE_WIDGET) {
+				var name = arg[2];
+				var value = arg[0];
 				var obj;
 				if(ext) {
-					var col = arg.name.indexOf(':');
+					var col = name.indexOf(':');
 					if(col == -1) {
-						widgetExt[arg.name] = arg.value;
+						widgetExt[name] = value;
 						return;
 					} else {
-						var key = arg.name.substring(0, col);
+						var key = name.substring(0, col);
 						if(!widgetExt.hasOwnProperty(key)) obj = widgetExt[key] = {};
 						else obj = widgetExt[key];
-						arg.name = arg.name.substr(col + 1);
+						name = name.substr(col + 1);
 					}
 				} else {
-					if(arg.name.length) {
+					if(name.length) {
 						obj = widgetArgs;
 					} else {
-						widgetArgs = arg.value;
+						widgetArgs = value;
 						return;
 					}
 				}
-				var splitted = arg.name.split('.');
+				var splitted = name.split('.');
 				if(splitted.length > 1) {
 					for(var i=0; i<splitted.length-1; i++) {
 						var k = splitted[i];
 						if(typeof obj[k] != "object") obj[k] = {};
 						obj = obj[k];
 					}
-					obj[splitted[splitted.length - 1]] = arg.value;
+					obj[splitted[splitted.length - 1]] = value;
 				} else {
-					obj[arg.name] = arg.value;
+					obj[name] = value;
 				}
 			} else {
 				args.push(arg);
@@ -214,8 +226,8 @@ Sactory.update = function(context, options){
 		});
 	}
 
-	if(options.spread) {
-		options.spread.forEach(function(spread){
+	if(options[Const.ARG_TYPE_SPREAD]) {
+		options[Const.ARG_TYPE_SPREAD].forEach(function(spread){
 			for(var key in spread) {
 				args.push({type: Const.BUILDER_TYPE_NONE, name: key, value: spread[key]});
 			}
@@ -224,15 +236,15 @@ Sactory.update = function(context, options){
 	
 	if(!context.element) {
 		var widget = widgets[options.tagName];
-		if(widget && options.widget !== false) {
+		if(widget && options[Const.ARG_TYPE_WIDGET] !== false) {
 			context.slots = new SlotRegistry(options.tagName);
 			if(widget.prototype && widget.prototype.render) {
-				var instance = new widget(widgetArgs, options.namespace);
+				var instance = new widget(widgetArgs, options[Const.ARG_TYPE_NAMESPACE]);
 				context.element = instance.render(context.slots, null, context.bind, null);
 				if(instance instanceof Sactory.Widget) instance.element = context.element;
 				context.element.__builder.widget = context.element.__builder.widgets[options.tagName] = instance;
 			} else {
-				context.element = widget(context.slots, null, context.bind, null, widgetArgs, options.namespace);
+				context.element = widget(context.slots, null, context.bind, null, widgetArgs, options[Const.ARG_TYPE_NAMESPACE]);
 			}
 			if(context.slots.slots[Sactory.SL_CONTENT]) {
 				context.content = context.slots.slots[Sactory.SL_CONTENT].element;
@@ -248,8 +260,8 @@ Sactory.update = function(context, options){
 			}
 			*/
 		} else {
-			if(options.namespace) {
-				context.element = context.content = document.createElementNS(options.namespace, options.tagName);
+			if(options[Const.ARG_TYPE_NAMESPACE]) {
+				context.element = context.content = document.createElementNS(options[Const.ARG_TYPE_NAMESPACE], options.tagName);
 			} else {
 				context.element = context.content = document.createElement(options.tagName);
 			}
@@ -262,15 +274,15 @@ Sactory.update = function(context, options){
 	}
 
 	args.sort(function(a, b){
-		return a.type - b.type;
+		return a[1] - b[1];
 	});
 	
 	args.forEach(function(arg){
-		context.element.__builder[arg.type](arg.name, arg.value, context.bind, context.anchor, context.context);
+		context.element.__builder[arg[1]](arg[2], arg[0], context.bind, context.anchor, context.context);
 	});
 
-	if(options.transitions) {
-		options.transitions.forEach(function(transition){
+	if(options[Const.ARG_TYPE_TRANSITIONS]) {
+		options[Const.ARG_TYPE_TRANSITIONS].forEach(function(transition){
 			context.element.__builder.addAnimation(transition[0], transition[1], transition[2] || {});
 		});
 	}

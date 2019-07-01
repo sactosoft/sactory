@@ -6,6 +6,14 @@ function def(key, value) {
 	});
 }
 
+// argument type for update
+def("ARG_TYPE_WIDGET", 0);
+def("ARG_TYPE_NAMESPACE", 1);
+def("ARG_TYPE_ATTRIBUTES", 2);
+def("ARG_TYPE_INTERPOLATED_ATTRIBUTES", 3);
+def("ARG_TYPE_SPREAD", 4);
+def("ARG_TYPE_TRANSITIONS", 5);
+
 // attribute type for builder
 def("BUILDER_TYPE_NONE", 0);
 def("BUILDER_TYPE_PROP", 1);
