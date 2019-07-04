@@ -172,9 +172,8 @@ Sactory.update = function(context, options){
 	if(options[Const.ARG_TYPE_INTERPOLATED_ATTRIBUTES]) {
 		if(!options[Const.ARG_TYPE_ATTRIBUTES]) options[Const.ARG_TYPE_ATTRIBUTES] = [];
 		options[Const.ARG_TYPE_INTERPOLATED_ATTRIBUTES].forEach(function(iattrs){
-			iattrs[1].forEach(function(iattr){
-				iattr.unshift(iattrs[0]);
-				options[Const.ARG_TYPE_ATTRIBUTES].push(iattr);
+			iattrs[3].forEach(function(iattr){
+				options[Const.ARG_TYPE_ATTRIBUTES].push([iattrs[0], iattrs[1], iattrs[2] + iattr + iattrs[4]]);
 			});
 		});
 	}
@@ -228,15 +227,15 @@ Sactory.update = function(context, options){
 
 	if(options[Const.ARG_TYPE_SPREAD]) {
 		options[Const.ARG_TYPE_SPREAD].forEach(function(spread){
-			for(var key in spread) {
-				args.push({type: Const.BUILDER_TYPE_NONE, name: key, value: spread[key]});
+			for(var key in spread[1]) {
+				args.push([spread[1][key], spread[0], key]);
 			}
 		});
 	}
 	
 	if(!context.element) {
 		var widget = widgets[options.tagName];
-		if(widget && options[Const.ARG_TYPE_WIDGET] !== false) {
+		if(widget && !options.hasOwnProperty(Const.ARG_TYPE_WIDGET)) {
 			context.slots = new SlotRegistry(options.tagName);
 			if(widget.prototype && widget.prototype.render) {
 				var instance = new widget(widgetArgs, options[Const.ARG_TYPE_NAMESPACE]);
@@ -557,9 +556,60 @@ Sactory.ready = function(callback){
 };
 
 /* debug:
-Object.defineProperty(Sactory, "debug", {
+Object.defineProperty(Sactory, "isDebug", {
 	value: true
 });
+
+var debugTitle;
+var debugging = false;
+
+var help = "Available commands:\n\
+  bind: Show a map of the whole binding system.\n\
+  help: Show this message.\n\
+"
+
+Object.defineProperty(Sactory, "debug", {
+	get: function(){
+		if(!debugging) {
+			debugging = true;
+			Object.defineProperty(window, "bind", {
+				get: function(){
+					function make(bind) {
+						return {
+							elements: bind.elements,
+							subscriptions: bind.subscriptions,
+							children: bind.children.map(make)
+						};
+					}
+					return make(Sactory.bindFactory);
+				}
+			});
+			Object.defineProperty(window, "help", {
+				get: function(){
+					console.log(help);
+				}
+			});
+			debugTitle.textContent = box + help + "\n";
+			console.log(help);
+		}
+	}
+});
+
+var box = "\n\n\
+╭─╴ ╭─╮ ╭─╴ ─┬─ ╭─╮ ╭─╮ ╷ ╷ \n\
+╰─╮ ├─┤ │    │  │ │ ├┬╯ ╰┬╯ \n\
+╶─╯ ╵ ╵ ╰─╴  ╵  ╰─╯ ╵╰   ╵  \n\
+";
+
+if(typeof window == "object") {
+	for(var i=26-Sactory.VERSION.length; i>0; i--) {
+		box += " ";
+	}
+	box += "v" + Sactory.VERSION + "\n\n";
+	Sactory.ready(function(){
+		document.insertBefore(debugTitle = document.createComment(box + "Type Sactory.debug in the\nconsole to start debugging.\n\n"), document.documentElement);
+	});
+}
 */
 
 module.exports = Sactory;

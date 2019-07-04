@@ -468,10 +468,11 @@ Parser.prototype.readQueryExpr = function(){
 /**
  * Reads a single operand of an expression.
  * @param {boolean} skip - Indicates whether the expression (outside of enclosures) can contain whitespaces.
+ * @param {boolean} force - Indicates whether to throw an expeption when an expression cannot be found.
  * @throws {ParserError} When a string or a regular expression is not terminated.
  * @returns The expression read or an empty string if no expression could be found.
  */
-Parser.prototype.readSingleExpression = function(skip){
+Parser.prototype.readSingleExpression = function(skip, force){
 	var ret = this.readImpl(/^([-+~!]*((new|delete|typeof)\s+)?(\*[*?]?|\^\??)?@{0,2})/) || "";
 	if(skip) ret += this.skipImpl({strings: false});
 	var peek = this.peek();
@@ -503,6 +504,7 @@ Parser.prototype.readSingleExpression = function(skip){
 	}
 	var peek = this.peek();
 	if((peek == '+' || peek == '-') && this.input.charAt(this.index + 1) == peek) ret += this.read() + this.read();
+	if(force && !ret.length) this.error("Could not find a valid expression.");
 	return ret;
 };
 
@@ -523,7 +525,7 @@ Parser.prototype.readExpression = function(){
 			ret += expr + this.skipImpl({strings: false});
 		}
 	}
-	if(!ret.trim()) this.error("Could not find a valid expression.");
+	if(!ret.trim().length) this.error("Could not find a valid expression.");
 	else return ret;
 };
 
