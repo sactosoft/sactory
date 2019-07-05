@@ -1440,15 +1440,6 @@ Transpiler.prototype.open = function(){
 					attr.value = this.parser.readAttributeValue();
 					if(attr.type == '+') {
 						attr.value = this.wrapFunction(attr.value, false, "event");
-					} else if(attr.parts && attr.parts.length == 1 && !attr.parts[0].computed) {
-						var name = attr.parts[0].name;
-						if(name == "change") {
-							attr.value = this.wrapFunction(attr.value, true, "oldValue", "newValue");
-						} else if(name == "condition" || name == "if") {
-							attr.value = this.wrapFunction(attr.value, true);
-						} else if(name == "cleanup") {
-							attr.value = this.wrapFunction(attr.value, false);
-						}
 					}
 					var parsed = this.parseCode(attr.value);
 					attr.value = attr.type != '+' ? parsed.toValue() : parsed.source;

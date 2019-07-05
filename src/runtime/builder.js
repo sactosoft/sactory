@@ -554,7 +554,7 @@ Builder.prototype.event = function(context, name, value, bind){
 		var prev = listener;
 		var element = this.element;
 		listener = function(event){
-			if(element.ownerDocument.contains(element)) prev.apply(element, arguments);
+			if(Builder.polyfill.contains(element.ownerDocument, element)) prev.apply(element, arguments);
 			else this.parentNode.__builder.eventImpl("append", listener, options, useCapture, bind);
 		};
 	}
@@ -696,7 +696,7 @@ Builder.prototype.form = function(info, value, update, bind){
 		// the get function maps the values of the selected options (obtained from the
 		// `selectedOptions` property or a polyfill)
 		get = function(callback){
-			callback(Array.prototype.map.call(selectedOptions(this), function(option){
+			callback(Array.prototype.map.call(Builder.polyfill.selectedOptions(this), function(option){
 				return option.value;
 			}));
 		};
@@ -883,7 +883,18 @@ if(typeof Event == "function") {
 
 }
 
-var selectedOptions = typeof HTMLSelectElement == "function" && Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "selectedOptions") ? 
+Builder.polyfill = {};
+
+Builder.polyfill.contains = function(owner, element){
+	if(element.parentNode) {
+		if(element.parentNode === owner) return true;
+		else return Builder.polyfill.contains(owner, element.parentNode);
+	} else {
+		return false;
+	}
+};
+
+Builder.polyfill.selectedOptions = typeof HTMLSelectElement == "function" && Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "selectedOptions") ? 
 	function(select){
 		return select.selectedOptions;
 	} :
