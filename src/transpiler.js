@@ -1154,8 +1154,8 @@ Transpiler.prototype.nextId = function(){
 Transpiler.prototype.nextVarName = function(){
 	var num = this.count++ % 1521;
 	var s = "";
-	while(num > 0) {
-		var t = (num - 1) % 39;
+	for(var i=0; i<2; i++) {
+		var t = num % 39;
 		s = String.fromCharCode(0x561 + t) + s;
 		num = Math.floor((num - t) / 39);
 	}
