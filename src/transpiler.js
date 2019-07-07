@@ -809,6 +809,18 @@ JavascriptParser.prototype.next = function(match){
 
 /**
  * @class
+ * @since 0.108.0
+ */
+function AutoJavascriptParser(transpiler, parser, source, attributes) {
+	JavascriptParser.call(this, transpiler, parser, source, attributes);
+}
+
+AutoJavascriptParser.getOptions = JavascriptParser.getOptions;
+
+AutoJavascriptParser.prototype = Object.create(JavascriptParser.prototype);
+
+/**
+ * @class
  * @since 0.15.0
  */
 function HTMLParser(transpiler, parser, source, attributes) {
@@ -829,6 +841,22 @@ HTMLParser.prototype.replaceText = Text.replaceEntities || (function(){
 		return converter.value;
 	}
 })();
+
+/**
+ * @class
+ * @since 0.108.0
+ */
+function AutoHTMLParser(transpiler, parser, source, attributes) {
+	HTMLParser.call(this, transpiler, parser, source, attributes);
+}
+
+AutoHTMLParser.getOptions = HTMLParser.getOptions;
+
+AutoHTMLParser.matchesTag = function(tagName, currentMode){
+	return currentMode instanceof AutoJavascriptParser && tagName != ":debug" && tagName != ":bind";
+};
+
+AutoHTMLParser.prototype = Object.create(HTMLParser.prototype);
 
 /**
  * @class
@@ -878,7 +906,11 @@ function SSBParser(transpiler, parser, source, attributes) {
 }
 
 SSBParser.getOptions = function(){
-	return {strings: true, children: false, tags: ["style"]};
+	return {strings: true, children: false};
+};
+
+SSBParser.matchesTag = function(tagName){
+	return tagName.toLowerCase() == "style";
 };
 
 SSBParser.prototype = Object.create(LogicParser.prototype);
@@ -1120,7 +1152,9 @@ Transpiler.Internal = {
 	TextParser: TextParser,
 	LogicParser: LogicParser,
 	JavascriptParser: JavascriptParser,
+	AutoJavascriptParser: AutoJavascriptParser,
 	HTMLParser: HTMLParser,
+	AutoHTMLParser: AutoHTMLParser,
 	ScriptParser: ScriptParser,
 	CSSParser: CSSParser,
 	SSBParser: SSBParser
@@ -1129,7 +1163,9 @@ Transpiler.Internal = {
 // register default modes
 
 Transpiler.defineMode(["code", "javascript", "js"], JavascriptParser, true);
+Transpiler.defineMode(["auto-code"], AutoJavascriptParser);
 Transpiler.defineMode(["html"], HTMLParser);
+Transpiler.defineMode(["auto-html"], AutoHTMLParser);
 Transpiler.defineMode(["script"], ScriptParser);
 Transpiler.defineMode(["css"], CSSParser);
 Transpiler.defineMode(["ssb", "style"], SSBParser);
@@ -1731,8 +1767,6 @@ Transpiler.prototype.open = function(){
 							break;
 						case "scope":
 						case "bind":
-						case "bind-if":
-						case "bind-each":
 						default:
 							create = update = append = false;
 					}
@@ -1756,8 +1790,7 @@ Transpiler.prototype.open = function(){
 		if(newMode === undefined) {
 			for(var i=0; i<modeRegistry.length; i++) {
 				var info = modeRegistry[i];
-				var tags = info.parser.getOptions().tags;
-				if(tags && tags.indexOf(tagName) != -1) {
+				if(info.parser.matchesTag && info.parser.matchesTag(tagName, this.currentMode.parser)) {
 					newMode = i;
 					break;
 				}
