@@ -334,7 +334,7 @@ LogicParser.prototype.getLineText = function(){
 	}
 };
 
-LogicParser.prototype.parseLogic = function(expected, type){
+LogicParser.prototype.parseLogic = function(expected, type, closing){
 	var line;
 	if(
 		this.parser.input.substr(this.parser.index, expected.length - 1) == expected.substr(1) && // when the expected keyword is found
@@ -347,7 +347,7 @@ LogicParser.prototype.parseLogic = function(expected, type){
 		this.add(trimmed);
 		if(type === 0) {
 			// variable
-			var end = this.parser.find(['=', ';'], true, {comments: true, strings: false});
+			var end = this.parser.find(closing || ['=', ';'], true, {comments: true, strings: false});
 			this.add(expected + end.pre + end.match);
 			if(end.match == '=') {
 				this.add(this.transpiler.parseCode(this.parser.readExpression()).source);
@@ -445,7 +445,7 @@ LogicParser.prototype.parseLogic = function(expected, type){
 };
 
 LogicParser.prototype.find = function(){
-	return this.parser.find(['$', '#', '<', 'v', 'c', 'l', 'i', 'e', 'f', 'w', '}', '\n'], false, false);
+	return this.parser.find(['$', '#', '<', 'c', 'l', 'v', 'b', 'd', 'i', 'e', 'f', 'w', 's', '}', '\n'], false, false);
 };
 
 LogicParser.prototype.parse = function(handle, eof){
@@ -453,13 +453,19 @@ LogicParser.prototype.parse = function(handle, eof){
 	this.pushText(result.pre);
 	switch(result.match) {
 		case 'c':
-			if(!this.parseLogic("const", 0)) this.pushText('c');
+			if(!this.parseLogic("const", 0) && !this.parseLogic("case", 0, [':'])) this.pushText('c');
 			break;
 		case 'l':
 			if(!this.parseLogic("let", 0)) this.pushText('l');
 			break;
 		case 'v':
 			if(!this.parseLogic("var", 0)) this.pushText('v');
+			break;
+		case 'b':
+			if(!this.parseLogic("break", 0)) this.pushText('b');
+			break;
+		case 'd':
+			if(!this.parseLogic("default", 0, [':'])) this.pushText('d');
 			break;
 		case 'i':
 			if(!this.parseLogic("if", 1)) this.pushText('i');
@@ -472,6 +478,9 @@ LogicParser.prototype.parse = function(handle, eof){
 			break;
 		case 'w':
 			if(!this.parseLogic("while", 1)) this.pushText('w');
+			break;
+		case 's':
+			if(!this.parseLogic("switch", 1)) this.pushText('s');
 			break;
 		case '}':
 			if(result.pre.slice(-1) == '\\') {
