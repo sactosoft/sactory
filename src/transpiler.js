@@ -1926,7 +1926,9 @@ Transpiler.prototype.open = function(){
 			currentClosing.unshift(beforeClosing);
 
 			if(dattributes.slot.length) {
-				this.source.push(this.slotsRegistry + ".addAll(null, [" + dattributes.slot.join(", ") + "], " + this.element + ");");
+				this.source.push(this.slotsRegistry + ".addAll(null, [" + dattributes.slot.map(function(a){
+					return a === true ? 0 : a;
+				}).join(", ") + "], " + this.element + ");");
 			}
 
 		}
@@ -2068,7 +2070,7 @@ Transpiler.prototype.transpile = function(input){
 	this.warnings = [];
 	
 	var vars = this.element + ", " + this.bind + ", " + this.anchor + ", " + this.slots;
-	this.before = "/*! Transpiled" + (this.options.filename ? " from " + this.options.filename : "") + " using Sactory v" + (typeof Sactory != "undefined" ? Sactory.VERSION : version.version) + ". Do not edit manually. */";
+	this.before = "/*! Transpiled" + (this.options.filename ? " from " + this.options.filename : "") + " using Sactory v" + (typeof Transpiler != "undefined" ? Transpiler.VERSION : version.version) + ". Do not edit manually. */";
 	if(this.options.env == "requirejs") this.before += "define(['" + (this.options.runtime || "sactory") + "'], function(" + this.runtime + ", " + vars + "){";
 	else if(this.options.env == "commonjs") this.before += "var " + this.runtime + "=require('" + (this.options.runtime || "sactory") + "');var " + vars + ";";
 	else this.before += "var " + this.runtime + "=" + (this.options.runtime || "Sactory") + ";var " + vars + ";";
@@ -2084,7 +2086,7 @@ Transpiler.prototype.transpile = function(input){
 
 	this.level = 0;
 	
-	this.startMode(defaultMode, {}).start();
+	this.startMode(this.options.mode && modeNames[this.options.mode] || defaultMode, {}).start();
 	
 	var open = Transpiler.prototype.open.bind(this);
 	var close = Transpiler.prototype.close.bind(this);

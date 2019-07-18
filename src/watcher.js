@@ -5,7 +5,7 @@ var version = require("../version");
 
 var Watcher = {
 	
-	compile: function(folder, dest, watch){
+	compile: function(folder, dest, watch, options){
 	
 		function conv(str) {
 			str = str.replace('\\', '/');
@@ -41,7 +41,7 @@ var Watcher = {
 						var namespace = folder + filename;
 						var conv;
 						try {
-							conv = new Transpiler({filename: namespace, namespace: namespace}).transpile(data.toString());
+							conv = new Transpiler(Polyfill.assign({filename: namespace, namespace: namespace}, options || {})).transpile(data.toString());
 							conv.warnings.forEach(function(message){
 								console.warn(message);
 							});
@@ -113,8 +113,8 @@ var Watcher = {
 		
 	},
 	
-	watch: function(folder, dest){
-		Watcher.compile(folder, dest, true);
+	watch: function(folder, dest, options){
+		Watcher.compile(folder, dest, true, options);
 	}
 	
 };
