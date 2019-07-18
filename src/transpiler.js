@@ -178,13 +178,13 @@ BreakpointParser.prototype.parse = function(handle, eof){
 	var result = this.parser.find(this.breakpoints, false, true);
 	if(result.pre) this.add(result.pre);
 	if(result.match == '<') {
-		if(this.parser.options.code && !this.parser.couldStartRegExp()) {
-			// just a comparison
+		if(this.parser.couldStartRegExp() && this.parser.input.charAt(this.parser.index - 2) != '<') {
+			handle();
+		} else {
+			// just a comparison or left shift
 			this.add("<");
 			this.parser.last = '<';
 			this.parser.lastIndex = this.parser.index;
-		} else {
-			handle();
 		}
 	} else if(result.match) {
 		this.next(result.match);
