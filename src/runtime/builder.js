@@ -554,8 +554,13 @@ Builder.prototype.event = function(context, name, value, bind){
 		var prev = listener;
 		var element = this.element;
 		listener = function(event){
-			if(Builder.polyfill.contains(element.ownerDocument, element)) prev.apply(element, arguments);
-			else this.parentNode.__builder.eventImpl("append", listener, options, useCapture, bind);
+			if(Builder.polyfill.contains(element.ownerDocument, element)) {
+				prev.apply(element, arguments);
+			} else {
+				var parent = this.parentNode;
+				while(parent.parentNode) parent = parent.parentNode;
+				parent.__builder.eventImpl("append", listener, options, useCapture, bind);
+			}
 		};
 	}
 	this.eventImpl(event, listener, options, useCapture, bind);
