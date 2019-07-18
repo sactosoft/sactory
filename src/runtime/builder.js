@@ -701,7 +701,19 @@ Builder.prototype.form = function(info, value, update, bind){
 			}));
 		};
 	} else {
-		this.prop("value", value, bind, updateType);
+		// classic input, values that are `null` and `undefined` are treated
+		// as empty strings
+		function convert(value) {
+			return value === null || value === undefined ? "" : value;
+		}
+		if(isObservable) {
+			var element = this.element;
+			this.subscribe(bind, SactoryObservable.observe(value, function(value){
+				element.value = convert(value);
+			}, updateType));
+		} else {
+			this.prop("value", convert(value), bind, updateType);
+		}
 		get = function(callback){
 			callback(this.value);
 		};
