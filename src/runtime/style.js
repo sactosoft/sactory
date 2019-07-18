@@ -108,7 +108,7 @@ Sactory.convertStyle = function(root){
 				if(selector.charAt(0) == '@') {
 					var oret = ret;
 					ret = [];
-					if(selector.substr(1, 5) == "media" || selector.substr(1, 8) == "document") compile(selectors, Sactory.select(ret, selectors.join(',')), value.value);
+					if(selector.substr(1, 5) == "media" || selector.substr(1, 8) == "document") compile(selectors, Sactory.select({content: ret}, selectors.join(',')).content, value.value);
 					else compile([], ret, value.value);
 					oret.push({selector: selector, value: ret});
 					ret = oret;
