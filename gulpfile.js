@@ -1,11 +1,12 @@
 var gulp = require("gulp");
+var append = require("gulp-append-prepend").appendText;
+var prepend = require("gulp-append-prepend").prependText;
 var clone = require("gulp-clone");
 var concat = require("gulp-concat");
-var footer = require("gulp-footer");
-var header = require("gulp-header");
 var nop = require("gulp-nop");
 var rename = require("gulp-rename");
 var replace = require("gulp-replace");
+var sourcemaps = require("gulp-sourcemaps");
 var uglify = require("gulp-uglify");
 var es = require("event-stream");
 
@@ -17,32 +18,37 @@ function make(filename, className, sources) {
 	var stream = gulp.src(sources.map(function(s){
 		return "src/" + s + ".js";
 	}))
+	.pipe(sourcemaps.init())
 	.pipe(concat(filename + ".js"))
 	.pipe(replace(/var Sactory = {};?/gm, ""))
 	.pipe(replace(/(var [a-zA-Z0-9_]+ = )?require\(\"[a-zA-Z0-9_\-\.\/]*\"\)[a-zA-Z0-9_\.]*;/gm, ""))
-	.pipe(replace(/module\.exports = [a-zA-Z0-9_\.]*;/gm, ""))
+	.pipe(replace(/(module\.exports = [a-zA-Z0-9_\.]*;)/gm, ""))
 	.pipe(replace(/(Sactory[A-Z][a-z]+)/gm, className))
-	.pipe(header(
-		"!function(a){\n\tif(typeof define == 'function' && define.amd) {\n\t\tdefine(a);\n\t} else {\n\t\twindow." + className + " = a();\n\t}\n" +
-		"}(function(){\n\nvar toString = function(){return Object.toString().replace(/Object/, '" +  className + "').replace(/native/, 'sactory');};\n" + className + ".toString = toString.toString = toString;\n" +
-		"function get(prop, value){ Object.defineProperty(" + className + ", prop, {get: function(){ return value; }}); }\nget('VERSION_MAJOR', " + version.major + ");\nget('VERSION_MINOR', " + version.minor + ");\nget('VERSION_PATCH', " + version.patch + ");\n" +
-		"get('VERSION', '" + version.version + "');\n\n"
+	.pipe(prepend(
+		"!function(a){if(typeof define == 'function' && define.amd){define(a);}else{window." + className + " = a();}" +
+		"}(function(){var toString = function(){return Object.toString().replace(/Object/, '" +  className + "').replace(/native/, 'sactory');};" + className + ".toString = toString.toString = toString;" +
+		"function get(prop, value){ Object.defineProperty(" + className + ", prop, {get: function(){ return value; }}); }get('VERSION_MAJOR', " + version.major + ");get('VERSION_MINOR', " + version.minor + ");get('VERSION_PATCH', " + version.patch + ");" +
+		"get('VERSION', '" + version.version + "');", Object("")
 	))
-	.pipe(footer("\nreturn " + className + ";\n\n});"));
+	.pipe(append("return " + className + ";});", Object("")));
 
 	var debug = stream.pipe(clone())
-		.pipe(replace(debugExp, "$1"))
+		.pipe(replace(debugExp, "/* debug: */\n$1"))
 		.pipe(rename(filename + ".debug.js"))
+		.pipe(sourcemaps.write("."))
 		.pipe(gulp.dest("dist"));
 	
 	var dist = stream.pipe(clone())
-		.pipe(replace(debugExp, ""))
-		.pipe(gulp.dest("dist"))
-		.pipe(uglify({mangle: true}))
-		.pipe(rename(filename + ".min.js"))
+		.pipe(sourcemaps.write("."))
 		.pipe(gulp.dest("dist"));
 
-	return es.merge(debug, dist).pipe(nop());
+	var ugly = stream.pipe(clone())
+		.pipe(uglify({mangle: true}))
+		.pipe(rename(filename + ".min.js"))
+		.pipe(sourcemaps.write("."))
+		.pipe(gulp.dest("dist"));
+
+	return es.merge(debug, dist, ugly).pipe(nop());
 }
 
 gulp.task("dist:sactory", function(){
