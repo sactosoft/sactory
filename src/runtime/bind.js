@@ -229,12 +229,17 @@ Sactory.bindEach = function(context, element, bind, anchor, target, getter, fun)
 			fun.call(context, element, bind, anchor, value, index, array);
 			binds[action]({bind: bind, anchor: anchor});
 		}
+		function remove(bind) {
+			bind.bind.rollback();
+			if(bind.anchor) bind.anchor.parentNode.removeChild(bind.anchor);
+		}
 		function updateAll() {
 			getter.call(context).forEach(function(value, index, array){
 				add("push", currentBind.fork(), element ? Sactory.createAnchor(element, currentBind, lastAnchor) : null, value, index, array);
 			});
 		}
 		currentBind.subscribe(target.subscribe(function(array, _, type, data){
+			console.log("updated");
 			switch(type) {
 				case Const.OBSERVABLE_UPDATE_TYPE_ARRAY_PUSH:
 					Array.prototype.forEach.call(data, function(value, i){
@@ -243,10 +248,7 @@ Sactory.bindEach = function(context, element, bind, anchor, target, getter, fun)
 					break;
 				case Const.OBSERVABLE_UPDATE_TYPE_ARRAY_POP:
 					var popped = binds.pop();
-					if(popped) {
-						popped.bind.rollback();
-						if(popped.anchor) popped.anchor.parentNode.removeChild(popped.anchor);
-					}
+					if(popped) remove(popped);
 					break;
 				case Const.OBSERVABLE_UPDATE_TYPE_ARRAY_UNSHIFT:
 					Array.prototype.forEach.call(data, function(value){
@@ -255,10 +257,7 @@ Sactory.bindEach = function(context, element, bind, anchor, target, getter, fun)
 					break;
 				case Const.OBSERVABLE_UPDATE_TYPE_ARRAY_SHIFT:
 					var shifted = binds.shift();
-					if(shifted) {
-						shifted.bind.rollback();
-						if(shifted.anchor) shifted.anchor.parentNode.removeChild(shifted.anchor);
-					}
+					if(shifted) remove(shifted);
 					break;
 				case Const.OBSERVABLE_UPDATE_TYPE_ARRAY_SPLICE:
 					// insert new elements then call splice on binds and rollback
@@ -280,7 +279,7 @@ Sactory.bindEach = function(context, element, bind, anchor, target, getter, fun)
 					});
 					break;
 				default:
-					currentBind.rollback();
+					binds.forEach(remove);
 					binds = [];
 					updateAll();
 			}
