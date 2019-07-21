@@ -805,26 +805,34 @@ Builder.prototype.form = function(info, value, update, bind){
 		}());
 	});
 	if(isObservable) {
-		if(value.computed && value.dependencies.length == 1 && value.dependencies[0].deep) {
-			// it's the child of a deep observable
-			var deep = value.dependencies[0];
-			var path = deep.lastPath.slice(0, -1);
-			var key = deep.lastPath[deep.lastPath.length - 1];
-			converters.push(function(newValue){
-				var obj = deep.value;
-				path.forEach(function(p){
-					obj = obj[p];
+		if(value.computed) {
+			if(value.dependencies.length == 1 && value.dependencies[0].deep) {
+				// it's the child of a deep observable
+				var deep = value.dependencies[0];
+				var path = deep.lastPath.slice(0, -1);
+				var key = deep.lastPath[deep.lastPath.length - 1];
+				converters.push(function(newValue){
+					var obj = deep.value;
+					path.forEach(function(p){
+						obj = obj[p];
+					});
+					value.updateType = updateType;
+					obj[key] = newValue;
 				});
-				value.updateType = updateType;
-				obj[key] = newValue;
-			});
+			} else {
+				// it's the child value of an observable, use the update
+				// function to update the right value
+				converters.push(update);
+			}
 		} else {
+			// normal observable, call the observable's update with the correct update type
 			converters.push(function(newValue){
 				value.updateType = updateType;
 				value.value = newValue;
 			});
 		}
 	} else {
+		// not an observable, simply call the update function
 		converters.push(update);
 	}
 	for(var i=0; i<events.length; i++) {

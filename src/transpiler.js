@@ -1488,6 +1488,7 @@ Transpiler.prototype.open = function(){
 					}
 					var parsed = this.parseCode(attr.value);
 					attr.value = attr.type != '+' ? parsed.toValue() : parsed.source;
+					attr.sourceValue = parsed.source;
 					skip(true);
 				} else {
 					switch(attr.type) {
@@ -1580,7 +1581,7 @@ Transpiler.prototype.open = function(){
 									if(column == start.name.length - 1) attr.parts.shift();
 									else start.name = start.name.substr(column);
 									this.compileAttributeParts(attr);
-									forms.push([this.stringifyAttribute(attr), attr.value]);
+									forms.push([this.stringifyAttribute(attr), attr.value, attr.sourceValue || attr.value]);
 									break;
 								default:
 									this.parser.error("Unknown semi compile-time attribute '" + name + "'.");
@@ -1886,7 +1887,7 @@ Transpiler.prototype.open = function(){
 			if(forms.length) {
 				var v = this.value;
 				after.push([this.feature("forms"), forms.map(function(value){
-					value.push("function(" + v + "){" + value[1] + "=" + v + "}");
+					value.push("function(" + v + "){" + value.pop() + "=" + v + "}");
 					return "[" + value.join(", ") + "]";
 				}).join(", ")]);
 			}
@@ -2070,8 +2071,8 @@ Transpiler.prototype.transpile = function(input){
 	this.warnings = [];
 	
 	var vars = this.element + ", " + this.bind + ", " + this.anchor + ", " + this.slots;
-	this.before = "/*! Transpiled" + (this.options.filename ? " from " + this.options.filename : "") + " using Sactory v" + (typeof Transpiler != "undefined" ? Transpiler.VERSION : version.version) + ". Do not edit manually. */";
-	if(this.options.env == "requirejs") this.before += "define(['" + (this.options.runtime || "sactory") + "'], function(" + this.runtime + ", " + vars + "){";
+	this.before = "/*! Transpiled" + (this.options.filename ? " from " + this.options.filename : "") + " using Sactory v" + (typeof Transpiler != "undefined" && Transpiler.VERSION || version && version.version || "?") + ". Do not edit manually. */";
+	if(this.options.env == "require" || this.options.env == "define") this.before += this.options.env + "(['" + (this.options.runtime || "sactory") + "'], function(" + this.runtime + ", " + vars + "){";
 	else if(this.options.env == "commonjs") this.before += "var " + this.runtime + "=require('" + (this.options.runtime || "sactory") + "');var " + vars + ";";
 	else this.before += "var " + this.runtime + "=" + (this.options.runtime || "Sactory") + ";var " + vars + ";";
 	this.source = [];
@@ -2098,7 +2099,7 @@ Transpiler.prototype.transpile = function(input){
 	
 	this.endMode();
 	
-	this.after = this.options.env == "requirejs" ? "})" : "";
+	this.after = this.options.env == "require" || this.options.env == "define" ? "})" : "";
 
 	var source = this.source.join("");
 
