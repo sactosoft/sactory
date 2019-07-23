@@ -1,4 +1,4 @@
-@widgets.add("card", class {
+Sactory.addWidget("card", class {
 
 	@render() {
 		return <div class="card">

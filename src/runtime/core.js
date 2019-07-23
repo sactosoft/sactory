@@ -1,5 +1,6 @@
 var Polyfill = require("../polyfill");
 var Const = require("../const");
+var { hyphenate } = require("../util");
 var SactoryConfig = require("./config");
 
 Object.defineProperty(Node, "ANCHOR_NODE", {
@@ -51,15 +52,22 @@ var widgets = {};
  * @param {class} widget - The widget class.
  * @since 0.73.0
  */
-Sactory.defineWidget = function(name, widget){
-	widgets[name] = widget;
+Sactory.addWidget = function(name, widget){
+	if(widget) {
+		widgets[name] = widget;	
+	} else if(name && name.name) {
+		widgets[hyphenate(name.name)] = name;
+	} else {
+		throw new Error("Cannot add widget: invalid or missing name.");
+	}
 };
 
 /**
  * Removes a widget by its name.
  * @since 0.73.0
  */
-Sactory.undefineWidget = function(name){
+Sactory.removeWidget = function(name){
+	if(typeof name != "string") name = hyphenate(name.name);
 	delete widgets[name];
 };
 
@@ -72,11 +80,29 @@ Sactory.hasWidget = function(name){
 };
 
 /**
+ * Gets the instance of the widget with the given name.
+ * @since 0.112.0
+ */
+Sactory.getWidget = function(name){
+	return widgets[name];
+};
+
+/**
  * Gets a list with the names of every registered widget.
  * @since 0.73.0
  */
-Sactory.getWidgetsName = function(){
+Sactory.getWidgetsNames = function(){
 	return Object.keys(widgets);
+};
+
+/**
+ * Gets the widget with the given name associated to the
+ * given element.
+ * If no name is given the main widget is returned.
+ * @since 0.112.0
+ */
+Sactory.widget = function(element, name){
+	return element.__builderInstance && (name ? element.__builder.widgets[name] : element.__builder.widget);
 };
 
 /**

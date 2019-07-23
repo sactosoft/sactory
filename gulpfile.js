@@ -21,8 +21,8 @@ function make(filename, className, sources) {
 	.pipe(sourcemaps.init())
 	.pipe(concat(filename + ".js"))
 	.pipe(replace(/var Sactory = {};?/gm, ""))
-	.pipe(replace(/(var [a-zA-Z0-9_]+ = )?require\(\"[a-zA-Z0-9_\-\.\/]*\"\)[a-zA-Z0-9_\.]*;/gm, ""))
-	.pipe(replace(/(module\.exports = [a-zA-Z0-9_\.]*;)/gm, ""))
+	.pipe(replace(/(var {?[a-zA-Z0-9_,\s]+}? = )?require\(\"[a-zA-Z0-9_\-\.\/]*\"\)[a-zA-Z0-9_\.]*;/gm, ""))
+	.pipe(replace(/(module\.exports = {?[a-zA-Z0-9_,\s\.]*}?;)/gm, ""))
 	.pipe(replace(/(Sactory[A-Z][a-z]+)/gm, className))
 	.pipe(prepend(
 		"!function(a){if(typeof define == 'function' && define.amd){define(a);}else{window." + className + " = a();}" +
@@ -55,6 +55,7 @@ gulp.task("dist:sactory", function(){
 	return make("sactory", "Sactory", [
 		"polyfill",
 		"const",
+		"util",
 		"runtime/config", // must be first
 		"runtime/animation",
 		"runtime/bind",

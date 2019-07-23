@@ -720,21 +720,6 @@ JavascriptParser.prototype.next = function(match){
 						case "on":
 							add(true, this.transpiler.feature("on"), "this, " + this.element + ", " + this.bind + ", ");
 							break;
-						case "widget":
-							add(true, this.transpiler.feature("widget"));
-							break;
-						case "widgets.add":
-							add(true, this.transpiler.feature("defineWidget"));
-							break;
-						case "widgets.remove":
-							add(true, this.transpiler.feature("undefineWidget"));
-							break;
-						case "widgets.has":
-							add(true, this.transpiler.feature("hasWidget"));
-							break;
-						case "widgets.names":
-							add(true, this.transpiler.feature("getWidgetsNames"));
-							break;
 						case "render":
 						case "":
 							add(false, match[1], this.transpiler.slotsRegistry + ", " + this.element + ", " + this.bind + ", " + this.anchor + ", ");
@@ -1840,7 +1825,7 @@ Transpiler.prototype.open = function(){
 				if(dattributes.ref instanceof Array) dattributes.ref.push(temp);
 				else if(dattributes.ref) dattributes.ref = [dattributes.ref, temp];
 				else dattributes.ref = temp;
-				currentClosing.unshift(";" + (r instanceof Array ? r.join(" = ") : r) + " = " + temp + ".__builder.widget");
+				currentClosing.unshift(";" + (r instanceof Array ? r.join(" = ") : r) + " = " + this.runtime + ".widget(" + temp + ")");
 			}
 
 			if(dattributes.ref) {

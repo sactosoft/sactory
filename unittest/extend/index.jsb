@@ -1,6 +1,6 @@
 <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" rel="stylesheet" :head />
 
-@widgets.add("button", class {
+Sactory.addWidget("button", class {
 	
 	constructor({type}) {
 		this.type = type;
