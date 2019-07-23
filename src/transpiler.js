@@ -1430,12 +1430,6 @@ Transpiler.prototype.open = function(){
 				computed = true;
 			} else {
 				originalTagName = tagName = this.parser.readTagName(true);
-				var column = tagName.indexOf(':');
-				if(column > 0) {
-					slotName = tagName.substr(column + 1);
-					tagName = tagName.substring(0, column);
-					create = append = false;
-				}
 			}
 		}
 		skip(true);
@@ -1701,9 +1695,20 @@ Transpiler.prototype.open = function(){
 		}
 
 		if(!computed) {
-			if(tagName.charAt(0) == ':') {
+			if(tagName.charAt(0) == ':' && tagName.charAt(1) != ':') {
 				var name = tagName.substr(1);
-				if(this.options.aliases && this.options.aliases.hasOwnProperty(name)) {
+				if(Polyfill.startsWith.call(name, "slot:")) {
+					name = name.substr(5);
+					var column = name.indexOf(':');
+					if(column == -1) {
+						slotName = name;
+						tagName = "";
+					} else {
+						slotName = name.substr(column + 1);
+						tagName = name.substring(0, column);
+					}
+					create = append = false;
+				} else if(this.options.aliases && this.options.aliases.hasOwnProperty(name)) {
 					var alias = this.options.aliases[name];
 					tagName = alias.tagName;
 					if(alias.hasOwnProperty("parent")) parent = alias.parent;
@@ -1826,6 +1831,16 @@ Transpiler.prototype.open = function(){
 			if(!computed && tagName == ":debug" || dattributes["debug"]) {
 				this.source.push("if(" + this.runtime + ".isDebug){");
 				currentClosing.unshift("}");
+			}
+
+			if(dattributes["ref-widget"]) {
+				var r = dattributes["ref-widget"];
+				var temp = this.nextVarName();
+				this.source.push("var " + temp + ";");
+				if(dattributes.ref instanceof Array) dattributes.ref.push(temp);
+				else if(dattributes.ref) dattributes.ref = [dattributes.ref, temp];
+				else dattributes.ref = temp;
+				currentClosing.unshift(";" + (r instanceof Array ? r.join(" = ") : r) + " = " + temp + ".__builder.widget");
 			}
 
 			if(dattributes.ref) {

@@ -239,7 +239,6 @@ Sactory.bindEach = function(context, element, bind, anchor, target, getter, fun)
 			});
 		}
 		currentBind.subscribe(target.subscribe(function(array, _, type, data){
-			console.log("updated");
 			switch(type) {
 				case Const.OBSERVABLE_UPDATE_TYPE_ARRAY_PUSH:
 					Array.prototype.forEach.call(data, function(value, i){

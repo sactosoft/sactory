@@ -234,20 +234,37 @@ Sactory.update = function(context, options){
 	}
 	
 	if(!context.element) {
-		var widget = widgets[options.tagName];
-		if(widget && !options.hasOwnProperty(Const.ARG_TYPE_WIDGET)) {
+		var parentWidget, widget;
+		function getWidget(name) {
+			if(Polyfill.startsWith.call(name, "::")) {
+				if(context.parent) {
+					parentWidget = context.parent.__builder.widget;
+					return parentWidget && parentWidget[name.substr(1)];
+				}
+			} else {
+				var column = options.tagName.lastIndexOf(':');
+				if(column == -1) {
+					return widgets[name];
+				} else if(context.parent) {
+					parentWidget = context.parent.__builder.widgets[options.tagName.substring(0, column)];
+					return parentWidget && parentWidget[':' + options.tagName.substr(column + 1)];
+				}
+			}
+		}
+		if(!options.hasOwnProperty(Const.ARG_TYPE_WIDGET) && (widget = getWidget(options.tagName))) {
 			context.slots = new SlotRegistry(options.tagName);
 			if(widget.prototype && widget.prototype.render) {
 				var instance = new widget(widgetArgs, options[Const.ARG_TYPE_NAMESPACE]);
-				context.element = instance.render(context.slots, null, context.bind, null);
-				if(instance instanceof Sactory.Widget) instance.element = context.element;
+				context.element = instance.__element = instance.render(context.slots, null, context.bind, null);
+				if(instance instanceof Sactory.Widget) instance.element = instance.__element;
 				context.element.__builder.widget = context.element.__builder.widgets[options.tagName] = instance;
 			} else {
-				context.element = widget(context.slots, null, context.bind, null, widgetArgs, options[Const.ARG_TYPE_NAMESPACE]);
+				context.element = widget.call(parentWidget, context.slots, null, context.bind, null, widgetArgs, options[Const.ARG_TYPE_NAMESPACE]);
 			}
 			if(context.slots.slots[Sactory.SL_CONTENT]) {
-				context.content = context.slots.slots[Sactory.SL_CONTENT].element;
-				context.anchor = context.slots.slots[Sactory.SL_CONTENT].anchor;
+				var content = context.slots.slots[Sactory.SL_CONTENT];
+				context.content = content.element || content.anchor.parentNode;
+				context.anchor = content.anchor;
 			} else {
 				context.content = context.element;
 			}
@@ -316,6 +333,7 @@ Sactory.update = function(context, options){
  */
 Sactory.create = function(context, tagName, options){
 	options.tagName = tagName;
+	context.parent = context.element;
 	context.element = context.content = null; // delete parents
 	context.anchor = null; // invalidate the current anchor so the children will not use it
 	Sactory.update(context, options);
@@ -347,12 +365,18 @@ Sactory.clone = function(context, options){
 Sactory.updateSlot = function(context, options, slots, widget, slotName, fun){
 	var componentSlot = (function(){
 		if(slots) {
-			for(var i=slots.length-1; i>=0; i--) {
-				if(slots[i].name == widget) {
-					for(var name in slots[i].slots) {
-						if(name == slotName) return slots[i].slots[name];
+			if(widget) {
+				for(var i=slots.length-1; i>=0; i--) {
+					if(slots[i].name == widget) {
+						for(var name in slots[i].slots) {
+							if(name == slotName) return slots[i].slots[name];
+						}
 					}
 				}
+			} else {
+				var slot = slots[slots.length - 1];
+				widget = slot.name;
+				return slot.slots[slotName];
 			}
 		}
 	})();
