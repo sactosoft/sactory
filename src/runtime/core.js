@@ -277,15 +277,17 @@ Sactory.update = function(context, options){
 				}
 			}
 		}
-		if(!options.hasOwnProperty(Const.ARG_TYPE_WIDGET) && (widget = getWidget(options.tagName))) {
+		if(!options.hasOwnProperty(Const.ARG_TYPE_WIDGET) && (widget = getWidget(options.tagName)) || (widget = typeof options.tagName == "function" && options.tagName)) {
 			context.slots = new SlotRegistry(options.tagName);
 			if(widget.prototype && widget.prototype.render) {
 				var instance = new widget(widgetArgs, options[Const.ARG_TYPE_NAMESPACE]);
-				context.element = instance.__element = instance.render(context.slots, null, context.bind, null);
+				var ret = context.element = instance.__element = instance.render(context.slots, null, context.bind, null);
 				if(instance instanceof Sactory.Widget) instance.element = instance.__element;
+				if(!(ret instanceof Node)) throw new Error("The widget's render function did not return an instance of 'Node', returned '" + ret + "' instead.");
 				context.element.__builder.widget = context.element.__builder.widgets[options.tagName] = instance;
 			} else {
 				context.element = widget.call(parentWidget, context.slots, null, context.bind, null, widgetArgs, options[Const.ARG_TYPE_NAMESPACE]);
+				if(!(context.element instanceof Node)) throw new Error("The widget did not return an instance of 'Node', returned '" + context.element + "' instead.");
 			}
 			if(context.slots.slots[Sactory.SL_CONTENT]) {
 				var content = context.slots.slots[Sactory.SL_CONTENT];
