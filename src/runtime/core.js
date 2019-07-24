@@ -271,8 +271,13 @@ Sactory.update = function(context, options){
 				var column = options.tagName.lastIndexOf(':');
 				if(column == -1) {
 					return widgets[name];
-				} else if(context.parent) {
-					parentWidget = context.parent.__builder.widgets[options.tagName.substring(0, column)];
+				} else {
+					var name = options.tagName.substring(0, column);
+					if(name == "this") {
+						parentWidget = context.context;
+					} else if(context.parent) {
+						parentWidget = context.parent.__builder.widgets[name];
+					}
 					return parentWidget && parentWidget[':' + options.tagName.substr(column + 1)];
 				}
 			}
