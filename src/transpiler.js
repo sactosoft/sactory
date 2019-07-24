@@ -1811,15 +1811,13 @@ Transpiler.prototype.open = function(){
 				currentClosing.unshift("}");
 			}
 
-			//TODO store widget in ref-widget instead of using a temp variable
 			if(dattributes["ref-widget"]) {
-				var r = dattributes["ref-widget"];
-				var temp = this.nextVarName();
-				this.source.push("var " + temp + ";");
+				var ref = dattributes["ref-widget"];
+				var temp = ref instanceof Array ? ref[0] : ref;
 				if(dattributes.ref instanceof Array) dattributes.ref.push(temp);
 				else if(dattributes.ref) dattributes.ref = [dattributes.ref, temp];
 				else dattributes.ref = temp;
-				currentClosing.unshift(";" + (r instanceof Array ? r.join(" = ") : r) + " = " + this.runtime + ".widget(" + temp + ")");
+				currentClosing.unshift(";" + (ref instanceof Array ? ref.join(" = ") : ref) + " = " + this.runtime + ".widget(" + temp + ")");
 			}
 
 			if(dattributes.ref) {
