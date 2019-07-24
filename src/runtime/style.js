@@ -150,14 +150,14 @@ Sactory.convertStyle = function(root){
  * if present.
  * @since 0.49.0
  */
-Sactory.compileAndBindStyle = function(fun, element, bind, observables, maybe){
+Sactory.compileAndBindStyle = function(scope, fun, context, observables, maybe){
 	function reload() {
-		element.textContent = Sactory.convertStyle(fun());
+		context.element.textContent = Sactory.convertStyle(fun.call(scope));
 	}
 	Array.prototype.push.apply(observables, SactoryObservable.filterObservables(maybe));
 	observables.forEach(function(observable){
 		var subscription = observable.subscribe(reload);
-		if(bind) bind.subscribe(subscription);
+		if(context.bind) context.bind.subscribe(subscription);
 	});
 	reload();
 };

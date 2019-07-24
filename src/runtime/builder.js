@@ -40,6 +40,10 @@ Builder.prototype.widgets = {};
 
 Builder.prototype.widget = null;
 
+Builder.prototype.slots = {};
+
+Builder.prototype.contentSlot = null;
+
 /**
  * @since 0.42.0
  */

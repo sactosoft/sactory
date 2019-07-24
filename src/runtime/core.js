@@ -13,15 +13,18 @@ Object.defineProperty(Node, "ANCHOR_NODE", {
 /**
  * @since 0.60.0
  */
-function Sactory(context, element, bind, anchor) {
+function Sactory(scope, context, element) {
 	var context = {
-		context: context,
+		__sactory: true,
+		scope: scope,
 		element: element,
 		content: element,
-		bind: bind,
-		anchor: anchor
+		bind: context.bind,
+		anchor: context.anchor,
+		parentAnchor: context.anchor,
+		registry: context.registry
 	};
-	for(var i=4; i<arguments.length; i++) {
+	for(var i=3; i<arguments.length; i++) {
 		var args = arguments[i];
 		var fun = args[0];
 		args[0] = context;
@@ -158,6 +161,14 @@ SlotRegistry.prototype.addAll = function(anchor, names, element){
 	}
 };
 
+/**
+ * @since 0.113.0
+ */
+SlotRegistry.prototype.applyTo = function(element, main){
+	element.__builder.slots[this.name] = this.slots;
+	if(main) element.__builder.slots.__main = this.slots;
+};
+
 // init global functions used at runtime
 
 /**
@@ -172,18 +183,6 @@ Sactory.check = function(major, minor, patch){
 	if(major != Sactory.VERSION_MAJOR || minor != Sactory.VERSION_MINOR) {
 		throw new Error("Code transpiled using version " + major + "." + minor + "." + patch + " cannot be run in the current environment using version " + Sactory.VERSION + ".");
 	}
-};
-
-/**
- * @since 0.69.0
- */
-Sactory.attr = function(type, name, value, optional){
-	return {
-		type: type,
-		name: name,
-		value: arguments.length > 2 ? value : "",
-		optional: !!optional
-	};
 };
 
 /**
@@ -274,7 +273,7 @@ Sactory.update = function(context, options){
 				} else {
 					var name = options.tagName.substring(0, column);
 					if(name == "this") {
-						parentWidget = context.context;
+						parentWidget = context.scope;
 					} else if(context.parent) {
 						parentWidget = context.parent.__builder.widgets[name];
 					}
@@ -283,26 +282,28 @@ Sactory.update = function(context, options){
 			}
 		}
 		if(!options.hasOwnProperty(Const.ARG_TYPE_WIDGET) && (widget = getWidget(options.tagName)) || (widget = typeof options.tagName == "function" && options.tagName)) {
-			context.slots = new SlotRegistry(options.tagName);
+			var registry = new SlotRegistry(options.tagName);
+			var newContext = Polyfill.assign({}, context, {element: null, anchor: null, registry: registry});
 			if(widget.prototype && widget.prototype.render) {
 				var instance = new widget(widgetArgs, options[Const.ARG_TYPE_NAMESPACE]);
-				var ret = context.element = instance.__element = instance.render(context.slots, null, context.bind, null);
+				var ret = context.element = instance.__element = instance.render(newContext);
 				if(instance instanceof Sactory.Widget) instance.element = instance.__element;
 				if(!(ret instanceof Node)) throw new Error("The widget's render function did not return an instance of 'Node', returned '" + ret + "' instead.");
 				context.element.__builder.widget = context.element.__builder.widgets[options.tagName] = instance;
 			} else {
-				context.element = widget.call(parentWidget, context.slots, null, context.bind, null, widgetArgs, options[Const.ARG_TYPE_NAMESPACE]);
+				context.element = widget.call(parentWidget, newContext, widgetArgs, options[Const.ARG_TYPE_NAMESPACE]);
 				if(!(context.element instanceof Node)) throw new Error("The widget did not return an instance of 'Node', returned '" + context.element + "' instead.");
 			}
-			if(context.slots.slots[Sactory.SL_CONTENT]) {
-				var content = context.slots.slots[Sactory.SL_CONTENT];
+			registry.applyTo(context.element, true);
+			if(registry.slots[Sactory.SL_CONTENT]) {
+				var content = registry.slots[Sactory.SL_CONTENT];
 				context.content = content.element || content.anchor.parentNode;
 				context.anchor = content.anchor;
 			} else {
 				context.content = context.element;
 			}
-			if(context.slots.slots[Sactory.SL_CONTAINER]) context.element = context.container = context.slots.slots[Sactory.SL_CONTAINER].element;
-			if(context.slots.slots[Sactory.SL_INPUT]) context.input = context.slots.slots[Sactory.SL_INPUT].element;
+			if(registry.slots[Sactory.SL_CONTAINER]) context.element = context.container = registry.slots[Sactory.SL_CONTAINER].element;
+			if(registry.slots[Sactory.SL_INPUT]) context.input = registry.slots[Sactory.SL_INPUT].element;
 			/* debug:
 			if(context.element.setAttribute) {
 				context.element.setAttribute(":widget", options.tagName);
@@ -327,7 +328,7 @@ Sactory.update = function(context, options){
 	});
 	
 	args.forEach(function(arg){
-		context.element.__builder[arg[1]](arg[2], arg[0], context.bind, context.anchor, context.context);
+		context.element.__builder[arg[1]](arg[2], arg[0], context.bind, context.anchor, context.scope);
 	});
 
 	if(options[Const.ARG_TYPE_TRANSITIONS]) {
@@ -339,13 +340,16 @@ Sactory.update = function(context, options){
 	for(var widgetName in widgetExt) {
 		if(!widgets.hasOwnProperty(widgetName)) throw new Error("Widget '" + widgetName + "' could not be found.");
 		var widget = widgets[widgetName];
+		var registry = new SlotRegistry(widgetName);
+		var newContext = Polyfill.assign({}, context, {anchor: null, registry: registry});
 		if(widget.prototype && widget.prototype.render) {
 			var instance = new widgets[widgetName](widgetExt[widgetName]);
-			instance.render(new SlotRegistry(""), context.element, context.bind, null);
+			instance.render(newContext);
 			context.element.__builder.widgets[widgetName] = instance;
 		} else {
-			widget(new SlotRegistry(""), context.element, context.bind, null, widgetExt[widgetName]);
+			widget(newContext, widgetExt[widgetName], undefined);
 		}
+		registry.applyTo(context.element, false);
 		/* debug:
 		if(context.element.setAttribute) {
 			context.element.setAttribute(":extend:" + widgetName, "");
@@ -395,40 +399,24 @@ Sactory.clone = function(context, options){
 /**
  * @since 0.73.0
  */
-Sactory.updateSlot = function(context, options, slots, widget, slotName, fun){
-	var componentSlot = (function(){
-		if(slots) {
-			if(widget) {
-				for(var i=slots.length-1; i>=0; i--) {
-					if(slots[i].name == widget) {
-						for(var name in slots[i].slots) {
-							if(name == slotName) return slots[i].slots[name];
-						}
-					}
-				}
-			} else {
-				var slot = slots[slots.length - 1];
-				widget = slot.name;
-				return slot.slots[slotName];
-			}
-		}
-	})();
-	if(!componentSlot) throw new Error("Could not find slot '" + slotName + "' for widget '" + widget + "'.");
-	if(componentSlot.element) {
-		context.element = componentSlot.element;
-		Sactory.update(context, options);
+Sactory.updateSlot = function(context, options, widgetName, slotName, fun){
+	var element = context.slot || context.element;
+	if(!widgetName) widgetName = "__main";
+	var slots = element.__builder.slots[widgetName];
+	if(!slots) throw new Error("Could not find widget '" + widgetName + "'.");
+	var slot = slots[slotName];
+	if(!slot) throw new Error("Could not find slot '" + slotName + "' for widget '" + widgetName + "'.");
+	if(slot.element) {
+		Sactory.update(Polyfill.assign({}, context, {element: slot.element}), options);
 	}
-	fun.call(context.context, componentSlot.anchor ? componentSlot.anchor.parentNode : context.element, componentSlot.anchor);
+	fun.call(context.scope, Polyfill.assign({}, context, {element: slot.anchor ? slot.anchor.parentNode : slot.element, anchor: slot.anchor}));
 };
 
 /**
  * @since 0.60.0
  */
-Sactory.body = function(context, slots, fun){
-	if(context.slots && Object.keys(context.slots.slots).length) {
-		slots = (slots || []).concat(context.slots);
-	}
-	fun.call(context.context, context.content, context.anchor, slots);
+Sactory.body = function(context, fun){
+	fun.call(context.scope, Polyfill.assign({}, context, {slot: context.element, element: context.content || context.element}));
 };
 
 /**
@@ -443,13 +431,13 @@ Sactory.forms = function(context){
 /**
  * @since 0.60.0
  */
-Sactory.append = function(context, parent, anchor, afterappend, beforeremove){
+Sactory.append = function(context, parent, afterappend, beforeremove){
 	if(parent && parent.nodeType || typeof parent == "string" && (parent = document.querySelector(parent))) {
-		if(anchor && anchor.parentNode === parent) parent.insertBefore(context.element, anchor);
+		if(context.parentAnchor && context.parentAnchor.parentNode === parent) parent.insertBefore(context.element, context.parentAnchor);
 		else parent.appendChild(context.element);
 		if(afterappend) afterappend.call(context.element);
 		if(context.element.__builder && context.element.dispatchEvent) context.element.__builder.dispatchEvent("append"); //TODO only fire when listened for
-		if(beforeremove) context.element.__builder.event(context.context, "remove", beforeremove, context.bind);
+		if(beforeremove) context.element.__builder.event(context.scope, "remove", beforeremove, context.bind);
 		if(context.bind) context.bind.appendChild(context.element);
 	}
 };
@@ -502,9 +490,9 @@ Sactory.clear = function(context){
 /**
  * @since 0.90.0
  */
-Sactory.mixin = function(element, bind, anchor, data){
+Sactory.mixin = function(context, data){
 	if(data instanceof Node) {
-		Sactory.append({element: data, bind: bind}, element, anchor);
+		Sactory.append({element: data, bind: context.bind, parentAnchor: context.anchor}, context.element);
 	} else {
 		Sactory.html(element, bind, anchor, data);
 	}
@@ -513,45 +501,38 @@ Sactory.mixin = function(element, bind, anchor, data){
 /**
  * @since 0.78.0
  */
-Sactory.text = function(element, bind, anchor, text){
-	if(element) element.__builder.text(text, bind, anchor);
+Sactory.text = function(context, text){
+	if(context.element) {
+		context.element.__builder.text(text, context.bind, context.anchor);
+	}
 };
 
 /**
  * @since 0.78.0
  */
-Sactory.html = function(element, bind, anchor, html){
-	if(element) element.__builder.html(html, bind, anchor);
+Sactory.html = function(context, html){
+	if(context.element) {
+		context.element.__builder.html(html, context.bind, context.anchor);
+	}
 };
 
 /**
  * @since 0.40.0
  */
-Sactory.comment = function(element, bind, anchor, comment){
+Sactory.comment = function(context, comment){
 	var ret = document.createComment(comment);
-	Sactory.append({element: ret, bind: bind}, element, anchor);
+	Sactory.append({element: ret, bind: context.bind, parentAnchor: context.anchor}, context.element);
 	return ret;
 };
 
 /**
  * @since 0.78.0
  */
-Sactory.on = function(context, element, bind, name, value){
-	if(arguments.length == 6) {
-		arguments[3].__builder.event(context, arguments[4], arguments[5], bind);
+Sactory.on = function(scope, context, name, value){
+	if(arguments.length == 5) {
+		arguments[2].__builder.event(scope, arguments[3], arguments[4], context.bind);
 	} else {
-		element.__builder.event(context, name, value, bind);
-	}
-};
-
-/**
- * @since 0.88.0
- */
-Sactory.widget = function(element, name){
-	if(name) {
-		return element.__builder.widgets[name] || null;
-	} else {
-		return element.__builder.widget || null;
+		context.element.__builder.event(scope, name, value, context.bind);
 	}
 };
 
@@ -574,14 +555,14 @@ Sactory.prevId = function(){
 /**
  * @since 0.98.0
  */
-Sactory.forEach = function(context, value, fun){
+Sactory.forEach = function(scope, value, fun){
 	if(value.forEach) {
-		value.forEach(fun.bind(context));
+		value.forEach(fun.bind(scope));
 	} else {
 		// assuming it's an object
 		var index = 0;
 		for(var key in value) {
-			fun.call(context, key, value[key], index++, value);
+			fun.call(scope, key, value[key], index++, value);
 		}
 	}
 };
@@ -589,14 +570,14 @@ Sactory.forEach = function(context, value, fun){
 /**
  * @since 0.98.0
  */
-Sactory.range = function(context, from, to, fun){
+Sactory.range = function(scope, from, to, fun){
 	if(from < to) {
 		for(var i=from; i<to; i++) {
-			fun.call(context, i);
+			fun.call(scope, i);
 		}
 	} else {
 		for(var i=to; i>from; i--) {
-			fun.call(context, i);
+			fun.call(scope, i);
 		}
 	}
 };
