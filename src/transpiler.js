@@ -2058,10 +2058,12 @@ Transpiler.prototype.transpile = function(input){
 
 	this.warnings = [];
 	
-	this.before = "/*! Transpiled" + (this.options.filename ? " from " + this.options.filename : "") + " using Sactory v" + (typeof Transpiler != "undefined" && Transpiler.VERSION || version && version.version || "?") + ". Do not edit manually. */";
+	var v = typeof Transpiler != "undefined" && Transpiler.VERSION || version && version.version;
+	this.before = "/*! Transpiled" + (this.options.filename ? " from " + this.options.filename : "") + " using Sactory v" + v + ". Do not edit manually. */";
 	if(this.options.env == "require" || this.options.env == "define") this.before += this.options.env + "(['" + (this.options.runtime || "sactory") + "'], function(" + this.runtime + "){var " + this.context + "={};";
 	else if(this.options.env == "commonjs") this.before += "var " + this.runtime + "=require('" + (this.options.runtime || "sactory") + "');var " + this.context + "={};";
 	else this.before += "var " + this.runtime + "=" + (this.options.runtime || "Sactory") + ";var " + this.context + "={};";
+	if(!this.options.hasOwnProperty("versionCheck") || this.options.versionCheck) this.before += this.runtime + ".check(\"" + v + "\");";
 	this.source = [];
 
 	if(this.options.scope) this.before += this.context + ".element=" + this.options.scope + ";";

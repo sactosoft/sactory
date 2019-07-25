@@ -1,8 +1,13 @@
+var { version } = require("./version");
+
 function merge(core, ...args) {
 	args.forEach(arg => {
 		for(var key in arg) {
 			core[key] = arg[key];
 		}
+	});
+	Object.defineProperty(core, "VERSION", {
+		value: version
 	});
 	return core;
 }

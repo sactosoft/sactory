@@ -66,6 +66,19 @@ Sactory.addWidget = function(name, widget){
 };
 
 /**
+ * Checks whether the given version in compatible with the runtime version.
+ * @throws {Error} When the given version is not compatible with the runtime version.
+ * @since 0.32.0
+ */
+Sactory.check = function(v){
+	var transpiled = v.split('.');
+	var runtime = Sactory.VERSION.split('.');
+	if(transpiled[0] != runtime[0] || transpiled[1] != runtime[1]) {
+		throw new Error("Code transpiled using version " + v + " cannot be run in the current runtime environment using version " + Sactory.VERSION + ".");
+	}
+};
+
+/**
  * Removes a widget by its name.
  * @since 0.73.0
  */
@@ -172,18 +185,10 @@ SlotRegistry.prototype.applyTo = function(element, main){
 // init global functions used at runtime
 
 /**
+ * Does literally nothing.
  * @since 0.80.0
  */
 Sactory.noop = function(){};
-
-/**
- * @since 0.32.0
- */
-Sactory.check = function(major, minor, patch){
-	if(major != Sactory.VERSION_MAJOR || minor != Sactory.VERSION_MINOR) {
-		throw new Error("Code transpiled using version " + major + "." + minor + "." + patch + " cannot be run in the current environment using version " + Sactory.VERSION + ".");
-	}
-};
 
 /**
  * @since 0.60.0
