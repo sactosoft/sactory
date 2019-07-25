@@ -193,6 +193,7 @@ Sactory.update = function(context, options){
 	var args = [];
 	var widgetArgs = {};
 	var widgetExt = {};
+	var widgetExtAnon = [];
 
 	if(options[Const.ARG_TYPE_INTERPOLATED_ATTRIBUTES]) {
 		if(!options[Const.ARG_TYPE_ATTRIBUTES]) options[Const.ARG_TYPE_ATTRIBUTES] = [];
@@ -215,15 +216,23 @@ Sactory.update = function(context, options){
 				var value = arg[0];
 				var obj;
 				if(ext) {
-					var col = name.indexOf(':');
-					if(col == -1) {
-						widgetExt[name] = value;
+					if(typeof name == "function") {
+						widgetExtAnon.push({
+							widget: name,
+							args: value
+						});
 						return;
 					} else {
-						var key = name.substring(0, col);
-						if(!widgetExt.hasOwnProperty(key)) obj = widgetExt[key] = {};
-						else obj = widgetExt[key];
-						name = name.substr(col + 1);
+						var col = name.indexOf(':');
+						if(col == -1) {
+							widgetExt[name] = value;
+							return;
+						} else {
+							var key = name.substring(0, col);
+							if(!widgetExt.hasOwnProperty(key)) obj = widgetExt[key] = {};
+							else obj = widgetExt[key];
+							name = name.substr(col + 1);
+						}
 					}
 				} else {
 					if(name.length) {
@@ -347,7 +356,7 @@ Sactory.update = function(context, options){
 			instance.render(newContext);
 			context.element.__builder.widgets[widgetName] = instance;
 		} else {
-			widget(newContext, widgetExt[widgetName], undefined);
+			widget(newContext, widgetExt[widgetName]);
 		}
 		registry.applyTo(context.element, false);
 		/* debug:
@@ -356,6 +365,20 @@ Sactory.update = function(context, options){
 		}
 		*/
 	}
+
+	widgetExtAnon.forEach(function(info){
+		var newContext = Polyfill.assign({}, context, {anchor: null, registry: new SlotRegistry("")});
+		if(info.widget.prototype && info.widget.prototype.render) {
+			new info.widget(info.args).render(newContext);
+		} else {
+			info.widget(newContext, info.args);
+		}
+		/* debug:
+		if(context.element.setAttribute) {
+			context.element.setAttribute(":extend.anonymous:" + info.widget.name, "");
+		}
+		*/
+	});
 
 	/* debug:
 	if(context.element.setAttribute) {
