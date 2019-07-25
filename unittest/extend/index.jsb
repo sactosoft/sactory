@@ -6,7 +6,7 @@ Sactory.addWidget("button", class {
 		this.type = type;
 	}
 
-	@render() {
+	render(@) {
 		return <?["button"] ~class="btn" ?~class:btn-[this.type]=this.type />
 	}
 

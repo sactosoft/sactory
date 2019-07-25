@@ -1,6 +1,6 @@
 Sactory.addWidget("card", class {
 
-	@render() {
+	render(@) {
 		return <div class="card">
 			<div class="card-header" :slot="header" />
 			<div class="card-body" :slot="body" :slot />

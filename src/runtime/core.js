@@ -457,21 +457,21 @@ Sactory.unique = function(context, id, fun){
 /**
  * @since 0.32.0
  */
-Sactory.query = function(context, doc, parent, selector, all, fun){
+Sactory.query = function(scope, context, doc, parent, selector, all, fun){
 	var nodes = false;
 	if(all || (nodes = selector && typeof selector == "object" && typeof selector.length == "number")) {
 		if(!nodes) {
 			selector = doc.querySelectorAll(selector);
 		}
 		Array.prototype.forEach.call(selector, function(element){
-			fun.call(context, element, parent);
+			fun.call(scope, Polyfill.assign({}, context, {element: element, parentElement: parent}));
 		});
 		return selector;
 	} else {
 		if(typeof selector == "string") {
 			selector = doc.querySelector(selector);
 		}
-		if(selector) fun.call(context, selector, parent);
+		if(selector) fun.call(scope, Polyfill.assign({}, context, {element: selector, parentElement: parent}));
 		return selector;
 	}
 };

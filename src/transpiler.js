@@ -1829,14 +1829,15 @@ Transpiler.prototype.open = function(){
 			if(selector) {
 				if(dattributes["query-head"]) queryElement = "document.head";
 				else if(dattributes["query-body"]) queryElement = "document.body";
-				this.source.push(this.runtime + "." + this.feature("query") + "(this, " + (dattributes.query || queryElement || parent) + ", " + parent + ", " + selector + ", " + selectorAll + ", function(" + this.element + ", " + this.parentElement + "){");
+				this.source.push(this.runtime + "." + this.feature("query") + "(this, " + this.context + ", " + (dattributes.query || queryElement || parent) + ", " + parent + ", " + selector + ", " + selectorAll + ", function(" + this.context + "){");
 				if(dattributes.adopt || dattributes.clone) {
-					parent = this.parentElement;
+					parent = this.context + ".parentElement";
 					create = false;
 					update = append = true;
 				}
 				currentClosing.unshift("})");
 			}
+
 			if(dattributes.unique) {
 				this.source.push(this.runtime + "." + this.feature("unique") + "(this, " + this.nextId() + ", function(){return ");
 				currentClosing.unshift("})");
@@ -1848,7 +1849,7 @@ Transpiler.prototype.open = function(){
 			var inline = false;
 
 			if(tagName == ":bind") {
-				this.source.push(this.runtime + "." + this.feature("bind") + "(" + ["this", parent, this.context, dattributes.to].join(", ") +
+				this.source.push(this.runtime + "." + this.feature("bind") + "(" + ["this", this.context, dattributes.to].join(", ") +
 					", function(" + this.context + (dattributes.as ? ", " + dattributes.as : "") + "){");
 				currentClosing.unshift("})");
 			}
