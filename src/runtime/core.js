@@ -315,7 +315,11 @@ Sactory.update = function(context, options){
 			if(registry.slots[Sactory.SL_INPUT]) context.input = registry.slots[Sactory.SL_INPUT].element;
 			/* debug:
 			if(context.element.setAttribute) {
-				context.element.setAttribute(":widget", options.tagName);
+				if(typeof options.tagName == "function") {
+					context.element.setAttribute(":widget.anonymous", options.tagName.name);
+				} else {
+					context.element.setAttribute(":widget", options.tagName);
+				}
 			}
 			*/
 		} else {

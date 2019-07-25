@@ -106,9 +106,9 @@ Transpiler.replaceMode = function(mode, parser){
 /**
  * @since 0.35.0
  */
-Transpiler.startMode = function(mode, transpiler, parser, source, attributes){
+Transpiler.startMode = function(mode, transpiler, parser, source, attributes, parent){
 	var m = modeRegistry[mode];
-	var ret = new m.parser(transpiler, parser, source, attributes || {});
+	var ret = new m.parser(transpiler, parser, source, attributes || {}, parent);
 	ret.options = parser.options = m.parser.getOptions();
 	return ret;
 };
@@ -830,8 +830,8 @@ HTMLParser.prototype.replaceText = Text.replaceEntities || (function(){
  * @class
  * @since 0.108.0
  */
-function AutoHTMLParser(transpiler, parser, source, attributes) {
-	HTMLParser.call(this, transpiler, parser, source, attributes);
+function AutoHTMLParser(transpiler, parser, source, attributes, parent) {
+	HTMLParser.call(this, transpiler, parser, source, parent && parent.attributes || attributes);
 }
 
 AutoHTMLParser.getOptions = HTMLParser.getOptions;
@@ -1185,7 +1185,7 @@ Transpiler.prototype.nextVarName = function(){
  * @since 0.16.0
  */
 Transpiler.prototype.startMode = function(mode, attributes){
-	var currentParser = Transpiler.startMode(mode, this, this.parser, this.source, attributes);
+	var currentParser = Transpiler.startMode(mode, this, this.parser, this.source, attributes, this.currentMode && this.currentMode.parser);
 	this.currentMode = {
 		name: modeRegistry[mode].name,
 		parser: currentParser,
@@ -2061,7 +2061,7 @@ Transpiler.prototype.transpile = function(input){
 	this.before = "/*! Transpiled" + (this.options.filename ? " from " + this.options.filename : "") + " using Sactory v" + (typeof Transpiler != "undefined" && Transpiler.VERSION || version && version.version || "?") + ". Do not edit manually. */";
 	if(this.options.env == "require" || this.options.env == "define") this.before += this.options.env + "(['" + (this.options.runtime || "sactory") + "'], function(" + this.runtime + "){var " + this.context + "={};";
 	else if(this.options.env == "commonjs") this.before += "var " + this.runtime + "=require('" + (this.options.runtime || "sactory") + "');var " + this.context + "={};";
-	else this.before += "var " + this.runtime + "=" + (this.options.runtime || "Sactory") + ";var " + this.context + "={}, arguments=[];";
+	else this.before += "var " + this.runtime + "=" + (this.options.runtime || "Sactory") + ";var " + this.context + "={};";
 	this.source = [];
 
 	if(this.options.scope) this.before += this.context + ".element=" + this.options.scope + ";";
@@ -2074,7 +2074,7 @@ Transpiler.prototype.transpile = function(input){
 
 	this.level = 0;
 	
-	this.startMode(this.options.mode && modeNames[this.options.mode] || defaultMode, {}).start();
+	this.startMode(this.options.mode && modeNames[this.options.mode] || defaultMode, this.options.modeAttributes || {}).start();
 	
 	var open = Transpiler.prototype.open.bind(this);
 	var close = Transpiler.prototype.close.bind(this);
