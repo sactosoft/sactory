@@ -15,7 +15,6 @@ Object.defineProperty(Node, "ANCHOR_NODE", {
  */
 function Sactory(scope, context, element) {
 	var context = {
-		__sactory: true,
 		scope: scope,
 		element: element,
 		content: element,
@@ -35,6 +34,8 @@ function Sactory(scope, context, element) {
 
 // constants
 
+Sactory.Const = Const;
+
 Sactory.NS_XHTML = "http://www.w3.org/1999/xhtml";
 Sactory.NS_SVG = "http://www.w3.org/2000/svg";
 Sactory.NS_MATHML = "http://www.w3.org/1998/mathml";
@@ -44,6 +45,19 @@ Sactory.NS_XBL = "http://www.mozilla.org/xbl";
 Sactory.SL_CONTAINER = "__container";
 Sactory.SL_CONTENT = "__content";
 Sactory.SL_INPUT = "__input";
+
+/**
+ * Checks whether the given version in compatible with the runtime version.
+ * @throws {Error} When the given version is not compatible with the runtime version.
+ * @since 0.32.0
+ */
+Sactory.check = function(v){
+	var transpiled = v.split('.');
+	var runtime = Sactory.VERSION.split('.');
+	if(transpiled[0] != runtime[0] || transpiled[1] != runtime[1]) {
+		throw new Error("Code transpiled using version " + v + " cannot be run in the current runtime environment using version " + Sactory.VERSION + ".");
+	}
+};
 
 // widgets
 
@@ -62,19 +76,6 @@ Sactory.addWidget = function(name, widget){
 		widgets[hyphenate(name.name)] = name;
 	} else {
 		throw new Error("Cannot add widget: invalid or missing name.");
-	}
-};
-
-/**
- * Checks whether the given version in compatible with the runtime version.
- * @throws {Error} When the given version is not compatible with the runtime version.
- * @since 0.32.0
- */
-Sactory.check = function(v){
-	var transpiled = v.split('.');
-	var runtime = Sactory.VERSION.split('.');
-	if(transpiled[0] != runtime[0] || transpiled[1] != runtime[1]) {
-		throw new Error("Code transpiled using version " + v + " cannot be run in the current runtime environment using version " + Sactory.VERSION + ".");
 	}
 };
 
@@ -526,7 +527,7 @@ Sactory.mixin = function(context, data){
 	if(data instanceof Node) {
 		Sactory.append({element: data, bind: context.bind, parentAnchor: context.anchor}, context.element);
 	} else {
-		Sactory.html(element, bind, anchor, data);
+		Sactory.html(context, data);
 	}
 };
 
