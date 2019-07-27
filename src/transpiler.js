@@ -1347,7 +1347,7 @@ Transpiler.prototype.open = function(){
 			if(!match) {
 				this.parser.expect('-');
 				this.parser.expect('-');
-				this.source.push(this.runtime + "." + this.feature("comment") + "(" + this.element + ", " + this.bind + ", " + this.anchor + ", " + stringify(this.parser.findSequence("-->", true).slice(0, -3)) + ")");
+				this.source.push(this.runtime + "." + this.feature("comment") + "(" + this.context + ", " + stringify(this.parser.findSequence("-->", true).slice(0, -3)) + ")");
 				this.addSemicolon();
 			}
 		}

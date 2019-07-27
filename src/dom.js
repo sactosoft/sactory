@@ -351,7 +351,7 @@ class HTMLDocument extends Document {
 			}
 			var text = "Sactory.ready(function(){";
 			this.events.forEach(event => {
-				text += "Sactory.on(window, document.querySelector(\"." + event.element.sactoryClassName + "\"), null, " + JSON.stringify(event.type) + ", " + event.value + ");";
+				text += "Sactory.on(window, {}, document.querySelector(\"." + event.element.sactoryClassName + "\"), " + JSON.stringify(event.type) + ", " + event.value + ");";
 			});
 			this.eventsElement.textContent = text + "});";
 		}
