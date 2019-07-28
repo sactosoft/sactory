@@ -93,7 +93,7 @@ Sactory.removeWidget = function(name){
  * @since 0.89.0
  */
 Sactory.hasWidget = function(name){
-	return widgets.hasOwnProperty(name);
+	return Object.prototype.hasOwnProperty.call(widgets, name);
 };
 
 /**
@@ -119,7 +119,18 @@ Sactory.getWidgetsNames = function(){
  * @since 0.112.0
  */
 Sactory.widget = function(element, name){
-	return element.__builderInstance && (name ? element.__builder.widgets[name] : element.__builder.widget);
+	return element.__builderInstance && (name ? element.__builder.widgets[name] : element.__builder.widget) || null;
+};
+
+/**
+ * Gets the widget with the given name associated to the
+ * element queries with the given selector.
+ * If no name is given the main widget is returned.
+ * @since 0.115.0
+ */
+Sactory.widgetSelector = function(selector, name){
+	var element = document.querySelector(selector);
+	return element && Sactory.widget(element, name);
 };
 
 /**
@@ -235,7 +246,7 @@ Sactory.update = function(context, options){
 							return;
 						} else {
 							var key = name.substring(0, col);
-							if(!widgetExt.hasOwnProperty(key)) obj = widgetExt[key] = {};
+							if(!Object.prototype.hasOwnProperty.call(widgetExt, key)) obj = widgetExt[key] = {};
 							else obj = widgetExt[key];
 							name = name.substr(col + 1);
 						}
@@ -296,7 +307,7 @@ Sactory.update = function(context, options){
 				}
 			}
 		}
-		if(!options.hasOwnProperty(Const.ARG_TYPE_WIDGET) && (widget = getWidget(options.tagName)) || (widget = typeof options.tagName == "function" && options.tagName)) {
+		if(!Object.prototype.hasOwnProperty.call(options, Const.ARG_TYPE_WIDGET) && (widget = getWidget(options.tagName)) || (widget = typeof options.tagName == "function" && options.tagName)) {
 			var registry = new SlotRegistry(options.tagName);
 			var newContext = Polyfill.assign({}, context, {element: null, anchor: null, registry: registry});
 			if(widget.prototype && widget.prototype.render) {
@@ -357,7 +368,7 @@ Sactory.update = function(context, options){
 	}
 
 	for(var widgetName in widgetExt) {
-		if(!widgets.hasOwnProperty(widgetName)) throw new Error("Widget '" + widgetName + "' could not be found.");
+		if(!Object.prototype.hasOwnProperty.call(widgets, widgetName)) throw new Error("Widget '" + widgetName + "' could not be found.");
 		var widget = widgets[widgetName];
 		var registry = new SlotRegistry(widgetName);
 		var newContext = Polyfill.assign({}, context, {anchor: null, registry: registry});

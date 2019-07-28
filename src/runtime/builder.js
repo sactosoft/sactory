@@ -398,7 +398,7 @@ Builder.prototype.event = function(context, name, value, bind){
 					case "key":
 						var keys = dot.slice(1).map(function(a){
 							var ret = a.toLowerCase();
-							if(SactoryConfig.config.event.aliases.hasOwnProperty(ret)) ret = SactoryConfig.config.event.aliases[ret];
+							if(Object.prototype.hasOwnProperty.call(SactoryConfig.config.event.aliases, ret)) ret = SactoryConfig.config.event.aliases[ret];
 							var separated = ret.split('-');
 							if(separated.length == 2) {
 								var range;

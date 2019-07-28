@@ -1488,7 +1488,7 @@ Transpiler.prototype.open = function(){
 							break;
 						case ':':
 							if(attr.computed) this.parser.error("Compile-time attributes cannot be computed.");
-							if(dattributes.hasOwnProperty(attr.name)) {
+							if(Object.prototype.hasOwnProperty.call(dattributes, attr.name)) {
 								if(dattributes[attr.name] instanceof Array) {
 									dattributes[attr.name].push(attr.value);
 								} else {
@@ -1682,15 +1682,15 @@ Transpiler.prototype.open = function(){
 						tagName = name.substring(0, column);
 					}
 					create = append = false;
-				} else if(this.options.aliases && this.options.aliases.hasOwnProperty(name)) {
+				} else if(this.options.aliases && Object.prototype.hasOwnProperty.call(this.options.aliases, name)) {
 					var alias = this.options.aliases[name];
 					tagName = alias.tagName;
-					if(alias.hasOwnProperty("parent")) parent = alias.parent;
-					if(alias.hasOwnProperty("element")) element = alias.element;
-					if(alias.hasOwnProperty("create")) create = alias.create;
-					if(alias.hasOwnProperty("update")) update = alias.update;
-					if(alias.hasOwnProperty("append")) append = alias.append;
-					if(alias.hasOwnProperty("mode")) newMode = alias.mode;
+					if(Object.prototype.hasOwnProperty.call(alias, "parent")) parent = alias.parent;
+					if(Object.prototype.hasOwnProperty.call(alias, "element")) element = alias.element;
+					if(Object.prototype.hasOwnProperty.call(alias, "create")) create = alias.create;
+					if(Object.prototype.hasOwnProperty.call(alias, "update")) update = alias.update;
+					if(Object.prototype.hasOwnProperty.call(alias, "append")) append = alias.append;
+					if(Object.prototype.hasOwnProperty.call(alias, "mode")) newMode = alias.mode;
 				} else {
 					switch(name) {
 						case "window":
@@ -1709,6 +1709,9 @@ Transpiler.prototype.open = function(){
 						case "head":
 						case "body":
 							element = "document." + name;
+							create = append = false;
+							break;
+						case "element":
 							create = append = false;
 							break;
 						case "this":
@@ -1768,9 +1771,10 @@ Transpiler.prototype.open = function(){
 				newMode = modeNames[tagName.substr(1)];
 				if(newMode !== undefined) create = update = append = false; // behave as a scope
 			} else if(tagName == '@') {
+				this.warn("<@ /> tag name is deprecated. Use <:element /> instead.", position);
 				create = append = false;
 			} else if(tagName) {
-				if(this.tagNames.hasOwnProperty(tagName)) this.tagNames[tagName]++;
+				if(Object.prototype.hasOwnProperty.call(this.tagNames, tagName)) this.tagNames[tagName]++;
 				else this.tagNames[tagName] = 1;
 			}
 		}
@@ -2093,7 +2097,7 @@ Transpiler.prototype.transpile = function(input){
 	var source = this.source.join("");
 
 	function addDependencies(feature) {
-		if(dependencies.hasOwnProperty(feature)) {
+		if(Object.prototype.hasOwnProperty.call(dependencies, feature)) {
 			dependencies[feature].forEach(function(f){
 				features[f] = true;
 				addDependencies(f);

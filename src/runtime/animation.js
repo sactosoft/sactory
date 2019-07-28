@@ -11,7 +11,7 @@ Sactory.addAnimation = function(name, value){
 };
 
 Sactory.getAnimation = function(name){
-	return animations.hasOwnProperty(name) ? animations[name] : null;
+	return Object.prototype.hasOwnProperty.call(animations, name) ? animations[name] : null;
 };
 
 Sactory.createKeyframes = function(animation, options){
