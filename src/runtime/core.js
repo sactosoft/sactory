@@ -206,83 +206,82 @@ Sactory.noop = function(){};
  * @since 0.60.0
  */
 Sactory.update = function(context, options){
-	
-	var args = [];
-	var widgetArgs = {};
-	var widgetExt = {};
-	var widgetExtAnon = [];
+
+	var attrs = options[Const.ARG_TYPE_ATTRIBUTES] || [];
 
 	if(options[Const.ARG_TYPE_INTERPOLATED_ATTRIBUTES]) {
 		if(!options[Const.ARG_TYPE_ATTRIBUTES]) options[Const.ARG_TYPE_ATTRIBUTES] = [];
 		options[Const.ARG_TYPE_INTERPOLATED_ATTRIBUTES].forEach(function(iattrs){
 			iattrs[3].forEach(function(iattr){
-				options[Const.ARG_TYPE_ATTRIBUTES].push([iattrs[0], iattrs[1], iattrs[2] + iattr + iattrs[4]]);
+				attrs.push([iattrs[0], iattrs[1], iattrs[2] + iattr + iattrs[4]]);
 			});
-		});
-	}
-
-	if(options[Const.ARG_TYPE_ATTRIBUTES]) {
-		// filter out optional arguments
-		options[Const.ARG_TYPE_ATTRIBUTES] = options[Const.ARG_TYPE_ATTRIBUTES].filter(function(a){
-			return !a[3] || a[0] !== undefined;
-		});
-		options[Const.ARG_TYPE_ATTRIBUTES].forEach(function(arg){
-			var ext = arg[1] == Const.BUILDER_TYPE_EXTEND_WIDGET;
-			if(ext || arg[1] == Const.BUILDER_TYPE_WIDGET) {
-				var name = arg[2];
-				var value = arg[0];
-				var obj;
-				if(ext) {
-					if(typeof name == "function") {
-						widgetExtAnon.push({
-							widget: name,
-							args: value
-						});
-						return;
-					} else {
-						var col = name.indexOf(':');
-						if(col == -1) {
-							widgetExt[name] = value;
-							return;
-						} else {
-							var key = name.substring(0, col);
-							if(!Object.prototype.hasOwnProperty.call(widgetExt, key)) obj = widgetExt[key] = {};
-							else obj = widgetExt[key];
-							name = name.substr(col + 1);
-						}
-					}
-				} else {
-					if(name.length) {
-						obj = widgetArgs;
-					} else {
-						widgetArgs = value;
-						return;
-					}
-				}
-				var splitted = name.split('.');
-				if(splitted.length > 1) {
-					for(var i=0; i<splitted.length-1; i++) {
-						var k = splitted[i];
-						if(typeof obj[k] != "object") obj[k] = {};
-						obj = obj[k];
-					}
-					obj[splitted[splitted.length - 1]] = value;
-				} else {
-					obj[name] = value;
-				}
-			} else {
-				args.push(arg);
-			}
 		});
 	}
 
 	if(options[Const.ARG_TYPE_SPREAD]) {
 		options[Const.ARG_TYPE_SPREAD].forEach(function(spread){
 			for(var key in spread[1]) {
-				args.push([spread[1][key], spread[0], key]);
+				attrs.push([spread[1][key], spread[0], key]);
 			}
 		});
 	}
+	
+	var args = [];
+	var widgetArgs = {};
+	var widgetExt = {};
+	var widgetExtAnon = [];
+
+	// filter out optional arguments
+	attrs.filter(function(a){
+		return !a[3] || a[0] !== undefined;
+	}).forEach(function(arg){
+		var ext = arg[1] == Const.BUILDER_TYPE_EXTEND_WIDGET;
+		if(ext || arg[1] == Const.BUILDER_TYPE_WIDGET) {
+			var name = arg[2];
+			var value = arg[0];
+			var obj;
+			if(ext) {
+				if(typeof name == "function") {
+					widgetExtAnon.push({
+						widget: name,
+						args: value
+					});
+					return;
+				} else {
+					var col = name.indexOf(':');
+					if(col == -1) {
+						widgetExt[name] = value;
+						return;
+					} else {
+						var key = name.substring(0, col);
+						if(!Object.prototype.hasOwnProperty.call(widgetExt, key)) obj = widgetExt[key] = {};
+						else obj = widgetExt[key];
+						name = name.substr(col + 1);
+					}
+				}
+			} else {
+				if(name.length) {
+					obj = widgetArgs;
+				} else {
+					widgetArgs = value;
+					return;
+				}
+			}
+			var splitted = name.split('.');
+			if(splitted.length > 1) {
+				for(var i=0; i<splitted.length-1; i++) {
+					var k = splitted[i];
+					if(typeof obj[k] != "object") obj[k] = {};
+					obj = obj[k];
+				}
+				obj[splitted[splitted.length - 1]] = value;
+			} else {
+				obj[name] = value;
+			}
+		} else {
+			args.push(arg);
+		}
+	});
 	
 	if(!context.element) {
 		var parentWidget, widget;
