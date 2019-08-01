@@ -234,7 +234,7 @@ Builder.prototype.html = function(value, bind, anchor){
 	}
 	if(SactoryObservable.isObservable(value)) {
 		// create an anchor to maintain the right order
-		var innerAnchor = SactoryBind.createAnchor(this.element, bind, anchor);
+		var innerAnchor = SactoryBind.createAnchor({element: this.element, bind: bind, anchor: anchor});
 		this.subscribe(bind, value.subscribe(function(value){
 			// removing children from bind context should not be necessary,
 			// as they can't have any sactory-created context

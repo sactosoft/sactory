@@ -2167,7 +2167,17 @@ if(typeof window == "object") {
 			var script = document.createElement("script");
 			script.dataset.sactoryTo = id;
 			script.dataset.from = "[data-sactory-from='" + id + "']";
-			var transpiler = new Transpiler({namespace: id});
+			var attributes = {};
+			Array.prototype.forEach.call(builder.attributes, function(attr){
+				if(Polyfill.startsWith.call(attr.name, "mode:")) {
+					attributes[attr.name.substr(5)] = true;
+				}
+			});
+			var transpiler = new Transpiler({
+				namespace: id,
+				mode: builder.getAttribute("mode"),
+				modeAttributes: attributes
+			});
 			var result = transpiler.transpile(content || builder.textContent);
 			result.warnings.forEach(function(message){
 				console.warn(message);
