@@ -1241,7 +1241,7 @@ Transpiler.prototype.parseCode = function(input, parentParser){
 					// single observable, pass it raw so it can be used in two-way binding
 					return input.substr(1);
 				} else {
-					return $this.runtime + "." + $this.feature(maybeObservables.length ? "maybeComputedObservable" : "computedObservable") + "(this, " + $this.bind + ", " + ret.toSpreadValue() + ")";
+					return $this.runtime + "." + $this.feature(maybeObservables.length ? "maybeComputedObservable" : "computedObservable") + "(this, " + $this.context + ".bind, " + ret.toSpreadValue() + ")";
 				}
 			} else {
 				return source;
@@ -1413,9 +1413,11 @@ Transpiler.prototype.open = function(){
 			this.updateTemplateLiteralParser();
 			var attr = {
 				optional: !!this.parser.readIf('?'),
+				negated: !!this.parser.readIf('!'),
 				type: this.parser.readAttributePrefix() || ""
 			};
 			if(this.isSpreadAttribute()) {
+				//TODO assert not optional nor negated
 				sattributes.push({type: attr.type, expr: this.parser.readSingleExpression(false, true)});
 				skip(true);
 			} else {
@@ -1446,7 +1448,9 @@ Transpiler.prototype.open = function(){
 				}
 				// read value
 				skip(true);
-				if(this.parser.peek() == '=') {
+				if(attr.negated) {
+					attr.value = false;
+				} else if(this.parser.peek() == '=') {
 					this.parser.index++;
 					skip();
 					this.parser.parseTemplateLiteral = null;
