@@ -1146,12 +1146,15 @@ Transpiler.Internal = {
 // register default modes
 
 Transpiler.defineMode(["code", "javascript", "js"], JavascriptParser, true);
-Transpiler.defineMode(["auto-code"], AutoJavascriptParser);
 Transpiler.defineMode(["html"], HTMLParser);
-Transpiler.defineMode(["auto-html"], AutoHTMLParser);
 Transpiler.defineMode(["script"], ScriptParser);
 Transpiler.defineMode(["css"], CSSParser);
 Transpiler.defineMode(["ssb", "style"], SSBParser);
+
+// register auto modes after default modes to give less precedence to `matchesTag`
+
+Transpiler.defineMode(["auto-code"], AutoJavascriptParser);
+Transpiler.defineMode(["auto-html"], AutoHTMLParser);
 
 function Transpiler(options) {
 	this.options = Polyfill.assign({env: "none"}, options || {});
