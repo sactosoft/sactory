@@ -1157,9 +1157,16 @@ Transpiler.defineMode(["auto-code"], AutoJavascriptParser);
 Transpiler.defineMode(["auto-html"], AutoHTMLParser);
 
 function Transpiler(options) {
-	this.options = Polyfill.assign({env: "none"}, options || {});
-	if(this.options.env == "none") {
+	this.options = Polyfill.assign({env: ["none"]}, options || {});
+	if(!Array.isArray(this.options.env)) this.options.env = [this.options.env];
+	if(this.options.env.length == 1 && this.options.env[0] == "none") {
 		this.nextVar = Transpiler.prototype.nextVarName.bind(this);
+	} else {
+		this.options.env.forEach(function(env){
+			if(["none", "amd", "commonjs"].indexOf(env) == -1) {
+				throw new Error("Unknown env '" + env + "'.");
+			}
+		});
 	}
 }
 
@@ -2070,10 +2077,45 @@ Transpiler.prototype.transpile = function(input){
 	this.warnings = [];
 	
 	var v = typeof Transpiler != "undefined" && Transpiler.VERSION || version && version.version;
+	var umd = this.options.env.length > 1;
+	var noenv = !umd && this.options.env[0] == "none";
+
+	console.log(this.options.env);
+
+	this.after = "";
 	this.before = "/*! Transpiled" + (this.options.filename ? " from " + this.options.filename : "") + " using Sactory v" + v + ". Do not edit manually. */";
-	if(this.options.env == "require" || this.options.env == "define") this.before += this.options.env + "(['" + (this.options.runtime || "sactory") + "'], function(" + this.runtime + "){var " + this.context + "={};";
-	else if(this.options.env == "commonjs") this.before += "var " + this.runtime + "=require('" + (this.options.runtime || "sactory") + "');var " + this.context + "={};";
-	else this.before += "var " + this.runtime + "=" + (this.options.runtime || "Sactory") + ";var " + this.context + "={};";
+	if(noenv) {
+		this.before += "var " + this.runtime + "=" + (this.options.runtime || "Sactory") + ";";
+	} else {
+		if(umd) this.before += "!function(a,b){";
+		if(this.options.env.indexOf("amd") != -1) {
+			if(umd) this.before += "if(typeof define=='function'&&define.amd){";
+			this.before += (this.options.amd && this.options.amd.anonymous ? "require" : "define") + "(['" + (this.options.amd && this.options.amd.runtime || "sactory") + "'" + this.calcDeps("amd", ",'", "'") + "],";
+			if(umd) this.before += "b)}else ";
+		}
+		if(this.options.env.indexOf("commonjs") != -1) {
+			if(umd) this.before += "if(typeof exports=='object'){";
+			var exportCall = "module.exports=b(require('" + (this.options.commonjs && this.options.commonjs.runtime || "sactory") + "')" + this.calcDeps("commonjs", ",require('", "')") + ")";
+			if(umd) this.before += exportCall + "}else ";
+			else {
+				this.before += "var b=";
+				this.after += exportCall;
+			}
+		}
+		if(this.options.env.indexOf("none") != -1) {
+			this.before += "{";
+			if(this.options.globalExport) this.before += "a." + this.options.globalExport + "=";
+			this.before += "b(" + (this.options.runtime || "Sactory") + this.calcDeps("none", ",", "") + ")}";
+		} else if(umd) {
+			// remove `else`
+			this.before = this.before.slice(0, -5);
+		}
+		if(umd) this.before += "}(this,";
+		this.before += "function(" + this.runtime;
+		if(this.options.dependencies) this.before += "," + Object.keys(this.options.dependencies).join(",");
+		this.before += "){";
+	}
+	this.before += "var " + this.context + "={};";
 	if(!this.options.hasOwnProperty("versionCheck") || this.options.versionCheck) this.before += this.runtime + ".check(\"" + v + "\");";
 	this.source = [];
 
@@ -2098,8 +2140,8 @@ Transpiler.prototype.transpile = function(input){
 	}
 	
 	this.endMode();
-	
-	this.after = this.options.env == "require" || this.options.env == "define" ? "})" : "";
+
+	if(!noenv) this.after += "});";
 
 	var source = this.source.join("");
 
@@ -2134,6 +2176,21 @@ Transpiler.prototype.transpile = function(input){
 		}
 	};
 	
+};
+
+Transpiler.prototype.calcDeps= function(moduleType, before, after){
+	var ret = "";
+	if(this.options.dependencies) {
+		for(var key in this.options.dependencies) {
+			var dep = this.options.dependencies[key];
+			if(typeof dep == "string") {
+				ret += before + dep + after;
+			} else if(dep[moduleType]) {
+				ret += before + dep[moduleType] + after;
+			}
+		}
+	}
+	return ret;
 };
 
 var dependencies = {
