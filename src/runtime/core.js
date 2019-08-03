@@ -282,8 +282,10 @@ Sactory.update = function(context, options){
 			args.push(arg);
 		}
 	});
+
+	var updatedElement = context.container || context.element;
 	
-	if(!context.element) {
+	if(!updatedElement) {
 		var parentWidget, widget;
 		function getWidget(name) {
 			if(Polyfill.startsWith.call(name, "::")) {
@@ -327,7 +329,8 @@ Sactory.update = function(context, options){
 			} else {
 				context.content = context.element;
 			}
-			if(registry.slots[Sactory.SL_CONTAINER]) context.element = context.container = registry.slots[Sactory.SL_CONTAINER].element;
+			updatedElement = context.element;
+			if(registry.slots[Sactory.SL_CONTAINER]) updatedElement = context.container = registry.slots[Sactory.SL_CONTAINER].element;
 			if(registry.slots[Sactory.SL_INPUT]) context.input = registry.slots[Sactory.SL_INPUT].element;
 			/* debug:
 			if(context.element.setAttribute) {
@@ -340,9 +343,9 @@ Sactory.update = function(context, options){
 			*/
 		} else {
 			if(options[Const.ARG_TYPE_NAMESPACE]) {
-				context.element = context.content = document.createElementNS(options[Const.ARG_TYPE_NAMESPACE], options.tagName);
+				updatedElement = context.element = context.content = document.createElementNS(options[Const.ARG_TYPE_NAMESPACE], options.tagName);
 			} else {
-				context.element = context.content = document.createElement(options.tagName);
+				updatedElement = context.element = context.content = document.createElement(options.tagName);
 			}
 			/* debug:
 			if(context.element.setAttribute) {
@@ -357,12 +360,12 @@ Sactory.update = function(context, options){
 	});
 	
 	args.forEach(function(arg){
-		context.element.__builder[arg[1]](arg[2], arg[0], context.bind, context.anchor, context.scope);
+		updatedElement.__builder[arg[1]](arg[2], arg[0], context.bind, context.anchor, context.scope);
 	});
 
 	if(options[Const.ARG_TYPE_TRANSITIONS]) {
 		options[Const.ARG_TYPE_TRANSITIONS].forEach(function(transition){
-			context.element.__builder.addAnimation(transition[0], transition[1], transition[2] || {});
+			updatedElement.__builder.addAnimation(transition[0], transition[1], transition[2] || {});
 		});
 	}
 
@@ -374,11 +377,11 @@ Sactory.update = function(context, options){
 		if(widget.prototype && widget.prototype.render) {
 			var instance = new widgets[widgetName](widgetExt[widgetName]);
 			instance.render(newContext);
-			context.element.__builder.widgets[widgetName] = instance;
+			updatedElement.__builder.widgets[widgetName] = instance;
 		} else {
 			widget(newContext, widgetExt[widgetName]);
 		}
-		registry.applyTo(context.element, false);
+		registry.applyTo(updatedElement, false);
 		/* debug:
 		if(context.element.setAttribute) {
 			context.element.setAttribute(":extend:" + widgetName, "");
@@ -413,8 +416,8 @@ Sactory.update = function(context, options){
  */
 Sactory.create = function(context, tagName, options){
 	options.tagName = tagName;
-	context.parent = context.element;
-	context.element = context.content = null; // delete parents
+	context.parent = context.container || context.element;
+	context.element = context.container = context.content = null; // delete parents
 	context.anchor = null; // invalidate the current anchor so the children will not use it
 	Sactory.update(context, options);
 };
@@ -434,7 +437,7 @@ Sactory.createOrUpdate = function(context, condition, tagName, options){
  * @since 0.71.0
  */
 Sactory.clone = function(context, options){
-	context.element = context.content = context.element.cloneNode(true);
+	context.element = context.container = context.content = context.element.cloneNode(true);
 	context.anchor = null; // invalidate the current anchor so the children will not use it
 	Sactory.update(context, options);
 };
@@ -474,14 +477,25 @@ Sactory.forms = function(context){
 /**
  * @since 0.60.0
  */
-Sactory.append = function(context, parent, afterappend, beforeremove){
+Sactory.append = function(context, parent, options){
 	if(parent && parent.nodeType || typeof parent == "string" && (parent = document.querySelector(parent))) {
+		if(context.bind) {
+			if(options.adoption && context.element instanceof DocumentFragment) {
+				// special case for adopted fragments: add to the bind context its children instead of
+				// the document fragment itself because the children are removed when the fragment is appended,
+				// and removing the fragment from the DOM does not remove the children too.
+				Array.prototype.forEach.call(context.element.childNodes, function(child){
+					context.bind.appendChild(child);
+				});
+			} else {
+				context.bind.appendChild(context.element);
+			}
+		}
 		if(context.parentAnchor && context.parentAnchor.parentNode === parent) parent.insertBefore(context.element, context.parentAnchor);
 		else parent.appendChild(context.element);
-		if(afterappend) afterappend.call(context.element);
+		if(options.aa) options.aa.call(context.element);
 		if(context.element.__builder && context.element.dispatchEvent) context.element.__builder.dispatchEvent("append"); //TODO only fire when listened for
-		if(beforeremove) context.element.__builder.event(context.scope, "remove", beforeremove, context.bind);
-		if(context.bind) context.bind.appendChild(context.element);
+		if(options.br) context.element.__builder.event(context.scope, "remove", options.br, context.bind);
 	}
 };
 
@@ -535,7 +549,7 @@ Sactory.clear = function(context){
  */
 Sactory.mixin = function(context, data){
 	if(data instanceof Node) {
-		Sactory.append({element: data, bind: context.bind, parentAnchor: context.anchor}, context.element);
+		Sactory.append({element: data, bind: context.bind, parentAnchor: context.anchor}, context.element, {adoption: true});
 	} else {
 		Sactory.html(context, data);
 	}
@@ -564,7 +578,7 @@ Sactory.html = function(context, html){
  */
 Sactory.comment = function(context, comment){
 	var ret = document.createComment(comment);
-	Sactory.append({element: ret, bind: context.bind, parentAnchor: context.anchor}, context.element);
+	Sactory.append({element: ret, bind: context.bind, parentAnchor: context.anchor}, context.element, {});
 	return ret;
 };
 

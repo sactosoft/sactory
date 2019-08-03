@@ -1903,7 +1903,13 @@ Transpiler.prototype.open = function(){
 				}).join(", ")]);
 			}
 			if(append) {
-				var append = [this.feature("append"), parent].concat(newMode !== undefined ? [this.currentMode.parser.afterappend() || 0, this.currentMode.parser.beforeremove() || 0] : []);
+				var options = [];
+				var aa = this.currentMode.parser.afterappend();
+				var br = this.currentMode.parser.beforeremove();
+				if(aa) options.push("aa:" + aa);
+				if(br) options.push("br:" + br);
+				if(dattributes.adopt) options.push("adoption:true");
+				var append = [this.feature("append"), parent, "{" + options.join(", ") + "}"];
 				if(optional) append[0] = "[" + (updatedElement || element) + " ? \"" + this.feature("noop") + "\" : \"append\"]";
 				after.push(append);
 			}
