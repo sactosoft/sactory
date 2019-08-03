@@ -1593,7 +1593,7 @@ Transpiler.prototype.open = function(){
 					inheritance[key] = (inheritance[key] || []).concat(info.data[key]);
 				}
 			});
-			if(computed) ret.widget = 0;
+			if(Object.prototype.hasOwnProperty.call(dattributes, "widget")) ret.widget = dattributes.widget;
 			if(dattributes.namespace) ret.namespace = dattributes.namespace;
 			else if(dattributes.xhtml) ret.namespace = this.runtime + ".NS_XHTML";
 			else if(dattributes.svg) ret.namespace = this.runtime + ".NS_SVG";
@@ -2079,8 +2079,6 @@ Transpiler.prototype.transpile = function(input){
 	var v = typeof Transpiler != "undefined" && Transpiler.VERSION || version && version.version;
 	var umd = this.options.env.length > 1;
 	var noenv = !umd && this.options.env[0] == "none";
-
-	console.log(this.options.env);
 
 	this.after = "";
 	this.before = "/*! Transpiled" + (this.options.filename ? " from " + this.options.filename : "") + " using Sactory v" + v + ". Do not edit manually. */";

@@ -306,7 +306,7 @@ Sactory.update = function(context, options){
 				}
 			}
 		}
-		if(!Object.prototype.hasOwnProperty.call(options, Const.ARG_TYPE_WIDGET) && (widget = getWidget(options.tagName)) || (widget = typeof options.tagName == "function" && options.tagName)) {
+		if((!Object.prototype.hasOwnProperty.call(options, Const.ARG_TYPE_WIDGET) || options[Const.ARG_TYPE_WIDGET]) && (widget = getWidget(options.tagName)) || (widget = typeof options.tagName == "function" && options.tagName)) {
 			var registry = new SlotRegistry(options.tagName);
 			var newContext = Polyfill.assign({}, context, {element: null, anchor: null, registry: registry});
 			if(widget.prototype && widget.prototype.render) {
