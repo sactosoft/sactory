@@ -152,8 +152,7 @@ Sactory.bind = function(scope, context, target, fun){
 /**
  * @since 0.102.0
  */
-Sactory.bindIfElse = function(scope, context, conditions){
-	var functions = Array.prototype.slice.call(arguments, 3);
+Sactory.bindIfElse = function(scope, context, conditions, ...functions){
 	var currentBindDependencies = (context.bind || Sactory.bindFactory).fork();
 	var currentBindContent = (context.bind || Sactory.bindFactory).fork();
 	var currentAnchor;
@@ -161,22 +160,20 @@ Sactory.bindIfElse = function(scope, context, conditions){
 		currentAnchor = Sactory.createAnchor(context);
 	}
 	// filter maybe observables
-	conditions.forEach(function(condition){
-		if(condition[2]) {
-			Array.prototype.push.apply(condition[1], SactoryObservable.filterObservables(condition[2]));
+	conditions.forEach(([, observables, maybe]) => {
+		if(maybe) {
+			observables.push(...SactoryObservable.filterObservables(maybe));
 		}
 	});
 	var active = 0xFEE1DEAD;
 	var results;
 	function reload() {
 		// reset results
-		results = conditions.map(function(condition){
-			return null;
-		});
+		results = conditions.map(() => null);
 		// calculate new results and call body
 		for(var i=0; i<results.length; i++) {
-			var condition = conditions[i];
-			if(!condition[0] || (results[i] = !!condition[0].call(scope))) {
+			var [getter] = conditions[i];
+			if(!getter || (results[i] = !!getter.call(scope))) {
 				active = i;
 				functions[i].call(scope, Polyfill.assign({}, context, {bind: currentBindContent, anchor: currentAnchor}));
 				return;
@@ -189,13 +186,13 @@ Sactory.bindIfElse = function(scope, context, conditions){
 		currentBindContent.rollback();
 		reload();
 	}
-	conditions.forEach(function(condition, i){
-		if(condition[1]) {
-			condition[1].forEach(function(dependency){
+	conditions.forEach(([getter, observables], i) => {
+		if(observables) {
+			observables.forEach(dependency => {
 				currentBindDependencies.subscribe(dependency.subscribe(function(){
 					if(i <= active) {
 						// the change may affect what is being displayed
-						var result = !!condition[0].call(scope);
+						var result = !!getter.call(scope);
 						if(result != results[i]) {
 							// the condition has changes, need to recalc
 							results[i] = result;
@@ -227,7 +224,7 @@ Sactory.bindEach = function(scope, context, target, getter, fun){
 		var binds = [];
 		function add(action, bind, anchor, value, index, array) {
 			fun.call(scope, Polyfill.assign({}, context, {bind: bind, anchor: anchor}), value, index, array);
-			binds[action]({bind: bind, anchor: anchor});
+			binds[action]({bind, anchor});
 		}
 		function remove(bind) {
 			bind.bind.rollback();
@@ -265,7 +262,7 @@ Sactory.bindEach = function(scope, context, target, getter, fun){
 					var anchorTo = ptr && ptr.anchor && ptr.anchor.nextSibling;
 					var args = [];
 					Array.prototype.slice.call(data, 2).forEach(function(value){
-						args.push({value: value});
+						args.push({value});
 					});
 					Array.prototype.splice.apply(binds, Array.prototype.slice.call(data, 0, 2).concat(args)).forEach(function(removed){
 						removed.bind.rollback();
@@ -286,12 +283,8 @@ Sactory.bindEach = function(scope, context, target, getter, fun){
 		updateAll();
 	} else {
 		// use normal bind and Sactory.forEach
-		Sactory.bind(scope, context, target, function(context){
-			SactoryCore.forEach(scope, getter.call(scope), function(){
-				var args = [context];
-				Array.prototype.push.apply(args, arguments);
-				fun.apply(scope, args);
-			});
+		Sactory.bind(scope, context, target, context => {
+			SactoryCore.forEach(scope, getter.call(scope), (...args) => fun.call(scope, context, ...args));
 		});
 	}
 };
@@ -303,11 +296,7 @@ Sactory.bindEachMaybe = function(scope, context, target, getter, fun){
 	if(SactoryObservable.isObservable(target)) {
 		Sactory.bindEach(scope, context, target, getter, fun);
 	} else {
-		SactoryCore.forEach(scope, getter.call(scope), function(){
-			var args = [context];
-			Array.prototype.push.apply(args, arguments);
-			fun.apply(scope, args);
-		});
+		SactoryCore.forEach(scope, getter.call(scope), (...args) => fun.call(scope, context, ...args));
 	}
 };
 

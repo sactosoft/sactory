@@ -24,15 +24,14 @@ Polyfill.padStart = String.prototype.padStart || function(target, string){
 	return ret;
 };
 
-Polyfill.assign = Object.assign || function(target){
-	for(var i=1; i<arguments.length; i++) {
-		var source = arguments[i];
+Polyfill.assign = Object.assign || function(target, ...args){
+	args.forEach(source => {
 		for(var key in source) {
 			if(Object.prototype.hasOwnProperty.call(source, key)) {
 				target[key] = source[key];
 			}
 		}
-	}
+	});
 	return target;
 };
 

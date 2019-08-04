@@ -203,7 +203,7 @@ function TextParser(transpiler, parser, source, attributes) {
 TextParser.prototype = Object.create(SourceParser.prototype);
 
 TextParser.prototype.addText = function(expr){
-	this.add(this.runtime + "." + this.transpiler.feature("text") + "(" + this.context + ", " + expr + ");");
+	this.add(this.transpiler.feature("text") + "(" + this.context + ", " + expr + ");");
 };
 
 TextParser.prototype.addCurrent = function(){
@@ -227,7 +227,7 @@ TextParser.prototype.addCurrent = function(){
 		if(expr.length) {
 			var joined = expr.join(" + ");
 			if(observables.length || maybeObservables.length) {
-				joined = this.runtime + "." + this.transpiler.feature(maybeObservables.length ? "maybeComputedObservable" : "computedObservable") + "(this, " + this.context + ".bind, [" +
+				joined = this.transpiler.feature(maybeObservables.length ? "maybeComputedObservable" : "computedObservable") + "(this, " + this.context + ".bind, [" +
 					uniq(observables).join(", ") + "], function(){return " + joined + "}" + (maybeObservables.length ? ", [" + maybeObservables.join(", ") + "]" : "") + ")";
 			}
 			this.addText(joined);
@@ -280,7 +280,7 @@ TextParser.prototype.parseImpl = function(pre, match, handle, eof){
 				var expr = this.parseCode("skipEnclosedContent", true);
 				if(match == '#') {
 					this.addCurrent();
-					this.add(this.runtime + "." + this.transpiler.feature("mixin") + "(" + this.context + ", " + expr.source + ");");
+					this.add(this.transpiler.feature("mixin") + "(" + this.context + ", " + expr.source + ");");
 				} else {
 					this.pushExpr(expr);
 				}
@@ -409,13 +409,13 @@ LogicParser.prototype.parseLogic = function(expected, type, closing){
 						rest = parser.input.substr(parser.index);
 					}
 					if(expr) {
-						this.add(this.runtime + "." + this.transpiler.feature("forEach") + "(this, ")
+						this.add(this.transpiler.feature("forEach") + "(this, ")
 						this.add(expr);
 						this.add(", function(");
 						this.add(rest + ")");
 					} else {
 						statement.type = part.type = "range";
-						this.add(this.runtime + "." + this.transpiler.feature("range") + "(this, " + from + ", " + to + ", function(" + rest + ")");
+						this.add(this.transpiler.feature("range") + "(this, " + from + ", " + to + ", function(" + rest + ")");
 					}
 					statement.inlineable = false;
 					statement.end = ");";
@@ -546,7 +546,7 @@ LogicParser.prototype.end = function(){
 						this.source[part.close] += "}";
 					}
 				}.bind(this));
-				this.source[popped.startIndex] = this.runtime + "." + this.transpiler.feature("bindIfElse") + "(this, " + this.context +
+				this.source[popped.startIndex] = this.transpiler.feature("bindIfElse") + "(this, " + this.context +
 					", [" + conditions.join(", ") + "]" + this.source[popped.startIndex];
 				this.source[popped.endIndex] = ");" + this.source[popped.endIndex];
 			} else if(popped.type == "foreach") {
@@ -554,14 +554,14 @@ LogicParser.prototype.end = function(){
 				var expr = this.source[popped.startIndex + 1];
 				this.source[popped.startIndex] = "";
 				this.source[popped.startIndex + 1] = "";
-				this.source[popped.startIndex + 2] = this.runtime + "." + this.transpiler.feature("bindEach" + (popped.maybeObservables.length ? "Maybe" : "")) +
+				this.source[popped.startIndex + 2] = this.transpiler.feature("bindEach" + (popped.maybeObservables.length ? "Maybe" : "")) +
 					"(this, " + this.context + ", " + (popped.maybeObservables.length ? popped.maybeObservables[0] : popped.observables[0]) +
 					", function(){return " + expr + "}, function(" + this.context + ", ";
 				// no need to close as the end is the same as the Sactory.forEach function call
 			} else {
 				// normal bind
-				this.source[popped.startIndex] = this.runtime + "." + this.transpiler.feature("bind") + "(this, " + this.context +
-					", [" + uniq(popped.observables).join(", ") + "]" + (popped.maybeObservables.length ? ".concat(" + this.runtime + "." + this.transpiler.feature("filterObservables") + "([" + uniq(popped.maybeObservables) + "]))" : "") +
+				this.source[popped.startIndex] = this.transpiler.feature("bind") + "(this, " + this.context +
+					", [" + uniq(popped.observables).join(", ") + "]" + (popped.maybeObservables.length ? ".concat(" + this.transpiler.feature("filterObservables") + "([" + uniq(popped.maybeObservables) + "]))" : "") +
 					", function(" + this.context + "){" + this.source[popped.startIndex];
 				this.source[popped.endIndex] = "});" + this.source[popped.endIndex];
 			}
@@ -622,7 +622,7 @@ JavascriptParser.prototype.addObservable = function(observables, maybeObservable
 		name += this.parseCodeToSource("readVarName", true);
 	}
 	if(maybe) {
-		this.add(this.runtime + "." + this.transpiler.feature("value") + "(" + name + ")");
+		this.add(this.transpiler.feature("value") + "(" + name + ")");
 		if(maybeObservables) maybeObservables.push(name);
 	} else {
 		this.add(name + ".value");
@@ -665,7 +665,7 @@ JavascriptParser.prototype.next = function(match){
 			break;
 		case '@':
 			if(this.parser.readIf('@')) {
-				this.add(this.context + ".element");
+				this.add(this.runtime);
 			} else {
 				var skip = this.parser.skipImpl({strings: false});
 				var peek = this.parser.peek();
@@ -679,14 +679,14 @@ JavascriptParser.prototype.next = function(match){
 				}.bind(this);
 				var match = this.parser.input.substr(this.parser.index).match(/^(?:((?:\.?[a-zA-Z0-9_$]+)*)(\s*)\()/);
 				if(match) {
-					var add = function(runtime, fun, args){
+					var add = (fun, args) => {
 						this.parser.index += match[0].length;
-						this.add((runtime ? this.runtime + "." : "") + skip + fun + match[2] + "(" + (args || ""));
+						this.add(skip + fun + match[2] + "(" + (args || ""));
 						this.parentheses.push(false);
-					}.bind(this);
+					};
 					switch(match[1]) {
 						case "subscribe":
-							add(true, this.transpiler.feature("subscribe"), this.context + ", ");
+							add(this.transpiler.feature("subscribe"), this.context + ", ");
 							break;
 						case "watch":
 						case "watch.deep":
@@ -700,29 +700,29 @@ JavascriptParser.prototype.next = function(match){
 							this.transpiler.updateTemplateLiteralParser();
 							if(parsed.observables && parsed.observables.length || parsed.maybeObservables && parsed.maybeObservables.length || type == ".deps") {
 								// computed
-								this.add(this.runtime + "." + this.transpiler.feature("computedObservable") + type + "(this, " + this.context + ".bind, " + parsed.toSpreadValue());
+								this.add(this.transpiler.feature("computedObservable") + type + "(this, " + this.context + ".bind, " + parsed.toSpreadValue());
 							} else {
-								this.add(this.runtime + "." + this.transpiler.feature("observable") + type + "(" + parsed.source);
+								this.add(this.transpiler.feature("observable") + type + "(" + parsed.source);
 							}
 							this.parentheses.push(false);
 							break;
 						case "text":
 						case "html":
 							this.parser.index += match[0].length - 1;
-							this.add(this.runtime + "." + this.transpiler.feature(match[1]) + "(" + this.context + ", " + this.parseCodeToValue("skipEnclosedContent") + ")");
+							this.add(this.transpiler.feature(match[1]) + "(" + this.context + ", " + this.parseCodeToValue("skipEnclosedContent") + ")");
 							break;
 						case "on":
-							add(true, this.transpiler.feature("on"), "this, " + this.context + ", ");
+							add(this.transpiler.feature("on"), "this, " + this.context + ", ");
 							break;
 						case "slot":
-							add(false, this.context + ".registry.add", this.runtime + "." + this.transpiler.feature("createAnchor") + "(" + this.context + "), ");
+							add(this.context + ".registry.add", this.transpiler.feature("createAnchor") + "(" + this.context + "), ");
 							break;
 						case "animations.add":
-							add(true, this.transpiler.feature("addAnimation"));
+							add(this.transpiler.feature("addAnimation"));
 							break;
 						case "ready":
 						case "quote":
-							add(true, this.transpiler.feature(match[1]));
+							add(this.transpiler.feature(match[1]));
 							break;
 						case "rgb":
 						case "rgba":
@@ -739,7 +739,7 @@ JavascriptParser.prototype.next = function(match){
 						case "sepia":
 						case "mix":
 						case "contrast":
-							add(true, this.transpiler.feature("css." + match[1]));
+							add(this.transpiler.feature("css." + match[1]));
 							break;
 						default:
 							fallback();
@@ -761,7 +761,7 @@ JavascriptParser.prototype.next = function(match){
 						// should be computed
 						this.transpiler.warn("The observable syntax `**` cannot be used to create computed observables, use `@watch` instead.", position);
 					}
-					this.add(this.runtime + "." + this.transpiler.feature("observable") + "(" + parsed.source + ")");
+					this.add(this.transpiler.feature("observable") + "(" + parsed.source + ")");
 					this.parser.last = ')';
 					this.parser.lastIndex = this.parser.index;
 				} else {
@@ -900,7 +900,7 @@ SSBParser.prototype = Object.create(LogicParser.prototype);
 
 SSBParser.prototype.addScope = function(selector){
 	var scope = this.transpiler.nextVarName();
-	this.add("var " + scope + "=" + this.runtime + "." + this.transpiler.feature("select") + "(" + this.scopes[this.scopes.length - 1] + ", " + selector + ");");
+	this.add("var " + scope + "=" + this.transpiler.feature("select") + "(" + this.scopes[this.scopes.length - 1] + ", " + selector + ");");
 	this.scopes.push(scope);
 };
 
@@ -914,8 +914,8 @@ SSBParser.prototype.skip = function(){
 };
 
 SSBParser.prototype.start = function(){
-	this.add(this.runtime + "." + this.transpiler.feature("compileAndBindStyle") + "(this, function(){");
-	this.add("var " + this.scopes[0] + "=" + this.runtime + "." + this.transpiler.feature("root") + "();");
+	this.add(this.transpiler.feature("compileAndBindStyle") + "(this, function(){");
+	this.add("var " + this.scopes[0] + "=" + this.transpiler.feature("root") + "();");
 	if(this.scoped) this.addScope("'.' + " + this.runtime + ".config.prefix + " + this.context + ".element.__builder.runtimeId");
 	else if(this.scope) this.addScope(JSON.stringify('.' + this.scope));
 };
@@ -1100,7 +1100,7 @@ SSBParser.createExprImpl = function(expr, info, transpiler){
 			if(/^[a-zA-Z_$]/.exec(v)) {
 				// it's a variable
 				info.is = true;
-				info.computed += info.runtime + "." + transpiler.feature("unit") + "(" + info.param + "," + v + ")";
+				info.computed += transpiler.feature("unit") + "(" + info.param + "," + v + ")";
 			} else {
 				info.computed += v;
 			}
@@ -1119,7 +1119,7 @@ SSBParser.createExpr = function(expr, transpiler){
 	var info = {
 		runtime: transpiler.runtime,
 		param: param,
-		computed: "(function(" + param + "){return " + transpiler.runtime + "." + transpiler.feature("computeUnit") + "(" + param + ",",
+		computed: "(function(" + param + "){return " + transpiler.feature("computeUnit") + "(" + param + ",",
 		is: false,
 		op: 0
 	};
@@ -1168,6 +1168,9 @@ function Transpiler(options) {
 			}
 		});
 	}
+	if(this.options.latin) {
+		this.nextVar = this.nextVarName = Transpiler.prototype.nextLatinVarName.bind(this);
+	}
 }
 
 /**
@@ -1189,6 +1192,20 @@ Transpiler.prototype.nextVarName = function(){
 		num = Math.floor((num - t) / 39);
 	}
 	return s;
+};
+
+/**
+ * @since 0.119.0
+ */
+Transpiler.prototype.nextLatinVarName = function(){
+	var num = this.count++ % 1296;
+	var s = "";
+	for(var i=0; i<2; i++) {
+		var t = num % 36;
+		s = (t < 10 ? t : String.fromCharCode(97 + t - 10)) + s;
+		num = Math.floor((num - t) / 36);
+	}
+	return "$_" + s;
 };
 
 /**
@@ -1251,7 +1268,7 @@ Transpiler.prototype.parseCode = function(input, parentParser){
 					// single observable, pass it raw so it can be used in two-way binding
 					return input.substr(1);
 				} else {
-					return $this.runtime + "." + $this.feature(maybeObservables.length ? "maybeComputedObservable" : "computedObservable") + "(this, " + $this.context + ".bind, " + ret.toSpreadValue() + ")";
+					return $this.feature(maybeObservables.length ? "maybeComputedObservable" : "computedObservable") + "(this, " + $this.context + ".bind, " + ret.toSpreadValue() + ")";
 				}
 			} else {
 				return source;
@@ -1357,7 +1374,7 @@ Transpiler.prototype.open = function(){
 			if(!match) {
 				this.parser.expect('-');
 				this.parser.expect('-');
-				this.source.push(this.runtime + "." + this.feature("comment") + "(" + this.context + ", " + stringify(this.parser.findSequence("-->", true).slice(0, -3)) + ")");
+				this.source.push(this.feature("comment") + "(" + this.context + ", " + stringify(this.parser.findSequence("-->", true).slice(0, -3)) + ")");
 				this.addSemicolon();
 			}
 		}
@@ -1531,7 +1548,7 @@ Transpiler.prototype.open = function(){
 									if(start.name.length == 5) attr.parts.shift();
 									else start.name = start.name.substr(5);
 									var value = attr.value;
-									attr.value = this.runtime + "." + this.feature((temp ? "next" : "prev") + "Id") + "()";
+									attr.value = this.feature((temp ? "next" : "prev") + "Id") + "()";
 									if(value !== true) attr.value = value + " + " + attr.value;
 									add = true;
 									break;
@@ -1606,8 +1623,9 @@ Transpiler.prototype.open = function(){
 			}
 			if(inheritance.attrs || rattributes.length) {
 				ret.attrs = rattributes.map(function(attribute){
-					return "[" + attribute.value + ", " + mapAttributeType(attribute.type) + ", " +
-						(attribute.computed ? attribute.name : '"' + (attribute.name || "") + '"') +
+					return "[" + mapAttributeType(attribute.type) + ", " +
+						(attribute.computed ? attribute.name : '"' + (attribute.name || "") + '"') + ", " +
+						attribute.value +
 						(attribute.optional ? ", 1" : "") + "]";
 				}).join(", ");
 			}
@@ -1615,7 +1633,7 @@ Transpiler.prototype.open = function(){
 				var s = this.stringifyAttribute;
 				ret.iattrs = iattributes.map(function(attribute){
 					var prev = {};
-					return "[" + attribute.value + ", " + mapAttributeType(attribute.type) + ", " + s(attribute.before) + ", " + attribute.inner.map(function(attribute, i){
+					return "[" + mapAttributeType(attribute.type) + ", " + s(attribute.before) + ", " + attribute.inner.map(function(attribute, i){
 						var ret = "";
 						if(i == 0) {
 							if(attribute.spread) {
@@ -1633,7 +1651,7 @@ Transpiler.prototype.open = function(){
 						}
 						prev = attribute;
 						return ret;
-					}).join("") + "), " + s(attribute.after) + "]";
+					}).join("") + "), " + s(attribute.after) + ", " + attribute.value + "]";
 				});
 			}
 			if(sattributes.length) {
@@ -1650,22 +1668,22 @@ Transpiler.prototype.open = function(){
 				enumerable: false,
 				value: function(){
 					var str = [];
-					["widget", "namespace"].forEach(function(type){
-						if(ret.hasOwnProperty(type)) {
-							str.push(mapArgType(type) + ":" + ret[type]);
-						} else {
-							var ivalue = inheritance[type];
-							if(ivalue) str.push(mapArgType(type) + ":" + ivalue[ivalue.length - 1]);
-						}
-					});
-					["attrs", "iattrs", "spread", "transitions"].forEach(function(type){
+					["attrs", "iattrs", "spread", "transitions"].forEach((type, i) => {
 						var ivalue = inheritance[type];
 						var rvalue = ret[type];
 						if(ivalue || rvalue) {
-							str.push(mapArgType(type) + ":[" + (ivalue || []).concat(rvalue || []).join(", ") + "]");
+							str[i] = "[" + (ivalue || []).concat(rvalue || []).join(", ") + "]";
 						}
 					});
-					return "{" + str.join(", ") + "}";
+					["widget", "namespace"].forEach((type, i) => {
+						if(ret.hasOwnProperty(type)) {
+							str[i + 4] = ret[type];
+						} else {
+							var ivalue = inheritance[type];
+							if(ivalue) str[i + 4] = ivalue[ivalue.length - 1];
+						}
+					});
+					return "[" + str.join(",") + "]";
 				}
 			});
 			return ret;
@@ -1847,7 +1865,7 @@ Transpiler.prototype.open = function(){
 			if(selector) {
 				if(dattributes["query-head"]) queryElement = "document.head";
 				else if(dattributes["query-body"]) queryElement = "document.body";
-				this.source.push(this.runtime + "." + this.feature("query") + "(this, " + this.context + ", " + (dattributes.query || queryElement || parent) + ", " + parent + ", " + selector + ", " + selectorAll + ", function(" + this.context + "){");
+				this.source.push(this.feature("query") + "(this, " + this.context + ", " + (dattributes.query || queryElement || parent) + ", " + parent + ", " + selector + ", " + selectorAll + ", function(" + this.context + "){");
 				if(dattributes.adopt || dattributes.clone) {
 					parent = this.context + ".parentElement";
 					create = false;
@@ -1857,7 +1875,7 @@ Transpiler.prototype.open = function(){
 			}
 
 			if(dattributes.unique) {
-				this.source.push(this.runtime + "." + this.feature("unique") + "(this, " + this.nextId() + ", function(){return ");
+				this.source.push(this.feature("unique") + "(this, " + this.nextId() + ", function(){return ");
 				currentClosing.unshift("})");
 			}
 
@@ -1867,7 +1885,7 @@ Transpiler.prototype.open = function(){
 			var inline = false;
 
 			if(tagName == ":bind") {
-				this.source.push(this.runtime + "." + this.feature("bind") + "(" + ["this", this.context, dattributes.to].join(", ") +
+				this.source.push(this.feature("bind") + "(" + ["this", this.context, dattributes.to].join(", ") +
 					", function(" + this.context + (dattributes.as ? ", " + dattributes.as : "") + "){");
 				currentClosing.unshift("})");
 			}
@@ -1903,15 +1921,16 @@ Transpiler.prototype.open = function(){
 				}).join(", ")]);
 			}
 			if(append) {
+				var data = [this.feature("append"), parent];
+				if(optional) data[0] = (updatedElement || element) + " ? " + this.feature("nop") + " : " + this.feature("append");
 				var options = [];
 				var aa = this.currentMode.parser.afterappend();
 				var br = this.currentMode.parser.beforeremove();
 				if(aa) options.push("aa:" + aa);
 				if(br) options.push("br:" + br);
 				if(dattributes.adopt) options.push("adoption:true");
-				var append = [this.feature("append"), parent, "{" + options.join(", ") + "}"];
-				if(optional) append[0] = "[" + (updatedElement || element) + " ? \"" + this.feature("noop") + "\" : \"append\"]";
-				after.push(append);
+				if(options.length) data.push("{" + options.join(", ") + "}");
+				after.push(data);
 			}
 
 			if(next == '/') {
@@ -1930,9 +1949,7 @@ Transpiler.prototype.open = function(){
 			}
 
 			var runtime = this.runtime;
-			function mapNext(a) {
-				return ", [" + runtime + (a[0].charAt(0) != "[" ? "." : "") + a.join(", ") + "]";
-			}
+			var mapNext = a => `, [${a.join(", ")}]`;
 
 			if(before.length || after.length) {
 				this.source.push(this.runtime + "(this, " + this.context + ", " + element + before.map(mapNext).join("").slice(0, -1));
@@ -2044,7 +2061,7 @@ Transpiler.prototype.stringifyAttribute = function(attr){
  */
 Transpiler.prototype.feature = function(name){
 	this.features[name] = true;
-	return name;
+	return this.runtime + "." + name;
 };
 
 /**
@@ -2087,19 +2104,19 @@ Transpiler.prototype.transpile = function(input){
 	var noenv = !umd && this.options.env[0] == "none";
 
 	this.after = "";
-	this.before = "/*! Transpiled" + (this.options.filename ? " from " + this.options.filename : "") + " using Sactory v" + v + ". Do not edit manually. */";
+	this.before = `/*! Transpiled${this.options.filename ? " from " + this.options.filename : ""} using Sactory v${v}. Do not edit manually. */`;
 	if(noenv) {
-		this.before += "var " + this.runtime + "=" + (this.options.runtime || "Sactory") + ";";
+		this.before += `var ${this.runtime}=${this.options.runtime || "Sactory"};`;
 	} else {
 		if(umd) this.before += "!function(a,b){";
 		if(this.options.env.indexOf("amd") != -1) {
 			if(umd) this.before += "if(typeof define=='function'&&define.amd){";
-			this.before += (this.options.amd && this.options.amd.anonymous ? "require" : "define") + "(['" + (this.options.amd && this.options.amd.runtime || "sactory") + "'" + this.calcDeps("amd", ",'", "'") + "],";
+			this.before += `${this.options.amd && this.options.amd.anonymous ? "require" : "define"}(['${this.options.amd && this.options.amd.runtime || "sactory"}'${this.calcDeps("amd", ",'", "'")}],`;
 			if(umd) this.before += "b)}else ";
 		}
 		if(this.options.env.indexOf("commonjs") != -1) {
 			if(umd) this.before += "if(typeof exports=='object'){";
-			var exportCall = "module.exports=b(require('" + (this.options.commonjs && this.options.commonjs.runtime || "sactory") + "')" + this.calcDeps("commonjs", ",require('", "')") + ")";
+			var exportCall = `module.exports=b(require('${this.options.commonjs && this.options.commonjs.runtime || "sactory"}')${this.calcDeps("commonjs", ",require('", "')")})`;
 			if(umd) this.before += exportCall + "}else ";
 			else {
 				this.before += "var b=";
@@ -2108,8 +2125,8 @@ Transpiler.prototype.transpile = function(input){
 		}
 		if(this.options.env.indexOf("none") != -1) {
 			this.before += "{";
-			if(this.options.globalExport) this.before += "a." + this.options.globalExport + "=";
-			this.before += "b(" + (this.options.runtime || "Sactory") + this.calcDeps("none", ",", "") + ")}";
+			if(this.options.globalExport) `${this.before}a.${this.options.globalExport}=`;
+			this.before += `b(${this.options.runtime || "Sactory"}${this.calcDeps("none", ",", "")})}`;
 		} else if(umd) {
 			// remove `else`
 			this.before = this.before.slice(0, -5);
@@ -2119,8 +2136,8 @@ Transpiler.prototype.transpile = function(input){
 		if(this.options.dependencies) this.before += "," + Object.keys(this.options.dependencies).join(",");
 		this.before += "){";
 	}
-	this.before += "var " + this.context + "={};";
-	if(!this.options.hasOwnProperty("versionCheck") || this.options.versionCheck) this.before += this.runtime + ".check(\"" + v + "\");";
+	this.before += `var ${this.context}={};`;
+	if(!this.options.hasOwnProperty("versionCheck") || this.options.versionCheck) this.before += `${this.runtime}.check("${v}");`;
 	this.source = [];
 
 	if(this.options.scope) this.before += this.context + ".element=" + this.options.scope + ";";

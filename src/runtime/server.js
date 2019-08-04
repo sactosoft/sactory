@@ -9,12 +9,10 @@ Builder.prototype.event = function(context, name, value, bind){
 
 Object.defineProperty(Node.prototype, "__builder", {
 	configurable: true,
-	get: function(){
-		var instance = new Builder(this);
-		Object.defineProperty(this, "__builder", {
-			value: instance
-		});
-		return instance;
+	get() {
+		var value = new Builder(this);
+		Object.defineProperty(this, "__builder", {value});
+		return value;
 	}
 });
 
