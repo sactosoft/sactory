@@ -519,6 +519,38 @@ Sactory.clear = function(context){
 };
 
 /**
+ * @since 0.120.0
+ */
+Sactory.inherit = function(target, ...args){
+	// the last two options (widget and namespace) are assigned only if
+	// the target does not have them and the inheritance does
+	if(target[4] === undefined) {
+		// widget
+		args.forEach(([,,,,widget]) => {
+			if(widget !== undefined) target[4] = widget;
+		});
+	}
+	if(target[5] === undefined) {
+		// namespace
+		args.forEach(([,,,,,namespace]) => {
+			if(namespace !== undefined) target[5] = namespace;
+		});
+	}
+	// the first four options are arrays and are merged in reverse so
+	// the more the inherit tag was the less important is
+	args.reverse().forEach(options => {
+		for(var i=0; i<Math.min(4, options.length); i++) {
+			var option = options[i];
+			if(option) {
+				if(target[i]) target[i].unshift(...option);
+				else target[i] = option;
+			}
+		}
+	});
+	return target;
+}
+
+/**
  * @since 0.90.0
  */
 Sactory.mixin = function(context, data){

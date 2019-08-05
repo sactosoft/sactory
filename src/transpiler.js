@@ -1339,7 +1339,7 @@ Transpiler.prototype.close = function(tagName){
 			this.warn("Tag `" + closeInfo.tagName + "` is not closed properly (used `</" + tagName + ">` instead of `</" + closeInfo.tagName + ">`).", closeInfo.position);
 		}
 		if(closeInfo.mode) this.endMode();
-		this.inheritance.pop();
+		this.inherit.pop();
 		this.level--;
 	}
 	if(this.closing.length) {
@@ -1388,9 +1388,12 @@ Transpiler.prototype.open = function(){
 		var parser = this.parser;
 		var skipped = "", requiredSkip;
 		function skip(required) {
-			var s = parser.skipImpl({comments: true, strings: false}); // before/after attributes
-			skipped += s;
-			if(required) requiredSkip = s;
+			return skipped = parser.skipImpl({comments: true, strings: false}); // before/after attributes
+			//skipped += s;
+			var ret = skipped;
+			skipped = s;
+			return ret;
+			//if(required) requiredSkip = s;
 		}
 		var currentIndex = this.source.length;
 
@@ -1439,16 +1442,19 @@ Transpiler.prototype.open = function(){
 		skip(true);
 		var next = false;
 		while(!this.parser.eof() && (next = this.parser.peek()) != '>' && next != '/') {
-			if(!/[\n\t ]/.test(requiredSkip)) this.parser.error("Space is required between attribute names.");
+			if(!/[\n\t ]/.test(skipped)) this.parser.error("Space is required between attribute names.");
 			this.updateTemplateLiteralParser();
 			var attr = {
 				optional: !!this.parser.readIf('?'),
 				negated: !!this.parser.readIf('!'),
-				type: this.parser.readAttributePrefix() || ""
+				type: this.parser.readAttributePrefix() || "",
+				beforeName: skipped,
+				afterName: "",
+				beforeValue: ""
 			};
 			if(this.isSpreadAttribute()) {
 				//TODO assert not optional nor negated
-				sattributes.push({type: attr.type, expr: this.parser.readSingleExpression(false, true)});
+				sattributes.push({type: attr.type, expr: this.parser.readSingleExpression(false, true), space: skipped});
 				skip(true);
 			} else {
 				var content = this.parseAttributeName(false);
@@ -1457,7 +1463,7 @@ Transpiler.prototype.open = function(){
 					attr.before = content;
 					attr.inner = [];
 					do {
-						skip();
+						skip(); //TODO do not ignore
 						if(this.isSpreadAttribute()) {
 							attr.inner.push({spread: true, expr: this.parser.readSingleExpression(false, true)});
 						} else {
@@ -1465,7 +1471,7 @@ Transpiler.prototype.open = function(){
 							this.compileAttributeParts(an);
 							attr.inner.push(an);
 						}
-						skip();
+						skip(); //TODO do not ignore
 					} while((next = this.parser.read()) == ',');
 					if(next != '}') this.parser.error("Expected '}' after interpolated attributes list.");
 					attr.after = this.parseAttributeName(false);
@@ -1477,12 +1483,13 @@ Transpiler.prototype.open = function(){
 					Polyfill.assign(attr, content);
 				}
 				// read value
-				skip(true);
+				skip();
 				if(attr.negated) {
 					attr.value = false;
 				} else if(this.parser.peek() == '=') {
+					attr.afterName = skipped;
 					this.parser.index++;
-					skip();
+					attr.beforeValue = skip();
 					this.parser.parseTemplateLiteral = null;
 					attr.value = this.parser.readAttributeValue();
 					if(attr.type == '+') {
@@ -1601,38 +1608,30 @@ Transpiler.prototype.open = function(){
 		parser.index++;
 
 		if(dattributes.namespace) currentNamespace = dattributes.namespace;
+		else if(dattributes.xhtml) currentNamespace = this.runtime + ".NS_XHTML";
+		else if(dattributes.svg) currentNamespace = this.runtime + ".NS_SVG";
+		else if(dattributes.mathml) currentNamespace = this.runtime + ".NS_MATHML";
+		else if(dattributes.xul) currentNamespace = this.runtime + ".NS_XUL";
+		else if(dattributes.xbl) currentNamespace = this.runtime + ".NS_XBL";
+		else if(!computed) {
+			if(tagName == "svg") currentNamespace = this.runtime + ".NS_SVG";
+			else if(tagName == "mathml") currentNamespace = this.runtime + ".NS_MATHML";
+		}
 
-		var options = (function(){
+		var options = noInheritance => {
 			var level = ++this.level;
 			var ret = {};
-			var inheritance = {};
-			this.inheritance.filter(function(info){
-				return info && ((!info.level || info.level.indexOf(level) != -1) && (!info.whitelist || info.whitelist.indexOf(tagName) != -1));
-			}).forEach(function(info){
-				for(var key in info.data) {
-					inheritance[key] = (inheritance[key] || []).concat(info.data[key]);
-				}
-			});
+			if(currentNamespace) ret.namespace = currentNamespace;
 			if(Object.prototype.hasOwnProperty.call(dattributes, "widget")) ret.widget = dattributes.widget;
-			if(dattributes.namespace) ret.namespace = dattributes.namespace;
-			else if(dattributes.xhtml) ret.namespace = this.runtime + ".NS_XHTML";
-			else if(dattributes.svg) ret.namespace = this.runtime + ".NS_SVG";
-			else if(dattributes.mathml) ret.namespace = this.runtime + ".NS_MATHML";
-			else if(dattributes.xul) ret.namespace = this.runtime + ".NS_XUL";
-			else if(dattributes.xbl) ret.namespace = this.runtime + ".NS_XBL";
-			else if(!computed) {
-				if(tagName == "svg") ret.namespace = this.runtime + ".NS_SVG";
-				else if(tagName == "mathml") ret.namespace = this.runtime + ".NS_MATHML";
-			}
-			if(inheritance.attrs || rattributes.length) {
+			if(rattributes.length) {
 				ret.attrs = rattributes.map(function(attribute){
-					return "[" + mapAttributeType(attribute.type) + ", " +
-						(attribute.computed ? attribute.name : '"' + (attribute.name || "") + '"') + ", " +
-						attribute.value +
+					return attribute.beforeName + "[" + mapAttributeType(attribute.type) + ", " +
+						(attribute.computed ? attribute.name : '"' + (attribute.name || "") + '"') + attribute.afterName + ", " +
+						attribute.beforeValue + attribute.value +
 						(attribute.optional ? ", 1" : "") + "]";
-				}).join(", ");
+				}).join(",");
 			}
-			if(inheritance.iattrs || iattributes.length) {
+			if(iattributes.length) {
 				var s = this.stringifyAttribute;
 				ret.iattrs = iattributes.map(function(attribute){
 					var prev = {};
@@ -1658,39 +1657,37 @@ Transpiler.prototype.open = function(){
 				});
 			}
 			if(sattributes.length) {
-				ret.spread = sattributes.map(function(attribute){
-					return "[" + mapAttributeType(attribute.type) + ", " + attribute.expr + "]";
-				}).join(", ");
+				ret.spread = sattributes.map(({space, type, expr}) => `${space}[${mapAttributeType(type)}, ${expr}]`).join(", ");
 			}
 			if(transitions.length) {
-				ret.transitions = transitions.map(function(transition){
-					return "[\"" + transition.type + "\", " + transition.name + ", " + (transition.value == "\"\"" ? "{}" : transition.value) + "]";
-				}).join(", ");
+				ret.transitions = transitions.map(({type, name, value}) => `["${type}", ${name}, ${value == '""' ? "{}" : value}]`).join(", ");
 			}
 			Object.defineProperty(ret, "toString", {
 				enumerable: false,
 				value: function(){
 					var str = [];
 					["attrs", "iattrs", "spread", "transitions"].forEach((type, i) => {
-						var ivalue = inheritance[type];
-						var rvalue = ret[type];
-						if(ivalue || rvalue) {
-							str[i] = "[" + (ivalue || []).concat(rvalue || []).join(", ") + "]";
+						var value = ret[type];
+						if(value) {
+							str[i] = "[" + value + "]";
 						}
 					});
 					["widget", "namespace"].forEach((type, i) => {
 						if(ret.hasOwnProperty(type)) {
 							str[i + 4] = ret[type];
-						} else {
-							var ivalue = inheritance[type];
-							if(ivalue) str[i + 4] = ivalue[ivalue.length - 1];
 						}
 					});
 					return "[" + str.join(",") + "]";
 				}
 			});
-			return ret;
-		}).call(this);
+			// check inheritance
+			if(!noInheritance) {
+				var inheritance = this.inherit.filter(info => info && ((!info.level || info.level.indexOf(level) != -1) && (!info.whitelist || info.whitelist.indexOf(tagName) != -1))).map(info => `${this.inheritance}[${info.index}]`);
+				return inheritance.length ? this.feature("inherit") + "(" + ret + ", " + inheritance.join(", ") + ")" : ret;
+			} else {
+				return ret;
+			}
+		};
 
 		if(dattributes.root) parent = parent + ".getRootNode({composed: " + (dattributes.composed || "false") + "})";
 		else if(dattributes.head) parent = "document.head";
@@ -1768,7 +1765,7 @@ Transpiler.prototype.open = function(){
 							create = update = append = false;
 							break;
 						case "inherit":
-							var c = currentInheritance = {data: options};
+							var c = currentInheritance = {};
 							if(dattributes.level || dattributes.depth) {
 								if(!dattributes.level) c.level = [1];
 								else if(dattributes.level instanceof Array) c.level = dattributes.level.map(function(a){ return parseInt(a); });
@@ -1812,11 +1809,6 @@ Transpiler.prototype.open = function(){
 				if(Object.prototype.hasOwnProperty.call(this.tagNames, tagName)) this.tagNames[tagName]++;
 				else this.tagNames[tagName] = 1;
 			}
-		}
-		
-		if(!currentInheritance && options.namespace) {
-			// force inheritance to be triggered if not defined by the :inherit tag
-			currentInheritance = {data: {namespace: options.namespace}};
 		}
 
 		if(newMode === undefined) {
@@ -1895,17 +1887,17 @@ Transpiler.prototype.open = function(){
 
 			// before
 			if(slotName) {
-				before.push([this.feature("updateSlot"), options, '"' + tagName + '"', '"' + slotName + '"', "function(" + this.context + "){"]);
+				before.push([this.feature("updateSlot"), options(), '"' + tagName + '"', '"' + slotName + '"', "function(" + this.context + "){"]);
 				call = append = false;
 				beforeClosing += "}";
 			} else if(dattributes.clone) {
-				before.push([this.feature("clone"), options]);
+				before.push([this.feature("clone"), options()]);
 			} else if(optional) {
-				before.push([this.feature("createOrUpdate"), element, computed ? tagName : '"' + tagName + '"', options]);
+				before.push([this.feature("createOrUpdate"), element, computed ? tagName : '"' + tagName + '"', options()]);
 			} else if(create) {
-				before.push([this.feature("create"), computed ? tagName : '"' + tagName + '"', options]);
+				before.push([this.feature("create"), computed ? tagName : '"' + tagName + '"', options()]);
 			} else if(update) {
-				var optString = options.toString();
+				var optString = options().toString();
 				if(optString.length > 2) {
 					// only trigger update if needed
 					before.push([this.feature("update"), optString]);
@@ -1956,17 +1948,27 @@ Transpiler.prototype.open = function(){
 
 			if(before.length || after.length) {
 				this.source.push(this.runtime + "(this, " + this.context + ", " + element + before.map(mapNext).join("").slice(0, -1));
-				currentClosing.unshift((before.length ? "]" : "") + after.map(mapNext).join("") + ")");
+				currentClosing.unshift((before.length ? "]" : "") + after.map(mapNext).join("") + skipped + ")");
 			} else {
-				this.source.push(parent);
+				this.source.push(parent + skipped);
 			}
 
 			currentClosing.unshift(beforeClosing);
 
 			if(dattributes.slot.length) {
-				this.source.push(this.context + ".registry.addAll(null, [" + dattributes.slot.map(function(a){
-					return a === true ? 0 : a;
-				}).join(", ") + "], " + this.context + ".element);");
+				this.source.push(this.context + ".registry.addAll(null, [" + dattributes.slot.map(a => a === true ? 0 : a).join(", ") + "], " + this.context + ".element);");
+			}
+
+			if(!inline) {
+
+				if(currentInheritance) {
+					currentInheritance.index = this.inheritCount++;
+					this.source.push(this.inheritance + ".push(" + options(true) + ")");
+				} else if(currentNamespace) {
+					currentInheritance = {index: this.inheritCount++};
+					this.source.push(this.inheritance + ".push([,,,,," + currentNamespace + "])");
+				}
+
 			}
 
 		}
@@ -1981,7 +1983,7 @@ Transpiler.prototype.open = function(){
 			this.addSemicolon();
 			this.level--;
 		} else {
-			this.inheritance.push(currentInheritance);
+			this.inherit.push(currentInheritance);
 			this.closing.push(currentClosing);
 			this.tags.push({
 				tagName: originalTagName,
@@ -2095,6 +2097,7 @@ Transpiler.prototype.transpile = function(input){
 	
 	this.runtime = this.nextVar();
 	this.context = this.nextVar();
+	this.inheritance = this.nextVar();
 	this.value = this.nextVar();
 
 	this.tagNames = {};
@@ -2128,7 +2131,7 @@ Transpiler.prototype.transpile = function(input){
 		}
 		if(this.options.env.indexOf("none") != -1) {
 			this.before += "{";
-			if(this.options.globalExport) `${this.before}a.${this.options.globalExport}=`;
+			if(this.options.globalExport) this.before += `a.${this.options.globalExport}=`;
 			this.before += `b(${this.options.runtime || "Sactory"}${this.calcDeps("none", ",", "")})}`;
 		} else if(umd) {
 			// remove `else`
@@ -2139,14 +2142,15 @@ Transpiler.prototype.transpile = function(input){
 		if(this.options.dependencies) this.before += "," + Object.keys(this.options.dependencies).join(",");
 		this.before += "){";
 	}
-	this.before += `var ${this.context}={};`;
+	this.before += `var ${this.context}={};var ${this.inheritance}=[];`;
 	if(!this.options.hasOwnProperty("versionCheck") || this.options.versionCheck) this.before += `${this.runtime}.check("${v}");`;
 	this.source = [];
 
 	if(this.options.scope) this.before += this.context + ".element=" + this.options.scope + ";";
 	
 	this.tags = [];
-	this.inheritance = [];
+	this.inherit = [];
+	this.inheritCount = 0;
 	this.closing = [];
 	this.modes = [];
 	this.currentMode;
@@ -2185,6 +2189,7 @@ Transpiler.prototype.transpile = function(input){
 		variables: {
 			runtime: this.runtime,
 			context: this.context,
+			inheritance: this.inheritance,
 			value: this.value
 		},
 		scope: this.options.scope,

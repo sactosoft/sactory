@@ -369,7 +369,6 @@ function parseColor(color) {
 					throw new Error("Unknown color format '" + type + "'");
 			}
 		} else {
-			//TODO try to convert color from text format
 			return parseTextualColor(color);
 		}
 	}
