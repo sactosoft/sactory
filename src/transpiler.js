@@ -688,6 +688,9 @@ JavascriptParser.prototype.next = function(match){
 						case "subscribe":
 							add(this.transpiler.feature("subscribe"), this.context + ", ");
 							break;
+						case "roolback":
+							add(this.transpiler.feature("rollback"), this.context + ", ");
+							break;
 						case "watch":
 						case "watch.deep":
 						case "watch.deps":

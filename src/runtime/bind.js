@@ -303,10 +303,17 @@ Sactory.bindEachMaybe = function(scope, context, target, getter, fun){
 /**
  * @since 0.58.0
  */
-Sactory.subscribe = function(context, observable, callback, type){
+Sactory.subscribe = function({bind}, observable, callback, type){
 	var subscription = SactoryObservable.observe(observable, callback, type, true);
-	if(context.bind) context.bind.subscribe(subscription);
+	if(bind) bind.subscribe(subscription);
 	return subscription;
+};
+
+/**
+ * @since 0.119.0
+ */
+Sactory.rollback = function({bind}, callback){
+	if(bind) bind.addRollback(callback);
 };
 
 module.exports = Sactory;
