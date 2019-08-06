@@ -269,16 +269,16 @@ Sactory.update = function(context, [attrs = [], iattrs, sattrs, transitions, wid
 	
 	if(!updatedElement) {
 		var parentWidget, widget;
-		function getWidget(name) {
-			if(Polyfill.startsWith.call(name, "::")) {
+		function getWidget() {
+			if(Polyfill.startsWith.call(tagName, "::")) {
 				if(context.parent) {
 					parentWidget = context.parent.__builder.widget;
-					return parentWidget && parentWidget[name.substr(1)];
+					return parentWidget && parentWidget[tagName.substr(1)];
 				}
 			} else {
 				var column = tagName.lastIndexOf(':');
 				if(column == -1) {
-					return widgets[name];
+					return widgets[tagName];
 				} else {
 					var name = tagName.substring(0, column);
 					if(name == "this") {
@@ -290,7 +290,7 @@ Sactory.update = function(context, [attrs = [], iattrs, sattrs, transitions, wid
 				}
 			}
 		}
-		if((widgetCheck === undefined || widgetCheck) && ((widget = typeof tagName == "function" && tagName) || (widget = getWidget(tagName)))) {
+		if((widgetCheck === undefined || widgetCheck) && ((widget = typeof tagName == "function" && tagName) || (widget = getWidget()))) {
 			var registry = new SlotRegistry(tagName);
 			var newContext = Polyfill.assign({}, context, {element: null, anchor: null, registry});
 			if(widget.prototype && widget.prototype.render) {

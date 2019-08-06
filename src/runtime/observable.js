@@ -236,30 +236,25 @@ Object.defineProperty(AlwaysObservable.prototype, "value", {
  */
 function makeSavedObservable(T, defaultValue, storage) {
 
-	var observable;
+	var observable, handleReturn;
 
 	if(typeof Promise == "function") {
-		this.handleReturn = function(ret){
+		handleReturn = function(ret){
 			if(ret instanceof Promise) {
-				var $this = this;
-				ret.then(function(value){
-					// do not call this.updateImpl to avoid saving
-					Observable.prototype.updateImpl.call($this, value);
-				});
+				// do not call this.updateImpl to avoid saving
+				ret.then(value => Observable.prototype.updateImpl.call(observable, value));
 				return true;
 			} else {
 				return false;
 			}
 		};
 	} else {
-		this.handleReturn = function(){
-			return false;
-		};
+		handleReturn = () => false;
 	}
 
 	if(storage.get) {
 		var ret = storage.get(defaultValue);
-		observable = new T(this.handleReturn(ret) ? defaultValue : ret);
+		observable = new T(handleReturn(ret) ? defaultValue : ret);
 	} else {
 		observable = new T(defaultValue);
 	}

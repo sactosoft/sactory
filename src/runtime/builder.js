@@ -56,13 +56,10 @@ Builder.prototype.attrImpl = function(name, value){
 };
 	
 Builder.prototype.attr = function(name, value, bind){
-	var attrImpl = this.attrImpl.bind(this);
 	if(SactoryObservable.isObservable(value)) {
-		this.subscribe(bind, SactoryObservable.observe(value, function(value){
-			attrImpl(name, value);
-		}));
+		this.subscribe(bind, SactoryObservable.observe(value, value => this.attrImpl(name, value)));
 	} else {
-		attrImpl(name, value);
+		this.attrImpl(name, value);
 	}
 };
 
@@ -81,13 +78,10 @@ Builder.prototype.propImpl = function(name, value){
 };
 	
 Builder.prototype.prop = function(name, value, bind, type){
-	var propImpl = this.propImpl.bind(this);
 	if(SactoryObservable.isObservable(value)) {
-		this.subscribe(bind, SactoryObservable.observe(value, function(value){
-			propImpl(name, value);
-		}, type));
+		this.subscribe(bind, SactoryObservable.observe(value, value => this.propImpl(name, value), type));
 	} else {
-		propImpl(name, value);
+		this.propImpl(name, value);
 	}
 };
 
@@ -113,19 +107,18 @@ Builder.prototype.visible = function(value, reversed, bind){
 		*/
 		document.head.appendChild(style);
 	}
-	var builder = this;
-	var update = function(value){
+	var update = value => {
 		if(!!value ^ reversed) {
-			builder.removeClass(hidden);
+			this.removeClass(hidden);
 		} else {
-			builder.addClass(hidden);
+			this.addClass(hidden);
 		}
 	};
 	if(SactoryObservable.isObservable(value)) {
-		this.subscribe(bind, SactoryObservable.observe(value, function(newValue, oldValue){ update(newValue, oldValue); }));
+		this.subscribe(bind, SactoryObservable.observe(value, (newValue, oldValue) => update(newValue, oldValue)));
 		// add animations functionalities
 		var updateImpl = update;
-		update = function(newValue, oldValue){
+		update = (newValue, oldValue) => {
 			if(newValue != oldValue) {
 				if(this.animationTimeout) {
 					// stop current animation
@@ -141,28 +134,28 @@ Builder.prototype.visible = function(value, reversed, bind){
 					}
 					animations = animations.slice(0); // duplicate
 					var i = 0;
-					function run() {
+					var run = () => {
 						var animation = animations[i];
 						var duration = animation.options.duration || 1;
 						this.element.style.animation = animation.name + " " + duration + "s " + (animation.options.easing || "linear") + " forwards";
 						this.element.style.animationDirection = newValue ? "reverse" : "normal";
-						this.animationTimeout = setTimeout(function(){
+						this.animationTimeout = setTimeout(() => {
 							if(++i < animations.length) {
-								run.call(this);
+								run();
 							} else {
 								// the animations are over
 								updateImpl(newValue);
 								this.element.style.animation = "";
 								this.animationTimeout = false;
 							}
-						}.bind(this), duration * 1000);
-					}
-					run.call(this);
+						}, duration * 1000);
+					};
+					run();
 				} else {
 					updateImpl(newValue);
 				}
 			}
-		}.bind(this);
+		};
 	} else {
 		update(value);
 	}
@@ -181,20 +174,14 @@ Builder.prototype.style = function(name, value, bind){
 	var wrap;
 	var dot = name.indexOf('.');
 	if(dot == -1) {
-		wrap = function(value){
-			return "." + className + name + "{" + value + "}";
-		};
+		wrap = value => `.${className}${name}{${value}}`;
 	} else {
 		var prop = name.substr(dot + 1);
 		name = name.substring(0, dot);
-		wrap = function(value){
-			return "." + className + name + "{" + prop + ":" + value + "}";
-		};
+		wrap = value => `.${className}${name}{${prop}:${value}}`;
 	}
 	if(SactoryObservable.isObservable(value)) {
-		this.subscribe(SactoryObservable.observe(value, function(value){
-			node.textContent = wrap(value);
-		}));
+		this.subscribe(bind, SactoryObservable.observe(value, value => node.textContent = wrap(value)));
 	} else {
 		node.textContent = wrap(value);
 	}
@@ -207,8 +194,8 @@ Builder.prototype.text = function(value, bind, anchor){
 	var textNode;
 	if(SactoryObservable.isObservable(value)) {
 		textNode = document.createTextNode("");
-		this.subscribe(bind, SactoryObservable.observe(value, function(value){
-			textNode.textContent = value;
+		this.subscribe(bind, SactoryObservable.observe(value, value => {
+			textNode.textContent = value + "";
 			textNode.observed = true;
 		}));
 	} else {
@@ -223,24 +210,19 @@ Builder.prototype.text = function(value, bind, anchor){
  * @since 0.63.0
  */
 Builder.prototype.html = function(value, bind, anchor){
-	var children, builder = this;
-	var container = document.createElement("div");
-	function parse(value, anchor) {
+	var children, container = document.createElement("div");
+	var parse = (value, anchor) => {
 		container.innerHTML = value;
 		children = Array.prototype.slice.call(container.childNodes, 0);
-		children.forEach(function(child){
-			builder.append(child, bind, anchor);
-		});
-	}
+		children.forEach(child => this.append(child, bind, anchor));
+	};
 	if(SactoryObservable.isObservable(value)) {
 		// create an anchor to maintain the right order
-		var innerAnchor = SactoryBind.createAnchor({element: this.element, bind: bind, anchor: anchor});
-		this.subscribe(bind, value.subscribe(function(value){
+		var innerAnchor = SactoryBind.createAnchor({element: this.element, bind, anchor});
+		this.subscribe(bind, value.subscribe(value => {
 			// removing children from bind context should not be necessary,
 			// as they can't have any sactory-created context
-			children.forEach(function(child){
-				builder.element.removeChild(child);
-			});
+			children.forEach(child => this.element.removeChild(child));
 			parse(value, innerAnchor);
 		}));
 		parse(value.value, innerAnchor);
@@ -253,25 +235,20 @@ Builder.prototype.html = function(value, bind, anchor){
  * @since 0.100.0
  */
 Builder.prototype.className = function(className, bind){
-	var builder = this;
 	if(SactoryObservable.isObservable(className)) {
 		var value = className.value;
-		this.subscribe(bind, className.subscribe(function(newValue){
-			builder.removeClassName(value);
-			builder.addClassName(value = newValue);
+		this.subscribe(bind, className.subscribe(newValue => {
+			this.removeClassName(value);
+			this.addClassName(value = newValue);
 		}));
 		this.addClassName(value);
 		if(bind) {
-			bind.addRollback(function(){
-				builder.removeClassName(value);
-			});
+			bind.addRollback(() => this.removeClassName(value));
 		}
 	} else {
 		this.addClassName(className);
 		if(bind) {
-			bind.addRollback(function(){
-				builder.removeClassName(className);
-			});
+			bind.addRollback(() => this.removeClassName(className));
 		}
 	}
 };
@@ -280,29 +257,24 @@ Builder.prototype.className = function(className, bind){
  * @since 0.100.0
  */
 Builder.prototype.classNameIf = function(className, condition, bind){
-	var builder = this;
 	if(SactoryObservable.isObservable(condition)) {
-		this.subscribe(bind, condition.subscribe(function(newValue, oldValue){
+		this.subscribe(bind, condition.subscribe(newValue => {
 			if(newValue) {
 				// add class
-				builder.addClassName(className);
+				this.addClassName(className);
 			} else {
 				// remove class name
-				builder.removeClassName(className);
+				this.removeClassName(className);
 			}
 		}));
 		if(condition.value) this.addClassName(className);
 		if(bind) {
-			bind.addRollback(function(){
-				if(condition.value) builder.removeClassName(className);
-			});
+			bind.addRollback(() => condition.value && this.removeClassName(className));
 		}
 	} else if(condition) {
 		this.addClassName(className);
 		if(bind) {
-			bind.addRollback(function(){
-				builder.removeClassName(className);
-			});
+			bind.addRollback(() => this.removeClassName(className));
 		}
 	}
 };
@@ -435,7 +407,7 @@ Builder.prototype.event = function(context, name, value, bind){
 						}
 						break;
 					case "code":
-						var keys = dot.slice(1).map(function(a){ return a.toLowerCase().replace(/-/g, ""); });
+						var keys = dot.slice(1).map(a => a.toLowerCase().replace(/-/g, ""));
 						if(positive) {
 							listener = function(event){
 								if(keys.indexOf(event.code.toLowerCase()) != -1) return prev.apply(this, arguments);
@@ -448,7 +420,7 @@ Builder.prototype.event = function(context, name, value, bind){
 						break;
 					case "keyCode":
 					case "key-code":
-						var keys = dot.slice(1).map(function(a){ return parseInt(a); });
+						var keys = dot.slice(1).map(a => parseInt(a));
 						if(positive) {
 							listener = function(event){
 								if(keys.indexOf(event.keyCode || event.which) != -1) return prev.apply(this, arguments);
@@ -520,9 +492,7 @@ Builder.prototype.event = function(context, name, value, bind){
 								if(!timeout) {
 									prev.apply(this, arguments);
 									timeout = true;
-									timeout = setTimeout(function(){
-										timeout = false;
-									}, delay);
+									timeout = setTimeout(() => timeout = false, delay);
 								}
 							};
 						} else {
@@ -535,11 +505,10 @@ Builder.prototype.event = function(context, name, value, bind){
 							var timeout;
 							listener = function(event){
 								if(timeout) clearTimeout(timeout);
-								var $this = this;
-								var $arguments = arguments;
-								timeout = setTimeout(function(){
+								var args = arguments;
+								timeout = setTimeout(() => {
 									timeout = 0;
-									prev.call($this, $arguments);
+									prev.call(this, args);
 								}, delay);
 							};
 						} else {
@@ -576,10 +545,7 @@ Builder.prototype.event = function(context, name, value, bind){
 Builder.prototype.eventImpl = function(event, listener, options, useCapture, bind){
 	this.element.addEventListener(event, listener, options, useCapture);
 	if(bind) {
-		var element = this.element;
-		bind.addRollback(function(){
-			element.removeEventListener(event, listener, useCapture);
-		});
+		bind.addRollback(() => this.element.removeEventListener(event, listener, useCapture));
 	}
 };
 
@@ -617,7 +583,7 @@ Builder.prototype[Const.BUILDER_TYPE_PROP] = function(name, value, bind){
 		case "hidden": return this.visible(value, true, bind);
 		case "enabled":
 			if(SactoryObservable.isObservable(value)) {
-				this.prop("disabled", SactoryObservable.computedObservable(null, bind, [value], function(){ return !value.value; }), bind);
+				this.prop("disabled", SactoryObservable.computedObservable(null, bind, [value], () => !value.value), bind);
 			} else {
 				this.prop("disabled", !value, bind);
 			}
@@ -664,14 +630,11 @@ Builder.prototype.form = function(info, value, update, bind){
 	var events = splitted.slice(1);
 	var updateType = Const.OBSERVABLE_UPDATE_TYPE_FORM_RANGE_START + Math.floor(Math.random() * Const.OBSERVABLE_UPDATE_TYPE_FORM_RANGE_LENGTH);
 	var inputType = this.element.type;
-	var get;
-	var converters = [];
+	var get, converters = [];
 	// calculate property name and default converter
 	if(inputType == "checkbox") {
 		this.prop("checked", value, bind, updateType);
-		get = function(callback){
-			callback(this.checked);
-		};
+		get = callback => callback(this.element.checked);
 	} else if(inputType == "radio") {
 		if(isObservable) {
 			// make sure that the radio buttons that depend on the same observable have
@@ -686,10 +649,8 @@ Builder.prototype.form = function(info, value, update, bind){
 				element.checked = value == element.value;
 			}, updateType));
 		}
-		get = function(callback){
-			// the event is called only when radio is selected
-			callback(this.value);
-		};
+		// the event is called only when radio is selected
+		get = callback => callback(this.element.value);
 	} else if(this.element.multiple) {
 		if(isObservable) {
 			// a multiple select does not bind to a property, instead it updates the options,
@@ -704,28 +665,17 @@ Builder.prototype.form = function(info, value, update, bind){
 		}
 		// the get function maps the values of the selected options (obtained from the
 		// `selectedOptions` property or a polyfill)
-		get = function(callback){
-			callback(Array.prototype.map.call(Builder.polyfill.selectedOptions(this), function(option){
-				return option.value;
-			}));
-		};
+		get = callback => callback(Array.prototype.map.call(Builder.polyfill.selectedOptions(this.element), option => option.value));
 	} else {
 		// classic input, values that are `null` and `undefined` are treated
 		// as empty strings
-		function convert(value) {
-			return value === null || value === undefined ? "" : value;
-		}
+		var convert = value => value === null || value === undefined ? "" : value;
 		if(isObservable) {
-			var element = this.element;
-			this.subscribe(bind, SactoryObservable.observe(value, function(value){
-				element.value = convert(value);
-			}, updateType));
+			this.subscribe(bind, SactoryObservable.observe(value, value => this.element.value = convert(value), updateType));
 		} else {
 			this.prop("value", convert(value), bind, updateType);
 		}
-		get = function(callback){
-			callback(this.value);
-		};
+		get = callback => callback(this.element.value);
 	}
 	// calculate the default event type if none was specified
 	if(!events.length) {
@@ -778,7 +728,9 @@ Builder.prototype.form = function(info, value, update, bind){
 							};
 						case "datetime-local":
 						default:
-							return function(){ return new Date(this); };
+							return function(){
+								return new Date(this);
+							};
 					}
 				case "comma":
 					return function(){
@@ -815,7 +767,7 @@ Builder.prototype.form = function(info, value, update, bind){
 				var deep = value.dependencies[0];
 				var path = deep.lastPath.slice(0, -1);
 				var key = deep.lastPath[deep.lastPath.length - 1];
-				converters.push(function(newValue){
+				converters.push(newValue => {
 					var obj = deep.value;
 					path.forEach(function(p){
 						obj = obj[p];
@@ -825,12 +777,17 @@ Builder.prototype.form = function(info, value, update, bind){
 				});
 			} else {
 				// it's the child value of an observable, use the update
-				// function to update the right value
-				converters.push(update);
+				// function to update the right value and also update the observable's
+				// value to keep it in sync with the element's value
+				converters.push(newValue => {
+					value.updateType = updateType;
+					value.value = newValue;
+					update(newValue);
+				});
 			}
 		} else {
 			// normal observable, call the observable's update with the correct update type
-			converters.push(function(newValue){
+			converters.push(newValue => {
 				value.updateType = updateType;
 				value.value = newValue;
 			});
@@ -839,15 +796,11 @@ Builder.prototype.form = function(info, value, update, bind){
 		// not an observable, simply call the update function
 		converters.push(update);
 	}
-	for(var i=0; i<events.length; i++) {
-		this.event(null, events[i], function(){
-			get.call(this, function(newValue){
-				converters.forEach(function(converter){
-					newValue = converter.call(newValue, newValue);
-				});
-			});
+	events.forEach(type => {
+		this.event(null, type, () => {
+			get(newValue => converters.forEach(converter => newValue = converter.call(newValue, newValue)));
 		}, bind);
-	}
+	});
 };
 
 Builder.prototype.addAnimation = function(type, name, options){

@@ -60,7 +60,7 @@ function make(filename, className, sources) {
 
 	var amdUgly = amd.pipe(clone())
 		.pipe(babel({
-			presets: ["babel-preset-env"],
+			presets: ["babel-preset-env", ["babel-preset-minify", {builtIns: false}]],
 			minified: true,
 			comments: false
 		}))

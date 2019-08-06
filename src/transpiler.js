@@ -1625,9 +1625,9 @@ Transpiler.prototype.open = function(){
 			if(Object.prototype.hasOwnProperty.call(dattributes, "widget")) ret.widget = dattributes.widget;
 			if(rattributes.length) {
 				ret.attrs = rattributes.map(function(attribute){
-					return attribute.beforeName + "[" + mapAttributeType(attribute.type) + ", " +
-						(attribute.computed ? attribute.name : '"' + (attribute.name || "") + '"') + attribute.afterName + ", " +
-						attribute.beforeValue + attribute.value +
+					return (attribute.beforeName || "") + "[" + mapAttributeType(attribute.type) + ", " +
+						(attribute.computed ? attribute.name : '"' + (attribute.name || "") + '"') + (attribute.afterName || "") + ", " +
+						(attribute.beforeValue || "") + attribute.value +
 						(attribute.optional ? ", 1" : "") + "]";
 				}).join(",");
 			}

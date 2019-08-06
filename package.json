@@ -1,6 +1,6 @@
 {
 	"name": "sactory",
-	"version": "0.120.0",
+	"version": "0.120.2",
 	"description": "HTML-spiced javascript for DOM creation and manipulation",
 	"main": "index.js",
 	"scripts": {
@@ -27,6 +27,7 @@
 	"devDependencies": {
 		"babel-core": "^6.26.3",
 		"babel-preset-env": "^1.7.0",
+		"babel-preset-minify": "^0.5.0",
 		"event-stream": "^4.0.1",
 		"gulp": "^4.0.2",
 		"gulp-append-prepend": "^1.0.8",
