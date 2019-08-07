@@ -532,20 +532,20 @@ Builder.prototype.event = function(context, name, value, bind){
 			} else {
 				var parent = this.parentNode;
 				while(parent.parentNode) parent = parent.parentNode;
-				parent.__builder.eventImpl("append", listener, options, useCapture, bind);
+				parent.__builder.eventImpl("append", listener, useCapture || options, bind);
 			}
 		};
 	}
-	this.eventImpl(event, listener, options, useCapture, bind);
+	this.eventImpl(event, listener, useCapture || options, bind);
 };
 
 /**
  * @since 0.91.0
  */
-Builder.prototype.eventImpl = function(event, listener, options, useCapture, bind){
-	this.element.addEventListener(event, listener, options, useCapture);
+Builder.prototype.eventImpl = function(event, listener, options, bind){
+	this.element.addEventListener(event, listener, options);
 	if(bind) {
-		bind.addRollback(() => this.element.removeEventListener(event, listener, useCapture));
+		bind.addRollback(() => this.element.removeEventListener(event, listener, options));
 	}
 };
 
