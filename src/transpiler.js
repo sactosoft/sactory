@@ -36,21 +36,11 @@ function now() {
 	return performance.now ? performance.now() : new Date().getTime();
 }
 
-function mapArgType(type) {
-	switch(type) {
-		case "widget": return Const.ARG_TYPE_WIDGET;
-		case "namespace": return Const.ARG_TYPE_NAMESPACE;
-		case "attrs": return Const.ARG_TYPE_ATTRIBUTES;
-		case "iattrs": return Const.ARG_TYPE_INTERPOLATED_ATTRIBUTES;
-		case "spread": return Const.ARG_TYPE_SPREAD;
-		case "transitions": return Const.ARG_TYPE_TRANSITIONS;
-	}
-}
-
 function mapAttributeType(type) {
 	switch(type) {
 		case "": return Const.BUILDER_TYPE_NONE;
 		case "@": return Const.BUILDER_TYPE_PROP;
+		case "&": return Const.BUILDER_TYPE_STYLE;
 		case "~": return Const.BUILDER_TYPE_CONCAT;
 		case "+": return Const.BUILDER_TYPE_ON;
 		case "$": return Const.BUILDER_TYPE_WIDGET;
@@ -62,6 +52,7 @@ function mapAttributeTypeName(type) {
 	switch(type) {
 		case "": return "attribute";
 		case "@": return "property";
+		case "&": return "style";
 		case "~": return "concat";
 		case "+": return "event";
 		case "$": return "widget";

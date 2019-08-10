@@ -164,7 +164,17 @@ Builder.prototype.visible = function(value, reversed, bind){
 /**
  * @since 0.79.0
  */
-Builder.prototype.style = function(name, value, bind){
+Builder.prototype.complexStyle = function(name, value, bind){
+	if(this.element.style.length) {
+		var values = [];
+		Array.prototype.forEach.call(this.element.style, index => {
+			var name = this.element.style[index];
+			values.push({name, value: this.element.style[name]});
+		});
+		this.element.style = "";
+		this.styleImpl(values, bind);
+	}
+	this.hasComplexStyle = true;
 	var node = document.createElement("style");
 	/* debug:
 	node.setAttribute(":usage", "inline-pseudo-class");
@@ -185,9 +195,37 @@ Builder.prototype.style = function(name, value, bind){
 	} else {
 		node.textContent = wrap(value);
 	}
-	this.className(className, bind);
+	this.className(className);
 	document.head.appendChild(node);
-	if(bind) bind.appendChild(node);
+};
+
+/**
+ * @since 0.121.0
+ */
+Builder.prototype.style = function(name, value, bind){
+	//TODO do not use a stylesheet if the element does not have complex styles
+	this.styleImpl([{name, value}], bind);
+};
+
+/**
+ * @since 0.121.0
+ */
+Builder.prototype.styleImpl = function(values){
+	var node = document.createElement("style");
+	/* debug:
+	node.setAttribute(":usage", "inline-styles");
+	node.setAttribute(":for", this.runtimeId);
+	*/
+	var className = SactoryConfig.newPrefix();
+	var update = () => node.textContent = `.${className}{${values.map(({name, value}) => `${name}:${value};`)}}`;
+	values.forEach(({value, bind}) => {
+		if(SactoryObservable.isObservable(value)) {
+			this.subscribe(bind, value.subscribe(update));
+		}
+	});
+	update();
+	this.className(className);
+	document.head.appendChild(node);
 };
 	
 Builder.prototype.text = function(value, bind, anchor){
@@ -589,11 +627,18 @@ Builder.prototype[Const.BUILDER_TYPE_PROP] = function(name, value, bind){
 			}
 			break;
 		default:
-			if(Polyfill.startsWith.call(name, "style:")) {
-				this.style(name.substr(5), value, bind);
-			} else {
-				this.prop(name, value, bind);
-			}
+			this.prop(name, value, bind);
+	}
+};
+
+/**
+ * @since 0.121.0
+ */
+Builder.prototype[Const.BUILDER_TYPE_STYLE] = function(name, value, bind){
+	if(name.charAt(0) == ":") {
+		this.complexStyle(name, value, bind);
+	} else {
+		this.style(name, value, bind);
 	}
 };
 

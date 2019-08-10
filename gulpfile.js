@@ -19,6 +19,7 @@ var debugExp = /\/\* debug:\r?\n([\s\S]*?)\*\//g;
 function make(filename, className, sources) {
 
 	var header = `var toString=function(){return Object.toString().replace(/Object/,'${className}').replace(/native/,'sactory');};${className}.toString=toString.toString=toString;Object.defineProperty(${className},'VERSION',{value:'${version}'});`;
+	var reserved = [className, "Builder", "Bind", "Observable", "Parser", "ParserError"];
 
 	var stream = gulp.src(sources.map(s => "src/" + s + ".js"))
 		.pipe(sourcemaps.init())
@@ -38,7 +39,7 @@ function make(filename, className, sources) {
 		.pipe(gulp.dest("dist"));
 
 	var moduleUgly = module.pipe(clone())
-		.pipe(uglify({mangle: {toplevel: true, reserved: [className]}}))
+		.pipe(uglify({mangle: {toplevel: true, reserved}}))
 		.pipe(append(`export default ${className};`, nos))
 		.pipe(rename(filename + ".module.min.js"))
 		.pipe(sourcemaps.write("./maps"))
@@ -60,7 +61,10 @@ function make(filename, className, sources) {
 
 	var amdUgly = amd.pipe(clone())
 		.pipe(babel({
-			presets: ["babel-preset-env", ["babel-preset-minify", {builtIns: false}]],
+			presets: ["babel-preset-env", ["babel-preset-minify", {
+				builtIns: false,
+				mangle: {exclude: reserved}
+			}]],
 			minified: true,
 			comments: false
 		}))
