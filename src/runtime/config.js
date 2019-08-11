@@ -1,6 +1,7 @@
 var Sactory = {};
 
 var mac = typeof window == "object" && window.navigator.platform.indexOf("Mac") != -1;
+var ie = typeof window == "object" && (window.navigator.platform.indexOf("MSIE ") != -1 || window.navigator.userAgent.indexOf("Trident/") != -1);
 
 var cmd = mac ? "meta" : "ctrl";
 
@@ -8,6 +9,7 @@ var cmd = mac ? "meta" : "ctrl";
  * @since 0.64.0
  */
 Sactory.config = {
+	mac, ie,
 	prefix: "sa",
 	shortcut: {
 		cmd: cmd,

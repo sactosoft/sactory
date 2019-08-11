@@ -2264,11 +2264,11 @@ if(typeof window == "object") {
 				content = builder.outerHTML;
 				builder.setAttribute("type", "text/x-sactory");
 			}
-			builder.dataset.sactoryFrom = id;
-			builder.dataset.to = "[data-sactory-to='" + id + "']";
+			builder.setAttribute("data-sactory-from", id);
+			builder.setAttribute("data-to", `[data-sactory-to='${id}']`);
 			var script = document.createElement("script");
-			script.dataset.sactoryTo = id;
-			script.dataset.from = "[data-sactory-from='" + id + "']";
+			script.setAttribute("data-sactory-to", id);
+			script.setAttribute("data-from", `[data-sactory-from='${id}']`);
 			var attributes = {};
 			Array.prototype.forEach.call(builder.attributes, function(attr){
 				if(Polyfill.startsWith.call(attr.name, "mode:")) {

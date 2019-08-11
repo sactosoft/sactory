@@ -28,7 +28,7 @@ function Sactory(scope, {counter, bind, anchor, registry}, element, ...functions
  * @since 0.122.0
  */
 Sactory.init = function(count){
-	return {counter: new Sactory.Counter(count)};
+	return {counter: new SactoryConfig.Counter(count)};
 };
 
 // constants
@@ -150,9 +150,9 @@ Sactory.Widget.prototype.render = function(args){
 /**
  * @since 0.94.0
  */
-Sactory.Widget.prototype.dispatchEvent = function(event){
+Sactory.Widget.prototype.dispatchEvent = function(event, options = {}){
 	if(!this.element) throw new Error("Cannot dispatch event: the widget has not been rendered yet.");
-	this.element.__builder.dispatchEvent(event);
+	this.element.__builder.dispatchEvent(event, options);
 };
 
 /**
@@ -482,7 +482,7 @@ Sactory.append = function(context, parent, options = {}){
 		if(context.parentAnchor && context.parentAnchor.parentNode === parent) parent.insertBefore(context.element, context.parentAnchor);
 		else parent.appendChild(context.element);
 		if(options.aa) options.aa.call(context.element);
-		if(context.element.__builder && context.element.dispatchEvent) context.element.__builder.dispatchEvent("append"); //TODO only fire when listened for
+		if(context.element.__builder && context.element.dispatchEvent) context.element.__builder.dispatchEvent("append", {bubbles: false}); //TODO only fire when listened for
 		if(options.br) context.element.__builder.event(context.scope, "remove", options.br, context.bind);
 	}
 };

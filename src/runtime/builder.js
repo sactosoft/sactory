@@ -174,7 +174,12 @@ Builder.prototype.complexStyle = function(name, value, counter, bind){
 	} else {
 		var prop = hyphenate(name.substr(dot + 1));
 		name = name.substring(0, dot);
-		wrap = value => `.${className}${name}{${prop}:${value}}`;
+		if(prop.charAt(0) == "!") {
+			prop = prop.substr(1);
+			wrap = value => `.${className}${name}{${prop}:${value} !important;}`;
+		} else {
+			wrap = value => `.${className}${name}{${prop}:${value};}`;
+		}
 	}
 	if(SactoryObservable.isObservable(value)) {
 		this.subscribe(bind, SactoryObservable.observe(value, value => node.textContent = wrap(value)));
@@ -321,7 +326,6 @@ Builder.prototype.event = function(context, name, value, bind){
 	var event = split.shift();
 	var listener = value || function(){};
 	var options = {};
-	var useCapture = false;
 	split.reverse().forEach(function(mod){
 		var prev = listener;
 		switch(mod) {
@@ -354,10 +358,10 @@ Builder.prototype.event = function(context, name, value, bind){
 				options.passive = true;
 				break;
 			case "capture":
-				useCapture = true;
+				options.capture = true;
 				break;
 			case "bubble":
-				useCapture = false;
+				options.capture = false;
 				break;
 			case "trusted":
 				listener = function(event){
@@ -566,11 +570,11 @@ Builder.prototype.event = function(context, name, value, bind){
 			} else {
 				var parent = this.parentNode;
 				while(parent.parentNode) parent = parent.parentNode;
-				parent.__builder.eventImpl("append", listener, useCapture || options, bind);
+				parent.__builder.eventImpl("append", listener, options, bind);
 			}
 		};
 	}
-	this.eventImpl(event, listener, useCapture || options, bind);
+	this.eventImpl(event, listener, options, bind);
 };
 
 /**
@@ -582,6 +586,21 @@ Builder.prototype.eventImpl = function(event, listener, options, bind){
 		bind.addRollback(() => this.element.removeEventListener(event, listener, options));
 	}
 };
+
+if(SactoryConfig.config.ie) {
+	var impl = Builder.prototype.eventImpl;
+	Builder.prototype.eventImpl = function(event, listener, options, bind){
+		if(options.once) {
+			// polyfill
+			var prev = listener;
+			listener = function(){
+				prev.apply(this, arguments);
+				this.removeEventListener(event, listener, options.capture);
+			};
+		}
+		impl.call(this, event, listener, options.capture, bind);
+	};
+}
 
 /**
  * @since 0.62.0
@@ -916,15 +935,15 @@ if(Object.getOwnPropertyDescriptor(Element.prototype, "classList")) {
 
 if(typeof Event == "function") {
 
-	Builder.prototype.dispatchEvent = function(name, bubbles, cancelable){
-		var event = new Event(name, bubbles, cancelable);
+	Builder.prototype.dispatchEvent = function(name, {bubbles, cancelable}){
+		var event = new Event(name, {bubbles, cancelable});
 		this.element.dispatchEvent(event);
 		return event;
 	};
 
 } else {
 
-	Builder.prototype.dispatchEvent = function(name, bubbles, cancelable){
+	Builder.prototype.dispatchEvent = function(name, {bubbles, cancelable}){
 		var event = document.createEvent("Event");
 		event.initEvent(name, bubbles, cancelable);
 		this.element.dispatchEvent(event);
