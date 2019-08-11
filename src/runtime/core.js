@@ -13,15 +13,23 @@ Object.defineProperty(Node, "ANCHOR_NODE", {
 /**
  * @since 0.60.0
  */
-function Sactory(scope, {bind, anchor, registry}, element, ...functions) {
+function Sactory(scope, {counter, bind, anchor, registry}, element, ...functions) {
 	var context = {
-		scope, element, bind, anchor, registry,
+		scope, element,
+		counter, bind, anchor, registry,
 		content: element,
 		parentAnchor: anchor
 	};
 	functions.forEach(([fun, ...args]) => fun.call(null, context, ...args));
 	return context.element;
 }
+
+/**
+ * @since 0.122.0
+ */
+Sactory.init = function(count){
+	return {counter: new Sactory.Counter(count)};
+};
 
 // constants
 
@@ -194,7 +202,7 @@ Sactory.nop = function(){};
 /**
  * @since 0.60.0
  */
-Sactory.update = function(context, [attrs = [], iattrs, sattrs, transitions, widgetCheck, namespace, tagName]){
+Sactory.update = function(context, [attrs = [], iattrs, sattrs, transitions, visibility, widgetCheck, namespace, tagName]){
 
 	if(iattrs) {
 		iattrs.forEach(([type, before, names, after, value]) => {
@@ -339,10 +347,15 @@ Sactory.update = function(context, [attrs = [], iattrs, sattrs, transitions, wid
 
 	args.sort((a, b) => a.type - b.type);
 	
-	args.forEach(({type, name, value}) => updatedElement.__builder[type](name, value, context.bind, context.anchor, context.scope));
+	args.forEach(({type, name, value}) => updatedElement.__builder[type](context, name, value));
 
 	if(transitions) {
 		transitions.forEach(([type, name, options]) => updatedElement.__builder.addAnimation(type, name, options || {}));
+	}
+
+	if(visibility) {
+		var [value, visible] = visibility;
+		updatedElement.__builder.visibility(context, value, visible);
 	}
 
 	for(var widgetName in widgetExt) {
@@ -391,7 +404,7 @@ Sactory.update = function(context, [attrs = [], iattrs, sattrs, transitions, wid
  * @since 0.60.0
  */
 Sactory.create = function(context, tagName, options){
-	options[6] = tagName;
+	options[7] = tagName;
 	context.parent = context.container || context.element;
 	context.element = context.container = context.content = null; // delete parents
 	context.anchor = null; // invalidate the current anchor so the children will not use it
@@ -446,7 +459,7 @@ Sactory.body = function(context, fun){
  */
 Sactory.forms = function(context, ...values){
 	var input = context.input || context.content;
-	values.forEach(([info, value, update]) => input.__builder.form(info, value, update, context.bind));
+	values.forEach(([info, value, update]) => input.__builder.form(context, info, value, update));
 };
 
 /**
@@ -524,17 +537,13 @@ Sactory.clear = function(context){
 Sactory.inherit = function(target, ...args){
 	// the last two options (widget and namespace) are assigned only if
 	// the target does not have them and the inheritance does
-	if(target[4] === undefined) {
-		// widget
-		args.forEach(([,,,,widget]) => {
-			if(widget !== undefined) target[4] = widget;
-		});
-	}
-	if(target[5] === undefined) {
-		// namespace
-		args.forEach(([,,,,,namespace]) => {
-			if(namespace !== undefined) target[5] = namespace;
-		});
+	for(var i=4; i<=6; i++) {
+		if(target[i] === undefined) {
+			args.forEach(arg => {
+				var value = arg[i];
+				if(value !== undefined) target[i] = value;
+			});
+		}
 	}
 	// the first four options are arrays and are merged in reverse so
 	// the more the inherit tag was the less important is
@@ -556,7 +565,7 @@ Sactory.inherit = function(target, ...args){
 Sactory.mixin = function(context, data){
 	if(data instanceof Node) {
 		Sactory.append({element: data, bind: context.bind, parentAnchor: context.anchor}, context.element, {adoption: true});
-	} else {
+	} else if(data) {
 		Sactory.html(context, data);
 	}
 };
@@ -604,8 +613,8 @@ var currentId;
 /**
  * @since 0.70.0
  */
-Sactory.nextId = function(){
-	return currentId = SactoryConfig.newPrefix();
+Sactory.nextId = function({counter}){
+	return currentId = counter.nextPrefix();
 };
 
 /**

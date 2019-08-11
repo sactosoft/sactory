@@ -1406,6 +1406,7 @@ Transpiler.prototype.open = function(){
 		var currentClosing = [];
 		var createAnchor;
 		var transitions = [];
+		var visibility;
 		var forms = [];
 		var computed = false;
 		var optional = false;
@@ -1475,9 +1476,7 @@ Transpiler.prototype.open = function(){
 				}
 				// read value
 				skip();
-				if(attr.negated) {
-					attr.value = false;
-				} else if(this.parser.peek() == '=') {
+				if(this.parser.peek() == '=') {
 					attr.afterName = skipped;
 					this.parser.index++;
 					attr.beforeValue = skip();
@@ -1490,24 +1489,6 @@ Transpiler.prototype.open = function(){
 					attr.value = attr.type != '+' ? parsed.toValue() : parsed.source;
 					attr.sourceValue = parsed.source;
 					skip(true);
-				} else {
-					switch(attr.type) {
-						case "":
-						case "*":
-							attr.value = "\"\"";
-							break;
-						case ":":
-						case "#":
-						case "$":
-						case "$$":
-							attr.value = true;
-							break;
-						case "+":
-							attr.value = null;
-							break;
-						default:
-							this.parser.error("Value for attribute is required.");
-					}
 				}
 				if(attr.inner) {
 					iattributes.push(attr);
@@ -1520,6 +1501,7 @@ Transpiler.prototype.open = function(){
 							break;
 						case ':':
 							if(attr.computed) this.parser.error("Compile-time attributes cannot be computed.");
+							if(!attr.hasOwnProperty("value")) attr.value = !attr.negated;
 							if(Object.prototype.hasOwnProperty.call(dattributes, attr.name)) {
 								if(dattributes[attr.name] instanceof Array) {
 									dattributes[attr.name].push(attr.value);
@@ -1548,12 +1530,12 @@ Transpiler.prototype.open = function(){
 									attr.type = "";
 									if(start.name.length == 5) attr.parts.shift();
 									else start.name = start.name.substr(5);
-									var value = attr.value;
-									attr.value = this.feature((temp ? "next" : "prev") + "Id") + "()";
-									if(value !== true) attr.value = value + " + " + attr.value;
+									var value = temp ? `${this.feature("nextId")}(${this.context})` : `${this.feature("prevId")}()`;
+									if(attr.hasOwnProperty("value")) attr.value += " + " + value;
+									else attr.value = value;
 									add = true;
 									break;
-								case "io":
+								/*case "io":
 								case "in":
 								case "out":
 									var type = start.name.substring(0, column);
@@ -1561,6 +1543,10 @@ Transpiler.prototype.open = function(){
 									if(!start.name.length) attr.parts.shift();
 									this.compileAttributeParts(attr);
 									transitions.push({type: type, name: this.stringifyAttribute(attr), value: attr.value})
+									break;*/
+								case "show":
+									var value = attr.hasOwnProperty("value") ? attr.value : 1;
+									visibility = `[${value}, ${attr.negated ^ 1}]`;
 									break;
 								case "number":
 									start.name += ":number";
@@ -1569,7 +1555,6 @@ Transpiler.prototype.open = function(){
 								case "date":
 								case "email":
 								case "file":
-								case "hidden":
 								case "password":
 								case "radio":
 								case "range":
@@ -1578,6 +1563,7 @@ Transpiler.prototype.open = function(){
 									rattributes.push({type: "", name: "type", value: '"' + name + '"'});
 								case "form":
 								case "value":
+									if(!attr.hasOwnProperty("value")) this.parser.error("Value for form attribute is required.");
 									if(column == start.name.length - 1) attr.parts.shift();
 									else start.name = start.name.substr(column);
 									this.compileAttributeParts(attr);
@@ -1589,6 +1575,31 @@ Transpiler.prototype.open = function(){
 							if(add) this.compileAttributeParts(attr);
 							else break;
 						default:
+							if(!attr.hasOwnProperty("value")) {
+								switch(attr.type) {
+									case "":
+										attr.value = "\"\"";
+										break;
+									case "@":
+									case "$":
+									case "$$":
+										attr.value = !attr.negated;
+										break;
+									case "&":
+										if(attr.negated) {
+											// duplicate the attribute to set the property to either '0' and 'none'
+											attr.value = 0;
+											rattributes.push(attr);
+											attr = {type: "&", name: attr.name, value: "\"none\""};
+											break;
+										}
+									case "+":
+										attr.value = null;
+										break;
+									default:
+										this.parser.error("Value for attribute is required.");
+								}
+							}
 							rattributes.push(attr);
 					}
 				}
@@ -1612,8 +1623,6 @@ Transpiler.prototype.open = function(){
 		var options = noInheritance => {
 			var level = ++this.level;
 			var ret = {};
-			if(currentNamespace) ret.namespace = currentNamespace;
-			if(Object.prototype.hasOwnProperty.call(dattributes, "widget")) ret.widget = dattributes.widget;
 			if(rattributes.length) {
 				ret.attrs = rattributes.map(function(attribute){
 					return (attribute.beforeName || "") + "[" + mapAttributeType(attribute.type) + ", " +
@@ -1653,6 +1662,15 @@ Transpiler.prototype.open = function(){
 			if(transitions.length) {
 				ret.transitions = transitions.map(({type, name, value}) => `["${type}", ${name}, ${value == '""' ? "{}" : value}]`).join(", ");
 			}
+			if(visibility) {
+				ret.visibility = visibility;
+			}
+			if(Object.prototype.hasOwnProperty.call(dattributes, "widget")) {
+				ret.widget = dattributes.widget;
+			}
+			if(currentNamespace) {
+				ret.namespace = currentNamespace;
+			}
 			Object.defineProperty(ret, "toString", {
 				enumerable: false,
 				value: function(){
@@ -1663,7 +1681,7 @@ Transpiler.prototype.open = function(){
 							str[i] = "[" + value + "]";
 						}
 					});
-					["widget", "namespace"].forEach((type, i) => {
+					["visibility", "widget", "namespace"].forEach((type, i) => {
 						if(ret.hasOwnProperty(type)) {
 							str[i + 4] = ret[type];
 						}
@@ -2133,7 +2151,7 @@ Transpiler.prototype.transpile = function(input){
 		if(this.options.dependencies) this.before += "," + Object.keys(this.options.dependencies).join(",");
 		this.before += "){";
 	}
-	this.before += `var ${this.context}={};var ${this.inheritance}=[];`;
+	this.before += `var ${this.inheritance}=[];var ${this.context}=${this.runtime}.init(${this.count});`;
 	if(!this.options.hasOwnProperty("versionCheck") || this.options.versionCheck) this.before += `${this.runtime}.check("${v}");`;
 	this.source = [];
 

@@ -1,14 +1,18 @@
 var Polyfill = require("../polyfill");
 var Const = require("../const");
+var { hyphenate } = require("../util");
 
 var SactoryConfig = require("./config");
 var SactoryObservable = require("./observable");
 var SactoryBind = require("./bind");
 var SactoryAnimation = require("./animation");
 
-// generate class name for hidden elements
-var hidden = SactoryConfig.newPrefix();
-var hiddenAdded = false;
+// global variable for hidden elements. A single class is used
+// in the whole web page to hide elements.
+var hidden;
+
+// export for client runtime
+SactoryConfig.Builder = Builder;
 
 /**
  * @class
@@ -51,37 +55,19 @@ Builder.prototype.subscribe = function(bind, subscription){
 	if(bind) bind.subscriptions.push(subscription);
 };
 	
-Builder.prototype.attrImpl = function(name, value){
-	this.element.setAttribute(name, value);
-};
-	
 Builder.prototype.attr = function(name, value, bind){
 	if(SactoryObservable.isObservable(value)) {
-		this.subscribe(bind, SactoryObservable.observe(value, value => this.attrImpl(name, value)));
+		this.subscribe(bind, SactoryObservable.observe(value, value => this.element.setAttribute(name, value)));
 	} else {
-		this.attrImpl(name, value);
+		this.element.setAttribute(name, value);
 	}
-};
-
-Builder.prototype.propImpl = function(name, value){
-	var o = this.element;
-	if(name.charAt(0) == '@') {
-		o = this.widgets;
-		name = name.substr(1);
-		if(name.charAt(0) == '.') name = name.substr(1);
-	}
-	var s = name.split('.');
-	while(s.length > 1) {
-		o = o[s.shift()];
-	}
-	o[s[0]] = value;
 };
 	
 Builder.prototype.prop = function(name, value, bind, type){
 	if(SactoryObservable.isObservable(value)) {
-		this.subscribe(bind, SactoryObservable.observe(value, value => this.propImpl(name, value), type));
+		this.subscribe(bind, SactoryObservable.observe(value, value => this.element[name] = value, type));
 	} else {
-		this.propImpl(name, value);
+		this.element[name] = value;
 	}
 };
 
@@ -97,9 +83,9 @@ Builder.prototype.append = function(element, bind, anchor){
 /**
  * @since 0.46.0
  */
-Builder.prototype.visible = function(value, reversed, bind){
-	if(!hiddenAdded) {
-		hiddenAdded = true;
+Builder.prototype.visible = function(value, reversed, counter, bind){
+	if(!hidden) {
+		hidden = counter.nextPrefix();
 		var style = document.createElement("style");
 		style.textContent = "." + hidden + "{display:none !important;}";
 		/* debug:
@@ -164,15 +150,15 @@ Builder.prototype.visible = function(value, reversed, bind){
 /**
  * @since 0.79.0
  */
-Builder.prototype.complexStyle = function(name, value, bind){
+Builder.prototype.complexStyle = function(name, value, counter, bind){
 	if(this.element.style.length) {
 		var values = [];
 		Array.prototype.forEach.call(this.element.style, index => {
 			var name = this.element.style[index];
 			values.push({name, value: this.element.style[name]});
 		});
-		this.element.style = "";
-		this.styleImpl(values, bind);
+		this.element.removeAttribute("style");
+		this.styleImpl(values, counter, bind);
 	}
 	this.hasComplexStyle = true;
 	var node = document.createElement("style");
@@ -180,13 +166,13 @@ Builder.prototype.complexStyle = function(name, value, bind){
 	node.setAttribute(":usage", "inline-pseudo-class");
 	node.setAttribute(":for", this.runtimeId);
 	*/
-	var className = SactoryConfig.newPrefix();
+	var className = counter.nextPrefix();
 	var wrap;
 	var dot = name.indexOf('.');
 	if(dot == -1) {
 		wrap = value => `.${className}${name}{${value}}`;
 	} else {
-		var prop = name.substr(dot + 1);
+		var prop = hyphenate(name.substr(dot + 1));
 		name = name.substring(0, dot);
 		wrap = value => `.${className}${name}{${prop}:${value}}`;
 	}
@@ -202,22 +188,32 @@ Builder.prototype.complexStyle = function(name, value, bind){
 /**
  * @since 0.121.0
  */
-Builder.prototype.style = function(name, value, bind){
+Builder.prototype.style = function(name, value, counter, bind){
 	//TODO do not use a stylesheet if the element does not have complex styles
-	this.styleImpl([{name, value}], bind);
+	this.styleImpl([{name, value}], counter, bind);
 };
 
 /**
  * @since 0.121.0
  */
-Builder.prototype.styleImpl = function(values){
+Builder.prototype.styleImpl = function(values, counter){
+	// hyphenate and convert to string
+	values.forEach(a => {
+		var name = hyphenate(a.name);
+		if(name.charAt(0) == "!") {
+			name = name.substr(1);
+			a.toString = () => `${name}:${a.value} !important;`;
+		} else {
+			a.toString = () => `${name}:${a.value};`;
+		}
+	});
 	var node = document.createElement("style");
 	/* debug:
 	node.setAttribute(":usage", "inline-styles");
 	node.setAttribute(":for", this.runtimeId);
 	*/
-	var className = SactoryConfig.newPrefix();
-	var update = () => node.textContent = `.${className}{${values.map(({name, value}) => `${name}:${value};`)}}`;
+	var className = counter.nextPrefix();
+	var update = () => node.textContent = `.${className}{${values.join("")}}`;
 	values.forEach(({value, bind}) => {
 		if(SactoryObservable.isObservable(value)) {
 			this.subscribe(bind, value.subscribe(update));
@@ -608,20 +604,20 @@ Builder.prototype.removeClassName = function(className){
 /**
  * @since 0.69.0
  */
-Builder.prototype[Const.BUILDER_TYPE_NONE] = function(name, value, bind){
+Builder.prototype[Const.BUILDER_TYPE_NONE] = function({bind}, name, value){
 	this.attr(name, value, bind);
 };
 
 /**
  * @since 0.63.0
  */
-Builder.prototype[Const.BUILDER_TYPE_PROP] = function(name, value, bind){
+Builder.prototype[Const.BUILDER_TYPE_PROP] = function({counter, bind}, name, value){
 	switch(name) {
-		case "visible": return this.visible(value, false, bind);
-		case "hidden": return this.visible(value, true, bind);
+		case "visible": return this.visible(value, false, counter, bind);
+		case "hidden": return this.visible(value, true, counter, bind);
 		case "enabled":
 			if(SactoryObservable.isObservable(value)) {
-				this.prop("disabled", SactoryObservable.computedObservable(null, bind, [value], () => !value.value), bind);
+				this.prop("disabled", SactoryObservable.computedObservable(null, bind, [value], value => !value), bind);
 			} else {
 				this.prop("disabled", !value, bind);
 			}
@@ -634,18 +630,18 @@ Builder.prototype[Const.BUILDER_TYPE_PROP] = function(name, value, bind){
 /**
  * @since 0.121.0
  */
-Builder.prototype[Const.BUILDER_TYPE_STYLE] = function(name, value, bind){
-	if(name.charAt(0) == ":") {
-		this.complexStyle(name, value, bind);
+Builder.prototype[Const.BUILDER_TYPE_STYLE] = function({counter, bind}, name, value){
+	if(/[a-z-]/.test(name.charAt(0))) {
+		this.style(name, value, counter, bind);
 	} else {
-		this.style(name, value, bind);
+		this.complexStyle(name, value, counter, bind);
 	}
 };
 
 /**
  * @since 0.96.0
  */
-Builder.prototype[Const.BUILDER_TYPE_CONCAT] = function(name, value, bind, anchor){
+Builder.prototype[Const.BUILDER_TYPE_CONCAT] = function({bind, anchor}, name, value){
 	switch(name) {
 		case "text": return this.text(value, bind, anchor);
 		case "html": return this.html(value, bind, anchor);
@@ -662,14 +658,41 @@ Builder.prototype[Const.BUILDER_TYPE_CONCAT] = function(name, value, bind, ancho
 /**
  * @since 0.69.0
  */
-Builder.prototype[Const.BUILDER_TYPE_ON] = function(name, value, bind, anchor, context){
-	this.event(context, name, SactoryObservable.unobserve(value), bind);
+Builder.prototype[Const.BUILDER_TYPE_ON] = function({scope, bind, anchor}, name, value){
+	this.event(scope, name, SactoryObservable.unobserve(value), bind);
+};
+
+/**
+ * @since 0.122.0
+ */
+Builder.prototype.visibility = function({counter, bind}, value, visible){
+	if(!hidden) {
+		hidden = counter.nextPrefix();
+		var style = document.createElement("style");
+		style.textContent = `.${hidden}{display:none !important;}`;
+		/* debug:
+		style.setAttribute(":usage", "visibility-toggle");
+		*/
+		document.head.appendChild(style);
+	}
+	var update = value => {
+		if(!!value ^ visible) {
+			this.addClass(hidden);
+		} else {
+			this.removeClass(hidden);
+		}
+	};
+	if(SactoryObservable.isObservable(value)) {
+		this.subscribe(bind, SactoryObservable.observe(value, (newValue, oldValue) => update(newValue, oldValue)));
+	} else {
+		update(value);
+	}
 };
 
 /**
  * @since 0.46.0
  */
-Builder.prototype.form = function(info, value, update, bind){
+Builder.prototype.form = function({counter, bind}, info, value, update){
 	var isObservable = SactoryObservable.isObservable(value);
 	var splitted = info.split("::");
 	var events = splitted.slice(1);
@@ -685,7 +708,7 @@ Builder.prototype.form = function(info, value, update, bind){
 			// make sure that the radio buttons that depend on the same observable have
 			// the same name and are in the same radio group
 			if(!this.element.name) {
-				this.element.name = value.radioGroupName || (value.radioGroupName = SactoryConfig.newPrefix());
+				this.element.name = value.radioGroupName || (value.radioGroupName = counter.nextPrefix());
 			}
 			// subscription that sets `checked` to true when the value of the
 			// observable is equal to the attribute value of the element
