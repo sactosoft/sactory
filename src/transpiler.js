@@ -1548,6 +1548,10 @@ Transpiler.prototype.open = function(){
 									var value = attr.hasOwnProperty("value") ? attr.value : 1;
 									visibility = `[${value}, ${attr.negated ^ 1}]`;
 									break;
+								case "hide":
+									var value = attr.hasOwnProperty("value") ? attr.value : 0;
+									visibility = `[${value}, ${+attr.negated}]`;
+									break;
 								case "number":
 									start.name += ":number";
 								case "checkbox":

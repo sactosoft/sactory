@@ -482,7 +482,7 @@ Sactory.append = function(context, parent, options = {}){
 		if(context.parentAnchor && context.parentAnchor.parentNode === parent) parent.insertBefore(context.element, context.parentAnchor);
 		else parent.appendChild(context.element);
 		if(options.aa) options.aa.call(context.element);
-		if(context.element.__builder && context.element.dispatchEvent) context.element.__builder.dispatchEvent("append", {bubbles: false}); //TODO only fire when listened for
+		if(context.element.__builderInstance && context.element.__builder.events.append) context.element.__builder.dispatchEvent("append", {bubbles: false});
 		if(options.br) context.element.__builder.event(context.scope, "remove", options.br, context.bind);
 	}
 };

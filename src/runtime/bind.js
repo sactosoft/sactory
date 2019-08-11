@@ -31,28 +31,22 @@ Bind.prototype.fork = function(){
  */
 Bind.prototype.rollback = function(){
 	if(this.subscriptions.length) {
-		this.subscriptions.forEach(function(subscription){
-			subscription.dispose();
-		});
+		this.subscriptions.forEach(subscription => subscription.dispose());
 		this.subscriptions = [];
 	}
 	if(this.elements.length) {
-		this.elements.forEach(function(element){
-			if(element.__builderInstance && element.dispatchEvent) element.__builder.dispatchEvent("remove", {bubbles: false});
+		this.elements.forEach(element => {
+			if(element.__builderInstance && element.__builder.events.remove) element.__builder.dispatchEvent("remove", {bubbles: false});
 			if(element.parentNode) element.parentNode.removeChild(element);
 		});
 		this.elements = [];
 	}
 	if(this.rollbacks.length) {
-		this.rollbacks.forEach(function(fun){
-			fun();
-		});
+		this.rollbacks.forEach(fun => fun());
 		this.rollbacks = [];
 	}
 	if(this.children.length) {
-		this.children.forEach(function(child){
-			child.rollback();
-		});
+		this.children.forEach(child => child.rollback());
 		this.children = [];
 	}
 };

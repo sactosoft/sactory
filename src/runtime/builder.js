@@ -21,6 +21,10 @@ function Builder(element) {
 
 	this.element = element;
 
+	this.hasComplexStyle = false;
+	this.styles = [];
+	this.events = {};
+
 	this.animations = {i: [], o: []};
 	this.animationTimeout = false;
 	this.animationStart = 0;
@@ -152,13 +156,16 @@ Builder.prototype.visible = function(value, reversed, counter, bind){
  */
 Builder.prototype.complexStyle = function(name, value, counter, bind){
 	if(this.element.style.length) {
-		var values = [];
-		Array.prototype.forEach.call(this.element.style, index => {
-			var name = this.element.style[index];
-			values.push({name, value: this.element.style[name]});
-		});
+		// transfer inline styles
+		var values = Array.prototype.map.call(this.element.style, name => ({name, value: this.element.style[name]}));
+		if(values.length) this.styleImpl(values, counter, bind);
+		// remove inline styles
 		this.element.removeAttribute("style");
-		this.styleImpl(values, counter, bind);
+		// transfer inline styles that are observables
+		this.styles.forEach(({name, value, subscription, bind}) => {
+			subscription.dispose();
+			this.styleImpl([{name, value}], counter, bind);
+		});
 	}
 	this.hasComplexStyle = true;
 	var node = document.createElement("style");
@@ -194,8 +201,24 @@ Builder.prototype.complexStyle = function(name, value, counter, bind){
  * @since 0.121.0
  */
 Builder.prototype.style = function(name, value, counter, bind){
-	//TODO do not use a stylesheet if the element does not have complex styles
-	this.styleImpl([{name, value}], counter, bind);
+	if(this.hasComplexStyle) {
+		this.styleImpl([{name, value}], counter, bind);
+	} else {
+		var prop = name;
+		var get = value => value;
+		var update = value => this.element.style[prop] = get(value);
+		if(name.charAt(0) == "!") {
+			prop = name.substr(1);
+			get = value => `${value} !important`;
+		}
+		if(SactoryObservable.isObservable(value)) {
+			var subscription = SactoryObservable.observe(update);
+			this.subscribe(bind, subscription);
+			this.styles.push({name, value, subscription, bind});
+		} else {
+			update(value);
+		}
+	}
 };
 
 /**
@@ -581,6 +604,7 @@ Builder.prototype.event = function(context, name, value, bind){
  * @since 0.91.0
  */
 Builder.prototype.eventImpl = function(event, listener, options, bind){
+	this.events[event] = true;
 	this.element.addEventListener(event, listener, options);
 	if(bind) {
 		bind.addRollback(() => this.element.removeEventListener(event, listener, options));
@@ -650,7 +674,7 @@ Builder.prototype[Const.BUILDER_TYPE_PROP] = function({counter, bind}, name, val
  * @since 0.121.0
  */
 Builder.prototype[Const.BUILDER_TYPE_STYLE] = function({counter, bind}, name, value){
-	if(/[a-z-]/.test(name.charAt(0))) {
+	if(/[!a-z-]/.test(name.charAt(0))) {
 		this.style(name, value, counter, bind);
 	} else {
 		this.complexStyle(name, value, counter, bind);
