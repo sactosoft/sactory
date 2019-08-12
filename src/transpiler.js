@@ -709,7 +709,7 @@ JavascriptParser.prototype.next = function(match){
 							add(this.transpiler.feature("on"), "this, " + this.context + ", ");
 							break;
 						case "slot":
-							add(this.context + ".registry.add", this.transpiler.feature("createAnchor") + "(" + this.context + "), ");
+							add(this.context + ".registry.add", this.transpiler.feature("anchor") + "(" + this.context + "), ");
 							break;
 						case "animations.add":
 							add(this.transpiler.feature("addAnimation"));
@@ -835,6 +835,7 @@ AutoHTMLParser.matchesTag = function(tagName, currentMode){
 };
 
 AutoHTMLParser.prototype = Object.create(HTMLParser.prototype);
+
 /**
  * @class
  * @since 0.37.0
@@ -1120,21 +1121,50 @@ SSBParser.createExpr = function(expr, transpiler){
 	return SSBParser.createExprImpl(expr, info, transpiler) && info.is && info.op && (info.computed + ")})({})") || ("(" + expr + ")");
 };
 
+/**
+ * @class
+ * @since 0.124.0
+ */
+function CommentParser(transpiler, parser, source, attributes) {
+	TextParser.call(this, transpiler, parser, source, attributes);
+	this.values = [];
+}
+
+CommentParser.getOptions = function(){
+	return {comments: false, strings: false, children: false};
+};
+
+CommentParser.prototype = Object.create(TextParser.prototype);
+
+CommentParser.prototype.add = function(text){
+	this.values.push(stringify(text));
+};
+
+CommentParser.prototype.addText = function(expr){
+	this.values.push(expr);
+};
+
+CommentParser.prototype.parse = function(handle, eof){
+	var result = this.parser.find(['$'], false, true);
+	this.pushText(result.pre);
+	this.parseImpl(result.pre, result.match, handle, eof);
+};
+
 // export parsers
 
 Transpiler.Internal = {
-	Parser: Parser,
-	SourceParser: SourceParser,
-	BreakpointParser: BreakpointParser,
-	TextParser: TextParser,
-	LogicParser: LogicParser,
-	JavascriptParser: JavascriptParser,
-	AutoJavascriptParser: AutoJavascriptParser,
-	HTMLParser: HTMLParser,
-	AutoHTMLParser: AutoHTMLParser,
-	ScriptParser: ScriptParser,
-	CSSParser: CSSParser,
-	SSBParser: SSBParser
+	Parser,
+	SourceParser,
+	BreakpointParser,
+	TextParser,
+	LogicParser,
+	JavascriptParser,
+	AutoJavascriptParser,
+	HTMLParser,
+	AutoHTMLParser,
+	ScriptParser,
+	CSSParser,
+	SSBParser
 };
 
 // register default modes
@@ -1144,6 +1174,7 @@ Transpiler.defineMode(["html"], HTMLParser);
 Transpiler.defineMode(["script"], ScriptParser);
 Transpiler.defineMode(["css"], CSSParser);
 Transpiler.defineMode(["ssb", "style"], SSBParser);
+Transpiler.defineMode(["__comment"], CommentParser);
 
 // register auto modes after default modes to give less precedence to `matchesTag`
 
@@ -1151,6 +1182,7 @@ Transpiler.defineMode(["auto-code"], AutoJavascriptParser);
 Transpiler.defineMode(["auto-html"], AutoHTMLParser);
 
 function Transpiler(options) {
+	//this.options = {env: ["none"], ...options};
 	this.options = Polyfill.assign({env: ["none"]}, options || {});
 	if(!Array.isArray(this.options.env)) this.options.env = [this.options.env];
 	if(this.options.env.length == 1 && this.options.env[0] == "none") {
@@ -1228,18 +1260,17 @@ Transpiler.prototype.endMode = function(){
 };
 
 /**
- * @since 0.42.0
+ * @since 0.124.0
  */
-Transpiler.prototype.parseCode = function(input, parentParser){
+Transpiler.prototype.parseImpl = function(modeId, input, parentParser){
 	var parser = new Parser(input, (parentParser || this.parser).position);
 	var source = [];
-	var mode = Transpiler.startMode(defaultMode, this, parser, source);
+	var mode = Transpiler.startMode(modeId, this, parser, source);
 	if(mode.observables) {
-		var $this = this;
-		parser.parseTemplateLiteral = function(expr){
-			var parsed = $this.parseCode(expr, parser);
-			Array.prototype.push.apply(mode.observables, parsed.observables);
-			Array.prototype.push.apply(mode.maybeObservables, parsed.maybeObservables);
+		parser.parseTemplateLiteral = expr => {
+			var parsed = this.parseCode(expr, parser);
+			mode.observables.push(...parsed.observables);
+			mode.maybeObservables.push(...parsed.maybeObservables);
 			return parsed.source;
 		};
 	}
@@ -1248,31 +1279,30 @@ Transpiler.prototype.parseCode = function(input, parentParser){
 		mode.parse(function(){ source.push('<'); }, function(){});
 	}
 	mode.end();
+	return {mode, source};
+};
+
+/**
+ * @since 0.42.0
+ */
+Transpiler.prototype.parseCode = function(input, parentParser){
+	var {mode, source} = this.parseImpl(defaultMode, input, parentParser);
 	source = source.join("");
 	var observables = mode.observables ? uniq(mode.observables) : [];
 	var maybeObservables = mode.maybeObservables ? uniq(mode.maybeObservables) : [];
-	var $this = this;
 	var ret = {
-		source: source,
-		observables: observables,
-		maybeObservables: maybeObservables,
-		toValue: function(){
-			if(observables.length || maybeObservables.length) {
-				if(observables.length == 1 && input.charAt(0) == '*' && source == input.substr(1) + ".value") {
-					// single observable, pass it raw so it can be used in two-way binding
-					return input.substr(1);
-				} else {
-					return $this.feature(maybeObservables.length ? "maybeComputedObservable" : "computedObservable") + "(this, " + $this.context + ".bind, " + ret.toSpreadValue() + ")";
-				}
-			} else {
-				return source;
-			}
-		},
-		toSpreadValue: function(){
-			return "[" + observables.join(", ") + "], function(){return " + source + "}, [" + maybeObservables.join(", ") + "]";
-		}
+		source, observables, maybeObservables,
+		toValue: () => observables.length || maybeObservables.length ? `${this.feature(maybeObservables.length ? "maybeComputedObservable" : "computedObservable")}(this, ${this.context}.bind, ${ret.toSpreadValue()})` : source,
+		toSpreadValue: () => `[${observables.join(", ")}], function(){return ${source}}, [${maybeObservables.join(", ")}]`
 	};
 	return ret;
+};
+
+/**
+ * @since 0.124.0
+ */
+Transpiler.prototype.parseText = function(input, parentParser){
+	return this.parseImpl(modeNames.__comment, input, parentParser).mode.values.join(" + ");
 };
 
 /**
@@ -1368,7 +1398,7 @@ Transpiler.prototype.open = function(){
 			if(!match) {
 				this.parser.expect('-');
 				this.parser.expect('-');
-				this.source.push(this.feature("comment") + "(" + this.context + ", " + stringify(this.parser.findSequence("-->", true).slice(0, -3)) + ")");
+				this.source.push(this.feature("comment") + "(" + this.context + ", " + this.parseText(this.parser.findSequence("-->", true).slice(0, -3)) + ")");
 				this.addSemicolon();
 			}
 		}
@@ -2253,7 +2283,7 @@ var dependencies = {
 	mixin: ["append", "html"],
 	comment: ["append"],
 	// bind
-	bind: ["createAnchor"],
+	bind: ["anchor"],
 	bindIf: ["bind"],
 	bindEach: ["bind"],
 	// observable

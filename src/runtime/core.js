@@ -591,15 +591,6 @@ Sactory.html = function(context, html){
 };
 
 /**
- * @since 0.40.0
- */
-Sactory.comment = function(context, comment){
-	var ret = document.createComment(comment);
-	Sactory.append({element: ret, bind: context.bind, parentAnchor: context.anchor}, context.element);
-	return ret;
-};
-
-/**
  * @since 0.78.0
  */
 Sactory.on = function(scope, context, name, value){
