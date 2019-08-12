@@ -25,4 +25,11 @@ Sactory.createDocument = function(charset){
 	return global.document = new HTMLDocument();
 };
 
+/**
+ * @since 0.123.0
+ */
+Sactory.xml = function(namespace, root){
+	return new XMLDocument(namespace, root);
+};
+
 module.exports = Sactory;

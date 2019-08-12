@@ -332,10 +332,12 @@ Sactory.update = function(context, [attrs = [], iattrs, sattrs, transitions, vis
 			}
 			*/
 		} else {
+			var doc = context.parent && context.parent.ownerDocument || document;
+			var update = element => updatedElement = context.element = context.content = element;
 			if(namespace) {
-				updatedElement = context.element = context.content = document.createElementNS(namespace, tagName);
+				update(doc.createElementNS(namespace, tagName));
 			} else {
-				updatedElement = context.element = context.content = document.createElement(tagName);
+				update(doc.createElement(tagName));
 			}
 			/* debug:
 			if(context.element.setAttribute) {

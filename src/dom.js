@@ -358,6 +358,53 @@ class HTMLDocument extends Document {
 		return "<!DOCTYPE html>" + this.childNodes.map(a => a.render()).join("");
 	}
 
+	renderElement(element) {
+		var tagName = element.tagName.toLowerCase();
+		var ret = "<" + tagName;
+		for(var name in element.attributes) {
+			var value = element.attributes[name];
+			ret += " " + name;
+			if(value) ret += `="${value.replace(/"/g, "&quot;")}"`;
+		}
+		ret += ">";
+		if(selfClosing.test(element.tagName)) {
+			return ret;
+		} else {
+			return `${ret}${element.childNodes.map(a => a.render()).join("")}</${tagName}>`;
+		}
+	}
+
+}
+
+class XMLDocument extends Document {
+
+	constructor(namespaceURI, tagName) {
+		super();
+		this.ownerDocument = this;
+		this.version = "1.0";
+		this.encoding = "utf-8";
+		var root = this.createElement(tagName || "xml");
+		root.setAttribute("xmlns", namespaceURI || "http://www.w3.org/1999/xhtml");
+		this.appendChild(root);
+	}
+
+	render() {
+		return `<?xml version="${this.version}" encoding="${this.encoding}"?>${this.firstElementChild.render()}`;
+	}
+
+	renderElement(element) {
+		var tagName = element.tagName.toLowerCase();
+		var ret = "<" + tagName;
+		for(var name in element.attributes) {
+			ret += ` ${name}="${element.attributes[name].replace(/"/g, "&quot;")}"`;
+		}
+		if(element.childNodes.length) {
+			return `${ret}>${element.childNodes.map(a => a.render()).join("")}</${tagName}>`;
+		} else {
+			return `${ret} />`;
+		}
+	}
+
 }
 
 function createDataProxy(element) {
@@ -553,18 +600,8 @@ class Element extends Document {
 
 	removeEventListener(event, listener, options) {}
 
-	renderTagName() {
-		var ret = "<" + this.tagName;
-		for(var key in this.attributes) {
-			var value = this.attributes[key];
-			ret += " " + key + (value && "=" + JSON.stringify(value));
-		}
-		return ret + ">";
-	}
-
 	render() {
-		if(selfClosing.test(this.tagName)) return this.renderTagName();
-		else return this.renderTagName() + this.innerHTML + "</" + this.tagName + ">";
+		return this.ownerDocument.renderElement(this);
 	}
 
 }
@@ -640,10 +677,10 @@ class DocumentFragment extends Element {
 }
 
 // export to the global scope
-
 global.Node = Node;
 global.Document = Document;
 global.HTMLDocument = HTMLDocument;
+global.XMLDocument = XMLDocument;
 global.Element = Element;
 global.Text = Text;
 global.Comment = Comment;

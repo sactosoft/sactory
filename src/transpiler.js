@@ -1898,6 +1898,13 @@ Transpiler.prototype.open = function(){
 				currentClosing.unshift("})");
 			}
 
+			if(tagName == ":xml") {
+				this.source.push(`(${this.context}.x=${this.feature("xml")}(${dattributes.namespace || "null"}, ${dattributes.root || dattributes.name || "\"xml\""}),`);
+				currentClosing.unshift(`,${this.context}.x)`);
+				element = `${this.context}.x.firstElementChild`;
+				create = false;
+			}
+
 			// before
 			if(slotName) {
 				before.push([this.feature("updateSlot"), options(), '"' + tagName + '"', '"' + slotName + '"', "function(" + this.context + "){"]);
@@ -2130,16 +2137,17 @@ Transpiler.prototype.transpile = function(input){
 		if(umd) this.before += "!function(a,b){";
 		if(this.options.env.indexOf("amd") != -1) {
 			if(umd) this.before += "if(typeof define=='function'&&define.amd){";
-			this.before += `${this.options.amd && this.options.amd.anonymous ? "require" : "define"}(['${this.options.amd && this.options.amd.runtime || "sactory"}'${this.calcDeps("amd", ",'", "'")}],`;
+			this.before += `${this.options.amd && this.options.amd.anonymous ? "require" : "define"}(['${this.options.amd && this.options.amd.runtime || this.options.runtime || "sactory"}'${this.calcDeps("amd", ",'", "'")}],`;
 			if(umd) this.before += "b)}else ";
 		}
 		if(this.options.env.indexOf("commonjs") != -1) {
 			if(umd) this.before += "if(typeof exports=='object'){";
-			var exportCall = `module.exports=b(require('${this.options.commonjs && this.options.commonjs.runtime || "sactory"}')${this.calcDeps("commonjs", ",require('", "')")})`;
+			var exportCall = `module.exports=b(require('${this.options.commonjs && this.options.commonjs.runtime || this.options.runtime || "sactory"}')${this.calcDeps("commonjs", ",require('", "')")})`;
 			if(umd) this.before += exportCall + "}else ";
 			else {
 				this.before += "var b=";
-				this.after += exportCall;
+				this.after += "};" + exportCall;
+				noenv = true; // prevent addition of function call closing
 			}
 		}
 		if(this.options.env.indexOf("none") != -1) {
