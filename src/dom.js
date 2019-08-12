@@ -203,12 +203,7 @@ class Document extends Node {
 	}
 
 	createElement(tagName) {
-		tagName = tagName.toLowerCase();
-		if(tagName == "script" || tagName == "style") {
-			return new UnencodedElement(tagName, this.ownerDocument);
-		} else {
-			return new Element(tagName, this.ownerDocument);
-		}
+		return new Element(tagName, this.ownerDocument);
 	}
 
 	createElementNS(namespace, tagName) {
@@ -363,12 +358,14 @@ class HTMLDocument extends Document {
 		var ret = "<" + tagName;
 		for(var name in element.attributes) {
 			var value = element.attributes[name];
-			ret += " " + name;
+			ret += " " + name.toLowerCase();
 			if(value) ret += `="${value.replace(/"/g, "&quot;")}"`;
 		}
 		ret += ">";
 		if(selfClosing.test(element.tagName)) {
 			return ret;
+		} else if(tagName == "script" || tagName == "style") {
+			return `${ret}${element.textContent}</${tagName}>`;
 		} else {
 			return `${ret}${element.childNodes.map(a => a.render()).join("")}</${tagName}>`;
 		}
@@ -393,13 +390,12 @@ class XMLDocument extends Document {
 	}
 
 	renderElement(element) {
-		var tagName = element.tagName.toLowerCase();
-		var ret = "<" + tagName;
+		var ret = "<" + element.tagName;
 		for(var name in element.attributes) {
 			ret += ` ${name}="${element.attributes[name].replace(/"/g, "&quot;")}"`;
 		}
 		if(element.childNodes.length) {
-			return `${ret}>${element.childNodes.map(a => a.render()).join("")}</${tagName}>`;
+			return `${ret}>${element.childNodes.map(a => a.render()).join("")}</${element.tagName}>`;
 		} else {
 			return `${ret} />`;
 		}
@@ -602,18 +598,6 @@ class Element extends Document {
 
 	render() {
 		return this.ownerDocument.renderElement(this);
-	}
-
-}
-
-class UnencodedElement extends Element {
-
-	constructor(tagName, ownerDocument) {
-		super(tagName, ownerDocument);
-	}
-
-	render() {
-		return this.renderTagName() + this.textContent + "</" + this.tagName + ">";
 	}
 
 }
