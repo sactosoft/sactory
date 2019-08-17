@@ -136,24 +136,26 @@ Sactory.widgetSelector = function(selector, name){
  * @class
  * @since 0.73.0
  */
-Sactory.Widget = function(){};
+function Widget() {}
 
-Sactory.Widget.prototype.element = null;
+Widget.prototype.element = null;
 
 /**
  * @since 0.73.0
  */
-Sactory.Widget.prototype.render = function(args){
+Widget.prototype.render = function(args){
 	throw new Error("Widget's 'render' prototype function not implemented.");
 };
 
 /**
  * @since 0.94.0
  */
-Sactory.Widget.prototype.dispatchEvent = function(event, options = {}){
+Widget.prototype.dispatchEvent = function(event, options = {}){
 	if(!this.element) throw new Error("Cannot dispatch event: the widget has not been rendered yet.");
 	this.element.__builder.dispatchEvent(event, options);
 };
+
+Sactory.Widget = Widget;
 
 /**
  * @class

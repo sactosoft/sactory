@@ -7,7 +7,7 @@ Sactory.addWidget("button", class {
 	}
 
 	render(@) {
-		return <?["button"] ~class="btn" ?~class:btn-[this.type]=this.type />
+		return <?button !:widget ~class="btn" ?~class:btn-[this.type]=this.type />
 	}
 
 });
