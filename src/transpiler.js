@@ -2131,7 +2131,7 @@ Transpiler.prototype.nextVar = function(){
  */
 Transpiler.prototype.warn = function(message, position){
 	if(!position) position = this.parser.position;
-	this.warnings.push("Line " + (position.line + 1) + ", Column " + position.column + ": " + message);
+	this.warnings.push({message, position});
 };
 
 /**
@@ -2234,6 +2234,10 @@ Transpiler.prototype.transpile = function(input){
 	}
 
 	Object.keys(features).forEach(addDependencies);
+
+	if(!this.options.silent) {
+		this.warnings.forEach(({message, position}) => console.warn(`${this.options.filename}[${position.line + 1}:${position.column}]: ${message}`));
+	}
 	
 	return {
 		time: now() - start,
@@ -2323,9 +2327,6 @@ if(typeof window == "object") {
 				modeAttributes: attributes
 			});
 			var result = transpiler.transpile(content || builder.textContent);
-			result.warnings.forEach(function(message){
-				console.warn(message);
-			});
 			var currentScript = transpiler.nextVarName();
 			script.textContent =
 				result.source.before +
