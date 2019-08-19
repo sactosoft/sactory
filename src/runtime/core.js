@@ -13,12 +13,13 @@ Object.defineProperty(Node, "ANCHOR_NODE", {
 /**
  * @since 0.60.0
  */
-function Sactory(scope, {counter, bind, anchor, registry}, element, ...functions) {
+function Sactory(scope, {counter, bind, anchor, registry, selector}, element, ...functions) {
 	var context = {
 		scope, element,
-		counter, bind, anchor, registry,
+		counter, bind, anchor, registry, selector,
 		content: element,
-		parentAnchor: anchor
+		parentAnchor: anchor,
+		document: element ? element.ownerDocument : document
 	};
 	functions.forEach(([fun, ...args]) => fun.call(null, context, ...args));
 	return context.element;
@@ -153,6 +154,32 @@ Widget.prototype.render = function(args){
 Widget.prototype.dispatchEvent = function(event, options = {}){
 	if(!this.element) throw new Error("Cannot dispatch event: the widget has not been rendered yet.");
 	this.element.__builder.dispatchEvent(event, options);
+};
+
+/**
+ * @since 0.125.0
+ */
+Widget.createClassWidget = function(Class, context, args, namespace){
+	var instance = new Class(args);
+	if(Class.prototype.init) instance.init({bind: context.bind});
+	var element = instance.__element = instance.render(context, namespace);
+	if(instance instanceof Widget) instance.element = element;
+	if(!(element instanceof Node)) throw new Error("The widget's render function did not return an instance of 'Node', returned '" + element + "' instead.");
+	if(Class.style) Widget.createStyle(context, Class, element);
+	if(Class.prototype.style) Widget.createStyle(context, instance, element);
+	return {instance, element};
+};
+
+/*
+ * @since 0.125.0
+ */
+Widget.createStyle = function(context, styler, element){
+	var className = styler.__styled;
+	if(!className) {
+		styler.__styled = className = context.counter.nextPrefix();
+		styler.style(Polyfill.assign({}, context, {selector: "." + className, element: context.document.head}));
+	}
+	element.__builder.addClass(className);
 };
 
 Sactory.Widget = Widget;
@@ -304,11 +331,9 @@ Sactory.update = function(context, [attrs = [], iattrs, sattrs, transitions, vis
 			var registry = new SlotRegistry(tagName);
 			var newContext = Polyfill.assign({}, context, {element: null, anchor: null, registry});
 			if(widget.prototype && widget.prototype.render) {
-				var instance = new widget(widgetArgs, namespace);
-				var ret = context.element = instance.__element = instance.render(newContext);
-				if(instance instanceof Sactory.Widget) instance.element = instance.__element;
-				if(!(ret instanceof Node)) throw new Error("The widget's render function did not return an instance of 'Node', returned '" + ret + "' instead.");
-				context.element.__builder.widget = context.element.__builder.widgets[tagName] = instance;
+				var {instance, element} = Widget.createClassWidget(widget, newContext, widgetArgs, namespace);
+				element.__builder.widget = element.__builder.widgets[tagName] = instance;
+				context.element = element;
 			} else {
 				context.element = widget.call(parentWidget, newContext, widgetArgs, namespace);
 				if(!(context.element instanceof Node)) throw new Error("The widget did not return an instance of 'Node', returned '" + context.element + "' instead.");
@@ -368,8 +393,8 @@ Sactory.update = function(context, [attrs = [], iattrs, sattrs, transitions, vis
 		var registry = new SlotRegistry(widgetName);
 		var newContext = Polyfill.assign({}, context, {anchor: null, registry});
 		if(widget.prototype && widget.prototype.render) {
-			var instance = new widgets[widgetName](widgetExt[widgetName]);
-			instance.render(newContext);
+			var {instance, element} = Widget.createClassWidget(widget, newContext, widgetExt[widgetName], namespace);
+			if(element !== updatedElement) throw new Error("The widget did not return the given element, hence does not support extension.");
 			updatedElement.__builder.widgets[widgetName] = instance;
 		} else {
 			widget(newContext, widgetExt[widgetName]);
@@ -494,12 +519,12 @@ Sactory.append = function(context, parent, options = {}){
 /**
  * @since 0.32.0
  */
-Sactory.unique = function(context, id, fun){
+Sactory.unique = function(scope, {element}, id, fun){
 	var className = SactoryConfig.config.prefix + id;
-	if(!document.querySelector("." + className)) {
-		var element = fun.call(context);
-		element.__builder.addClass(className);
-		return element;
+	if(!(element && element.ownerDocument || document).querySelector("." + className)) {
+		var ret = fun.call(scope);
+		ret.__builder.addClass(className);
+		return ret;
 	}
 };
 

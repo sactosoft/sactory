@@ -909,9 +909,9 @@ SSBParser.prototype.skip = function(){
 };
 
 SSBParser.prototype.start = function(){
-	this.add(this.transpiler.feature("compileAndBindStyle") + "(this, function(){");
-	this.add("var " + this.scopes[0] + "=" + this.transpiler.feature("root") + "();");
-	if(this.scoped) this.addScope("'.' + " + this.runtime + ".config.prefix + " + this.context + ".element.__builder.runtimeId");
+	this.add(`${this.transpiler.feature("compileAndBindStyle")}(${this.context}, function(){`);
+	this.add(`var ${this.scopes[0]}=${this.transpiler.feature("root")}();`);
+	if(this.scoped) this.addScope(`'.' + ${this.runtime}.config.prefix + ${this.context}.element.__builder.runtimeId`);
 	else if(this.scope) this.addScope(JSON.stringify('.' + this.scope));
 };
 
@@ -1037,19 +1037,19 @@ SSBParser.prototype.addFinalCurrent = function(){
 
 SSBParser.prototype.end = function(){
 	// replace unneeded closing braces and add statement.end needed for foreach
-	this.popped.forEach(function(popped){
+	this.popped.forEach(popped => {
 		if(popped.selector) {
 			this.source[popped.endIndex - 1] = "";
 		} else if(popped.end.length) {
 			this.source[popped.endIndex] = popped.end + this.source[popped.endIndex];
 		}
-	}.bind(this));
+	});
 	// add return statement
-	this.add("return " + this.scopes[0] + ".content}, " + this.context + ", [" + uniq(this.observables).join(", ") + "], [" + this.maybeObservables.join(", ") + "])");
+	this.add(`return ${this.scopes[0]}.content}, [${uniq(this.observables).join(", ")}], [${this.maybeObservables.join(", ")}])`);
 };
 
 SSBParser.prototype.actionImpl = function(type){
-	if(this.scoped) return "function(){ this.parentNode.__builder." + type + "Class(" + this.runtime + ".config.prefix + this.__builder.runtimeId); }";
+	if(this.scoped) return `function(){this.parentNode.__builder.${type}Class(${this.runtime}.config.prefix + this.__builder.runtimeId)}`;
 };
 
 SSBParser.prototype.afterappend = function(){
@@ -1793,6 +1793,10 @@ Transpiler.prototype.open = function(){
 							element = "this";
 							create = append = false;
 							break;
+						case "super":
+							element = `super.render(${this.context})`;
+							create = append = false;
+							break;
 						case "fragment":
 							updatedElement = element;
 							element = "document.createDocumentFragment()";
@@ -1914,7 +1918,7 @@ Transpiler.prototype.open = function(){
 			}
 
 			if(dattributes.unique) {
-				this.source.push(this.feature("unique") + "(this, " + this.nextId() + ", function(){return ");
+				this.source.push(`${this.feature("unique")}(this, ${this.context}, ${this.nextId()}, function(){return `);
 				currentClosing.unshift("})");
 			}
 
