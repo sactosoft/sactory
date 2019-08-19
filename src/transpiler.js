@@ -1887,11 +1887,12 @@ Transpiler.prototype.open = function(){
 
 			if(dattributes["ref-widget"]) {
 				var ref = dattributes["ref-widget"];
-				var temp = ref instanceof Array ? ref[0] : ref;
+				var temp = this.context + ".r";
 				if(dattributes.ref instanceof Array) dattributes.ref.push(temp);
 				else if(dattributes.ref) dattributes.ref = [dattributes.ref, temp];
 				else dattributes.ref = temp;
-				currentClosing.unshift(";" + (ref instanceof Array ? ref.join(" = ") : ref) + " = " + this.runtime + ".widget(" + temp + ")");
+				this.source.push("(");
+				currentClosing.unshift(`,${ref instanceof Array ? ref.join(" = ") : ref} = ${this.runtime}.widget(${temp}), ${temp})`);
 			}
 
 			if(dattributes.ref) {
