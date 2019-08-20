@@ -212,7 +212,7 @@ Builder.prototype.style = function(name, value, counter, bind){
 			get = value => `${value} !important`;
 		}
 		if(SactoryObservable.isObservable(value)) {
-			var subscription = SactoryObservable.observe(update);
+			var subscription = SactoryObservable.observe(value, update);
 			this.subscribe(bind, subscription);
 			this.styles.push({name, value, subscription, bind});
 		} else {

@@ -1767,6 +1767,7 @@ Transpiler.prototype.open = function(){
 			if(tagName.charAt(0) == ':' && tagName.charAt(1) != ':') {
 				var name = tagName.substr(1);
 				if(Polyfill.startsWith.call(name, "slot:")) {
+					this.warn("Tag name `<:slot[:widget]:name />` is deprecated. Use `<:slot ([widget,] name) />` instead.");
 					name = name.substr(5);
 					var column = name.indexOf(':');
 					if(column == -1) {
@@ -1846,6 +1847,18 @@ Transpiler.prototype.open = function(){
 						case "adopt":
 							element = arg;
 							create = false;
+							dattributes.adopt = true;
+							break;
+						case "slot":
+							var column = arg.indexOf(',');
+							if(column == -1) {
+								slotName = arg.trim();
+								tagName = "";
+							} else {
+								slotName = arg.substr(column + 1).trim();
+								tagName = arg.substring(0, column).trim();
+							}
+							create = append = false;
 							break;
 						case "inherit":
 							var c = currentInheritance = {};
