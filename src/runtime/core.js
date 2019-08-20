@@ -531,7 +531,7 @@ Sactory.unique = function(scope, {element}, id, fun){
 /**
  * @since 0.32.0
  */
-Sactory.query = function(scope, context, doc, parent, selector, all, fun){
+Sactory.deprecatedQuery = function(scope, context, doc, parent, selector, all, fun){
 	var nodes = false;
 	if(all || (nodes = selector && typeof selector == "object" && typeof selector.length == "number")) {
 		if(!nodes) {
@@ -548,6 +548,28 @@ Sactory.query = function(scope, context, doc, parent, selector, all, fun){
 		if(selector) fun.call(scope, Polyfill.assign({}, context, {element: selector, parentElement: parent}));
 		return selector;
 	}
+};
+
+/**
+ * @since 0.126.0
+ */
+Sactory.all = function(scope, context, elements, fun){
+	Array.prototype.forEach.call(elements, element => fun.call(scope, Polyfill.assign({}, context, {element})));
+	return elements;
+};
+
+/**
+ * @since 0.126.0
+ */
+Sactory.query = function(context, selector, on){
+	return (on || context.document || document).querySelector(selector);
+};
+
+/**
+ * @since 0.126.0
+ */
+Sactory.queryAll = function(context, selector, on){
+	return (on || context.document || document).querySelectorAll(selector);
 };
 
 /**

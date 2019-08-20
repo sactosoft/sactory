@@ -1182,8 +1182,21 @@ Transpiler.defineMode(["auto-code"], AutoJavascriptParser);
 Transpiler.defineMode(["auto-html"], AutoHTMLParser);
 
 function Transpiler(options) {
-	//this.options = {env: ["none"], ...options};
 	this.options = Polyfill.assign({env: ["none"]}, options || {});
+	// separate mode and mode attributes
+	if(this.options.mode) {
+		var at = this.options.mode.indexOf("@");
+		if(at != -1) {
+			var attrs = this.options.mode.substr(at + 1).split(",");
+			this.options.mode = this.options.mode.substring(0, at);
+			if(typeof this.options.modeAttributes != "object") this.options.modeAttributes = {};
+			attrs.forEach(attr => {
+				if(attr.charAt(0) == "!") this.options.modeAttributes[attr.substr(1)] = false;
+				else this.options.modeAttributes[attr] = true;
+			});
+		}
+	}
+	// calculate environments
 	if(!Array.isArray(this.options.env)) this.options.env = [this.options.env];
 	if(this.options.env.length == 1 && this.options.env[0] == "none") {
 		this.nextVar = Transpiler.prototype.nextVarName.bind(this);
@@ -1194,6 +1207,7 @@ function Transpiler(options) {
 			}
 		});
 	}
+	// update nextVar functions for latin-only generation
 	if(this.options.latin) {
 		this.nextVar = this.nextVarName = Transpiler.prototype.nextLatinVarName.bind(this);
 	}
@@ -1381,25 +1395,24 @@ Transpiler.prototype.open = function(){
 		this.parser.index++;
 		var rest = this.parser.input.substr(this.parser.index);
 		if(Polyfill.startsWith.call(rest, "COMMENT ")) {
+			this.warn("The `<!COMMENT ...>` tag is deprecated. Use `<!// ...` or `<!/* ... */>` instead.");
 			this.parser.index += 8;
 			this.source.push("/*" + this.parser.findSequence(">", true).slice(0, -1) + "*/");
 		} else {
-			var types = ["runtime", "element", "bind", "anchor"];
-			var match = false;
-			for(var i in types) {
-				if(Polyfill.startsWith.call(rest, types[i].toUpperCase() + '>')) {
-					this.parser.index += types[i].length + 1;
-					this.source.push(this[types[i]]);
-					this.addSemicolon();
-					match = true;
-					break;
-				}
-			}
-			if(!match) {
-				this.parser.expect('-');
-				this.parser.expect('-');
+			var next = this.parser.input.substr(this.parser.index, 2);
+			if(next == "--") {
+				// xml comment
+				this.parser.index += 2;
 				this.source.push(this.feature("comment") + "(" + this.context + ", " + this.parseText(this.parser.findSequence("-->", true).slice(0, -3)) + ")");
 				this.addSemicolon();
+			} else if(next == "/*") {
+				// code comment
+				this.source.push(this.parser.findSequence("*/>", true).slice(0, -1));
+			} else if(next == "//") {
+				// inline code comment
+				this.source.push(this.parser.findSequence("\n", false));
+			} else {
+				this.source.push("<");
 			}
 		}
 	} else if(this.currentMode.options.children === false && this.parser.peek() != '#') {
@@ -1426,6 +1439,8 @@ Transpiler.prototype.open = function(){
 		var updatedElement; // element that will be updated when optional
 		var element = this.context + ".element"; // element that will be updated
 		var queryElement;
+		var all;
+		var arg;
 		var dattributes = {}; // attributes used to give directives to the transpiler, not used at runtime
 		var rattributes = []; // attributes used at runtime to modify the element
 		var iattributes = []; // attributes used at runtime that are created using interpolation syntax
@@ -1445,6 +1460,7 @@ Transpiler.prototype.open = function(){
 		var slotName;
 		this.updateTemplateLiteralParser();
 		if(selector = this.parser.readQueryExpr()) {
+			this.warn("Query tag names are deprecated. Use the `<:query />` and `<:query-all />` tags instead.`");
 			selector = this.parseCode(selector).source;
 			selectorAll = !!this.parser.readIf('+');
 			if(this.parser.readIf('*')) {
@@ -1462,6 +1478,10 @@ Transpiler.prototype.open = function(){
 			}
 		}
 		skip(true);
+		if(this.parser.peek() == "(") {
+			arg = this.parser.skipEnclosedContent(true);
+			skip(true);
+		}
 		var next = false;
 		while(!this.parser.eof() && (next = this.parser.peek()) != '>' && next != '/') {
 			if(!/[\n\t ]/.test(skipped)) this.parser.error("Space is required between attribute names.");
@@ -1811,6 +1831,22 @@ Transpiler.prototype.open = function(){
 							dattributes.to = "[]";
 							create = update = append = false;
 							break;
+						case "use":
+							element = parent = arg;
+							create = append = false;
+							break;
+						case "query-all":
+							all = true;
+						case "query":
+							element = `${this.runtime}.query${all ? "All" : ""}(${this.context}, ${arg}, ${parent})`;
+							create = append = false;
+							break;
+						case "adopt-all":
+							all = true;
+						case "adopt":
+							element = arg;
+							create = false;
+							break;
 						case "inherit":
 							var c = currentInheritance = {};
 							if(dattributes.level || dattributes.depth) {
@@ -1905,10 +1941,16 @@ Transpiler.prototype.open = function(){
 				this.source.push(" = ");
 			}
 
+			if(all) {
+				this.source.push(`${this.feature("all")}(this, ${this.context}, ${element}, function(${this.context}){`);
+				currentClosing.unshift("})");
+				element = this.context + ".element"; // restore default
+			}
+
 			if(selector) {
 				if(dattributes["query-head"]) queryElement = "document.head";
 				else if(dattributes["query-body"]) queryElement = "document.body";
-				this.source.push(this.feature("query") + "(this, " + this.context + ", " + (dattributes.query || queryElement || parent) + ", " + parent + ", " + selector + ", " + selectorAll + ", function(" + this.context + "){");
+				this.source.push(`${this.feature("deprecatedQuery")}(this, ${this.context}, ${dattributes.query || queryElement || parent}, ${parent}, ${selector}, ${selectorAll}, function(${this.context}){`);
 				if(dattributes.adopt || dattributes.clone) {
 					parent = this.context + ".parentElement";
 					create = false;
