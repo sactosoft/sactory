@@ -241,7 +241,7 @@ Sactory.nop = function(){};
 /**
  * @since 0.60.0
  */
-Sactory.update = function(context, [attrs = [], iattrs, sattrs, transitions, visibility, widgetCheck, namespace, tagName]){
+Sactory.update = function(context, [attrs = [], iattrs, sattrs, transitions, visibility, widgetCheck, namespace, tagName, tagNameString]){
 
 	if(iattrs) {
 		iattrs.forEach(([type, before, names, after, value]) => {
@@ -259,8 +259,8 @@ Sactory.update = function(context, [attrs = [], iattrs, sattrs, transitions, vis
 	
 	var args = [];
 	var widgetArgs = {};
-	var widgetExt = {};
-	var widgetExtAnon = [];
+	var widgetExt = [];
+	var widgetExtRef = {};
 
 	// filter out optional arguments
 	attrs.forEach(([type, name, value, optional]) => {
@@ -269,25 +269,45 @@ Sactory.update = function(context, [attrs = [], iattrs, sattrs, transitions, vis
 			if(ext || type == Const.BUILDER_TYPE_WIDGET) {
 				var obj;
 				if(ext) {
-					if(typeof name == "function") {
-						widgetExtAnon.push({
-							widget: name,
-							args: value
-						});
-						return;
+					if(typeof name[0] == "function") {
+						var widget = name[0];
+						name = name.slice(1).join("").substr(1); // assuming the first character is a column
+						if(name.length) {
+							widgetExt.push({
+								widget,
+								args: obj = {}
+							});
+						} else {
+							widgetExt.push({
+								widget,
+								args: value
+							});
+							return;
+						}
 					} else {
+						name = name + "";
 						var col = name.indexOf(':');
 						if(col == -1) {
-							widgetExt[name] = value;
+							widgetExt.push({
+								name, 
+								args: widgetExtRef[name] = value
+							});
 							return;
 						} else {
 							var key = name.substring(0, col);
-							if(!Object.prototype.hasOwnProperty.call(widgetExt, key)) obj = widgetExt[key] = {};
-							else obj = widgetExt[key];
+							if(!Object.prototype.hasOwnProperty.call(widgetExtRef, key)) {
+								widgetExt.push({
+									name: key,
+									args: obj = widgetExtRef[key] = {}
+								});
+							} else {
+								obj = widgetExtRef[key];
+							}
 							name = name.substr(col + 1);
 						}
 					}
 				} else {
+					name = name + "";
 					if(name.length) {
 						obj = widgetArgs;
 					} else {
@@ -328,7 +348,6 @@ Sactory.update = function(context, [attrs = [], iattrs, sattrs, transitions, vis
 				if(parentName == "this") {
 					parentWidget = context.scope;
 				} else if(context.widgets) {
-					console.log(context.widgets);
 					var registry = context.widgets;
 					if(parentName) {
 						// search in named widgets
@@ -346,11 +365,12 @@ Sactory.update = function(context, [attrs = [], iattrs, sattrs, transitions, vis
 			}
 		}
 		if((widgetCheck === undefined || widgetCheck) && ((widget = typeof tagName == "function" && tagName) || (widget = getWidget()))) {
-			var registry = new SlotRegistry(tagName);
+			var widgetName = tagNameString || tagName;
+			var registry = new SlotRegistry(widgetName);
 			var newContext = Polyfill.assign({}, context, {element: null, anchor: null, registry});
 			if(widget.prototype && widget.prototype.render) {
 				var {instance, element} = Widget.createClassWidget(widget, newContext, widgetArgs, namespace);
-				widgetRegistry.main = widgetRegistry.named[tagName] = element.__builder.widget = element.__builder.widgets[tagName] = instance;
+				widgetRegistry.main = widgetRegistry.named[widgetName] = element.__builder.widget = element.__builder.widgets[widgetName] = instance;
 				context.element = element;
 			} else {
 				context.element = widget.call(parentWidget, newContext, widgetArgs, namespace);
@@ -399,7 +419,7 @@ Sactory.update = function(context, [attrs = [], iattrs, sattrs, transitions, vis
 	args.sort((a, b) => a.type - b.type);
 	
 	// apply attributes to builder
-	args.forEach(({type, name, value}) => updatedElement.__builder[type](context, name, value));
+	args.forEach(({type, name, value}) => updatedElement.__builder[type](context, name.toString(), value));
 
 	if(transitions) {
 		transitions.forEach(([type, name, options]) => updatedElement.__builder.addAnimation(type, name, options || {}));
@@ -410,36 +430,24 @@ Sactory.update = function(context, [attrs = [], iattrs, sattrs, transitions, vis
 		updatedElement.__builder.visibility(context, value, visible);
 	}
 
-	for(var widgetName in widgetExt) {
-		if(!Object.prototype.hasOwnProperty.call(widgets, widgetName)) throw new Error("Widget '" + widgetName + "' could not be found.");
-		var widget = widgets[widgetName];
-		var registry = new SlotRegistry(widgetName);
+	widgetExt.forEach(({widget, name, args}) => {
+		if(name) {
+			if(!Object.prototype.hasOwnProperty.call(widgets, name)) throw new Error("Widget '" + name + "' could not be found.");
+			widget = widgets[name];
+		}
+		var registry = new SlotRegistry(name || "");
 		var newContext = Polyfill.assign({}, context, {anchor: null, registry});
 		if(widget.prototype && widget.prototype.render) {
-			var {instance, element} = Widget.createClassWidget(widget, newContext, widgetExt[widgetName], namespace);
+			var {instance, element} = Widget.createClassWidget(widget, newContext, args, namespace);
 			if(element !== updatedElement) throw new Error("The widget did not return the given element, hence does not support extension.");
-			widgetRegistry.named[widgetName] = updatedElement.__builder.widgets[widgetName] = instance;
+			if(name) widgetRegistry.named[name] = updatedElement.__builder.widgets[name] = instance;
 		} else {
-			widget(newContext, widgetExt[widgetName]);
+			widget(newContext, args);
 		}
 		registry.applyTo(updatedElement, false);
 		/* debug:
 		if(context.element.setAttribute) {
-			context.element.setAttribute(":extend:" + widgetName, "");
-		}
-		*/
-	}
-
-	widgetExtAnon.forEach(({widget, args}) => {
-		var newContext = Polyfill.assign({}, context, {anchor: null, registry: new SlotRegistry("")});
-		if(widget.prototype && widget.prototype.render) {
-			new widget(args).render(newContext);
-		} else {
-			widget(newContext, args);
-		}
-		/* debug:
-		if(context.element.setAttribute) {
-			context.element.setAttribute(":extend.anonymous:" + widget.name, "");
+			context.element.setAttribute(":extend:" + (name || "anonymous"), !name && widget.name || "");
 		}
 		*/
 	});
@@ -461,6 +469,14 @@ Sactory.create = function(context, tagName, options){
 	context.element = context.container = context.content = null; // delete parents
 	context.anchor = null; // invalidate the current anchor so the children will not use it
 	Sactory.update(context, options);
+};
+
+/**
+ * @since 0.127.0
+ */
+Sactory.createComputed = function(context, tagName, tagNameString, options){
+	options[8] = tagNameString;
+	Sactory.create(context, tagName, options);
 };
 
 /**
@@ -632,6 +648,16 @@ Sactory.inherit = function(target, ...args){
 	});
 	return target;
 }
+
+/**
+ * @since 0.127.0
+ */
+Sactory.attr = function(...args){
+	args.toString = function(){
+		return this.join("");
+	};
+	return args;
+};
 
 /**
  * @since 0.90.0

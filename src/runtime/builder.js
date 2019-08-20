@@ -202,7 +202,11 @@ Builder.prototype.complexStyle = function(name, value, counter, bind){
  */
 Builder.prototype.style = function(name, value, counter, bind){
 	if(this.hasComplexStyle) {
-		this.styleImpl([{name, value}], counter, bind);
+		if(value === false) {
+			this.styleImpl([{name, value: "0"}, {name, value: "none"}], counter, bind);
+		} else {
+			this.styleImpl([{name, value}], counter, bind);
+		}
 	} else {
 		var prop = name;
 		var get = value => value;
@@ -215,6 +219,9 @@ Builder.prototype.style = function(name, value, counter, bind){
 			var subscription = SactoryObservable.observe(value, update);
 			this.subscribe(bind, subscription);
 			this.styles.push({name, value, subscription, bind});
+		} else if(value === false) {
+			update("0");
+			update("none");
 		} else {
 			update(value);
 		}

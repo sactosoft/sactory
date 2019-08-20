@@ -1541,6 +1541,9 @@ Transpiler.prototype.open = function(){
 					skip(true);
 				}
 				if(attr.inner) {
+					if(!attr.hasOwnProperty("value")) {
+						attr.value = this.getDefaultAttributeValue(attr);
+					}
 					iattributes.push(attr);
 				} else {
 					this.compileAttributeParts(attr);
@@ -1630,29 +1633,7 @@ Transpiler.prototype.open = function(){
 							else break;
 						default:
 							if(!attr.hasOwnProperty("value")) {
-								switch(attr.type) {
-									case "":
-										attr.value = "\"\"";
-										break;
-									case "@":
-									case "$":
-									case "$$":
-										attr.value = !attr.negated;
-										break;
-									case "&":
-										if(attr.negated) {
-											// duplicate the attribute to set the property to either '0' and 'none'
-											attr.value = 0;
-											rattributes.push(attr);
-											attr = {type: "&", name: attr.name, value: "\"none\""};
-											break;
-										}
-									case "+":
-										attr.value = null;
-										break;
-									default:
-										this.parser.error("Value for attribute is required.");
-								}
+								attr.value = this.getDefaultAttributeValue(attr);
 							}
 							rattributes.push(attr);
 					}
@@ -2005,7 +1986,11 @@ Transpiler.prototype.open = function(){
 			} else if(optional) {
 				before.push([this.feature("createOrUpdate"), element, computed ? tagName : '"' + tagName + '"', options()]);
 			} else if(create) {
-				before.push([this.feature("create"), computed ? tagName : '"' + tagName + '"', options()]);
+				if(computed || this.options.widgets && this.options.widgets.indexOf(tagName) != -1) {
+					before.push([this.feature("createComputed"), tagName, JSON.stringify(tagName), options()]);
+				} else {
+					before.push([this.feature("create"), `"${tagName}"`, options()]);
+				}
 			} else if(update) {
 				var optString = options().toString();
 				if(optString.length > 2) {
@@ -2149,6 +2134,25 @@ Transpiler.prototype.parseAttributeName = function(force){
 };
 
 /**
+ * @since 0.127.0
+ */
+Transpiler.prototype.getDefaultAttributeValue = function({type, negated}){
+	switch(type) {
+		case "":
+			return "\"\"";
+		case "@":
+		case "$":
+		case "$$":
+			return !negated;
+		case "+":
+			return 0;
+		case "&":
+			if(negated) return "!1";
+	}
+	this.parser.error("Value for attribute is required.");
+};
+
+/**
  * @since 0.82.0
  */
 Transpiler.prototype.compileAttributeParts = function(attr){
@@ -2158,7 +2162,7 @@ Transpiler.prototype.compileAttributeParts = function(attr){
 			if(part.computed) names.push('(' + part.name + ')');
 			else names.push(JSON.stringify(part.name));
 		});
-		attr.name = names.join('+');
+		attr.name = `${this.feature("attr")}(${names.join(", ")})`;
 	} else {
 		attr.name = attr.parts.map(function(part){ return part.name }).join("");
 	}
@@ -2310,7 +2314,7 @@ Transpiler.prototype.transpile = function(input){
 		scope: this.options.scope,
 		sequence: this.count,
 		tags: this.tagNames,
-		features: Object.keys(features),
+		features: Object.keys(features).sort(),
 		warnings: this.warnings,
 		source: {
 			before: this.before,
@@ -2322,7 +2326,7 @@ Transpiler.prototype.transpile = function(input){
 	
 };
 
-Transpiler.prototype.calcDeps= function(moduleType, before, after){
+Transpiler.prototype.calcDeps = function(moduleType, before, after){
 	var ret = "";
 	if(this.options.dependencies) {
 		for(var key in this.options.dependencies) {
@@ -2340,6 +2344,7 @@ Transpiler.prototype.calcDeps= function(moduleType, before, after){
 var dependencies = {
 	// core
 	create: ["update"],
+	createComputed: ["create"],
 	createOrUpdate: ["create", "update"],
 	clone: ["update"],
 	updateSlot: ["update"],

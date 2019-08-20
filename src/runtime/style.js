@@ -250,7 +250,7 @@ RGBColor.prototype.toRGBString = function(){
 };
 
 RGBColor.prototype.toRGBAString = function(){
-	return "rgba(" + [this.r, this.g, this.b].map(multiply).join(", ") + ", " + this.alpha + ")";
+	return "rgba(" + [this.r, this.g, this.b].map(multiply).join(", ") + ", " + this.a + ")";
 };
 
 RGBColor.prototype.toString = function(){
