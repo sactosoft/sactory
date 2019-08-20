@@ -13,10 +13,10 @@ Object.defineProperty(Node, "ANCHOR_NODE", {
 /**
  * @since 0.60.0
  */
-function Sactory(scope, {counter, bind, anchor, registry, selector}, element, ...functions) {
+function Sactory(scope, {counter, bind, anchor, widgets, registry, selector}, element, ...functions) {
 	var context = {
 		scope, element,
-		counter, bind, anchor, registry, selector,
+		counter, bind, anchor, widgets, registry, selector,
 		content: element,
 		parentAnchor: anchor,
 		document: element ? element.ownerDocument : document
@@ -186,6 +186,16 @@ Sactory.Widget = Widget;
 
 /**
  * @class
+ * @since 0.126.0
+ */
+function WidgetRegistry(parent) {
+	this.parent = parent;
+	this.main = null;
+	this.named = {};
+}
+
+/**
+ * @class
  * @since 0.73.0
  */
 function SlotRegistry(name) {
@@ -303,28 +313,36 @@ Sactory.update = function(context, [attrs = [], iattrs, sattrs, transitions, vis
 	});
 
 	var updatedElement = context.container || context.element;
+
+	// create new context's widget registry
+	var widgetRegistry = new WidgetRegistry(context.widgets);
 	
 	if(!updatedElement) {
 		var parentWidget, widget;
 		function getWidget() {
-			if(Polyfill.startsWith.call(tagName, "::")) {
-				if(context.parent) {
-					parentWidget = context.parent.__builder.widget;
-					return parentWidget && parentWidget[tagName.substr(1)];
-				}
+			var columns = tagName.indexOf("::");
+			if(columns == -1) {
+				return widgets[tagName];
 			} else {
-				var column = tagName.lastIndexOf(':');
-				if(column == -1) {
-					return widgets[tagName];
-				} else {
-					var name = tagName.substring(0, column);
-					if(name == "this") {
-						parentWidget = context.scope;
-					} else if(context.parent) {
-						parentWidget = context.parent.__builder.widgets[name];
+				var parentName = tagName.substring(0, columns);
+				if(parentName == "this") {
+					parentWidget = context.scope;
+				} else if(context.widgets) {
+					console.log(context.widgets);
+					var registry = context.widgets;
+					if(parentName) {
+						// search in named widgets
+						do {
+							parentWidget = registry.named[parentName];
+						} while(!parentWidget && (registry = registry.parent));
+					} else {
+						// search in main widgets
+						do {
+							parentWidget = registry.main;
+						} while(!parentWidget && (registry = registry.parent));
 					}
-					return parentWidget && parentWidget[':' + tagName.substr(column + 1)];
 				}
+				return parentWidget && parentWidget[":" + tagName.substr(columns + 2)]
 			}
 		}
 		if((widgetCheck === undefined || widgetCheck) && ((widget = typeof tagName == "function" && tagName) || (widget = getWidget()))) {
@@ -332,7 +350,7 @@ Sactory.update = function(context, [attrs = [], iattrs, sattrs, transitions, vis
 			var newContext = Polyfill.assign({}, context, {element: null, anchor: null, registry});
 			if(widget.prototype && widget.prototype.render) {
 				var {instance, element} = Widget.createClassWidget(widget, newContext, widgetArgs, namespace);
-				element.__builder.widget = element.__builder.widgets[tagName] = instance;
+				widgetRegistry.main = widgetRegistry.named[tagName] = element.__builder.widget = element.__builder.widgets[tagName] = instance;
 				context.element = element;
 			} else {
 				context.element = widget.call(parentWidget, newContext, widgetArgs, namespace);
@@ -374,8 +392,13 @@ Sactory.update = function(context, [attrs = [], iattrs, sattrs, transitions, vis
 		}
 	}
 
+	// update context's widget registry
+	context.widgets = widgetRegistry;
+
+	// create priority for attributes based on type
 	args.sort((a, b) => a.type - b.type);
 	
+	// apply attributes to builder
 	args.forEach(({type, name, value}) => updatedElement.__builder[type](context, name, value));
 
 	if(transitions) {
@@ -395,7 +418,7 @@ Sactory.update = function(context, [attrs = [], iattrs, sattrs, transitions, vis
 		if(widget.prototype && widget.prototype.render) {
 			var {instance, element} = Widget.createClassWidget(widget, newContext, widgetExt[widgetName], namespace);
 			if(element !== updatedElement) throw new Error("The widget did not return the given element, hence does not support extension.");
-			updatedElement.__builder.widgets[widgetName] = instance;
+			widgetRegistry.named[widgetName] = updatedElement.__builder.widgets[widgetName] = instance;
 		} else {
 			widget(newContext, widgetExt[widgetName]);
 		}
