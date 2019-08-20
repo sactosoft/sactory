@@ -2304,6 +2304,13 @@ var dependencies = {
 
 if(typeof window == "object") {
 
+	/**
+	 * @since 0.125.0
+	 */
+	Transpiler.eval = function(source){
+		return eval.call(window, new Transpiler({versionCheck: false, mode: "auto-code"}).transpile(source).source.all);
+	};
+
 	var count = 0;
 
 	function evalScripts() {
