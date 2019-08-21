@@ -88,6 +88,7 @@ Builder.prototype.append = function(element, bind, anchor){
  * @since 0.46.0
  */
 Builder.prototype.visible = function(value, reversed, counter, bind){
+	console.warn("Property `" + (reversed ? "hidden" : "visible") + "` is deprecated. Use `*show` and `*hide` properties instead.");
 	if(!hidden) {
 		hidden = counter.nextPrefix();
 		var style = document.createElement("style");
@@ -353,240 +354,247 @@ Builder.prototype.classNameIf = function(className, condition, bind){
  */
 Builder.prototype.event = function(context, name, value, bind){
 	var split = name.split(':');
+	if(name.args) split = split.map(a => a.toValue());
 	var event = split.shift();
 	var listener = value || function(){};
 	var options = {};
-	split.reverse().forEach(function(mod){
+	split.reverse().forEach(mod => {
 		var prev = listener;
-		switch(mod) {
-			case "this":
-				listener = function(event){
-					return prev.call(context, event, this);
-				};
-				break;
-			case "noargs":
-				listener = function(){
-					return prev.call(this);
-				};
-				break;
-			case "prevent":
-				listener = function(event){
-					event.preventDefault();
-					return prev.apply(this, arguments);
-				};
-				break;
-			case "stop":
-				listener = function(event){
-					event.stopPropagation();
-					return prev.apply(this, arguments);
-				};
-				break;
-			case "once":
-				options.once = true;
-				break;
-			case "passive":
-				options.passive = true;
-				break;
-			case "capture":
-				options.capture = true;
-				break;
-			case "bubble":
-				options.capture = false;
-				break;
-			case "trusted":
-				listener = function(event){
-					if(event.isTrusted) return prev.apply(this, arguments);
-				};
-				break;
-			case "!trusted":
-				listener = function(event){
-					if(!event.isTrusted) return prev.apply(this, arguments);
-				};
-				break;
-			case "self":
-				listener = function(event){
-					if(event.target === this) return prev.apply(this, arguments);
-				};
-				break;
-			case "!self":
-				listener = function(event){
-					if(event.target !== this) return prev.apply(this, arguments);
-				};
-				break;
-			case "alt":
-			case "ctrl":
-			case "meta":
-			case "shift":
-				listener = function(event){
-					if(event[mod + "Key"]) return prev.apply(this, arguments);
-				};
-				break;
-			case "!alt":
-			case "!ctrl":
-			case "!meta":
-			case "!shift":
-				mod = mod.substr(1);
-				listener = function(event){
-					if(!event[mod + "Key"]) return prev.apply(this, arguments);
-				};
-				break;
-			default:
-				var positive = mod.charAt(0) != '!';
-				if(!positive) mod = mod.substr(1);
-				var dot = mod.split('.');
-				switch(dot[0]) {
-					case "key":
-						var keys = dot.slice(1).map(function(a){
-							var ret = a.toLowerCase();
-							if(Object.prototype.hasOwnProperty.call(SactoryConfig.config.event.aliases, ret)) ret = SactoryConfig.config.event.aliases[ret];
-							var separated = ret.split('-');
-							if(separated.length == 2) {
-								var range;
-								if(separated[0].length == 1 && separated[1].length == 1) {
-									range = [separated[0].toUpperCase().charCodeAt(0), separated[1].toUpperCase().charCodeAt(0)];
-								} else if(separated[0].charAt(0) == 'f' && separated[1].charAt(0) == 'f') {
-									range = [111 + parseInt(separated[0].substr(1)), 111 + parseInt(separated[1].substr(1))];
-								}
-								if(range) {
-									return function(event){
-										var code = event.keyCode || event.which;
-										return code >= range[0] && code <= range[1];
+		if(typeof mod == "function") {
+			listener = function(event){
+				if(mod.call(this, event)) prev.apply(this, arguments);
+			};
+		} else {
+			switch(mod) {
+				case "this":
+					listener = function(event){
+						return prev.call(context, event, this);
+					};
+					break;
+				case "noargs":
+					listener = function(){
+						return prev.call(this);
+					};
+					break;
+				case "prevent":
+					listener = function(event){
+						event.preventDefault();
+						return prev.apply(this, arguments);
+					};
+					break;
+				case "stop":
+					listener = function(event){
+						event.stopPropagation();
+						return prev.apply(this, arguments);
+					};
+					break;
+				case "once":
+					options.once = true;
+					break;
+				case "passive":
+					options.passive = true;
+					break;
+				case "capture":
+					options.capture = true;
+					break;
+				case "bubble":
+					options.capture = false;
+					break;
+				case "trusted":
+					listener = function(event){
+						if(event.isTrusted) return prev.apply(this, arguments);
+					};
+					break;
+				case "!trusted":
+					listener = function(event){
+						if(!event.isTrusted) return prev.apply(this, arguments);
+					};
+					break;
+				case "self":
+					listener = function(event){
+						if(event.target === this) return prev.apply(this, arguments);
+					};
+					break;
+				case "!self":
+					listener = function(event){
+						if(event.target !== this) return prev.apply(this, arguments);
+					};
+					break;
+				case "alt":
+				case "ctrl":
+				case "meta":
+				case "shift":
+					listener = function(event){
+						if(event[mod + "Key"]) return prev.apply(this, arguments);
+					};
+					break;
+				case "!alt":
+				case "!ctrl":
+				case "!meta":
+				case "!shift":
+					mod = mod.substr(1);
+					listener = function(event){
+						if(!event[mod + "Key"]) return prev.apply(this, arguments);
+					};
+					break;
+				default:
+					var positive = mod.charAt(0) != '!';
+					if(!positive) mod = mod.substr(1);
+					var dot = mod.split('.');
+					switch(dot[0]) {
+						case "key":
+							var keys = dot.slice(1).map(function(a){
+								var ret = a.toLowerCase();
+								if(Object.prototype.hasOwnProperty.call(SactoryConfig.config.event.aliases, ret)) ret = SactoryConfig.config.event.aliases[ret];
+								var separated = ret.split('-');
+								if(separated.length == 2) {
+									var range;
+									if(separated[0].length == 1 && separated[1].length == 1) {
+										range = [separated[0].toUpperCase().charCodeAt(0), separated[1].toUpperCase().charCodeAt(0)];
+									} else if(separated[0].charAt(0) == 'f' && separated[1].charAt(0) == 'f') {
+										range = [111 + parseInt(separated[0].substr(1)), 111 + parseInt(separated[1].substr(1))];
+									}
+									if(range) {
+										return function(event){
+											var code = event.keyCode || event.which;
+											return code >= range[0] && code <= range[1];
+										}
 									}
 								}
+								if(ret != '-') ret = ret.replace(/-/g, "");
+								return function(event){
+									return event.key.toLowerCase() == ret;
+								};
+							});
+							if(positive) {
+								listener = function(event){
+									for(var i in keys) {
+										if(keys[i](event)) return prev.apply(this, arguments);
+									}
+								};
+							} else {
+								listener = function(event){
+									for(var i in keys) {
+										if(keys[i](event)) return;
+									}
+									return prev.apply(this, arguments);
+								};
 							}
-							if(ret != '-') ret = ret.replace(/-/g, "");
-							return function(event){
-								return event.key.toLowerCase() == ret;
-							};
-						});
-						if(positive) {
-							listener = function(event){
-								for(var i in keys) {
-									if(keys[i](event)) return prev.apply(this, arguments);
-								}
-							};
-						} else {
-							listener = function(event){
-								for(var i in keys) {
-									if(keys[i](event)) return;
-								}
-								return prev.apply(this, arguments);
-							};
-						}
-						break;
-					case "code":
-						var keys = dot.slice(1).map(a => a.toLowerCase().replace(/-/g, ""));
-						if(positive) {
-							listener = function(event){
-								if(keys.indexOf(event.code.toLowerCase()) != -1) return prev.apply(this, arguments);
-							};
-						} else {
-							listener = function(event){
-								if(keys.indexOf(event.code.toLowerCase()) == -1) return prev.apply(this, arguments);
-							};
-						}
-						break;
-					case "keyCode":
-					case "key-code":
-						var keys = dot.slice(1).map(a => parseInt(a));
-						if(positive) {
-							listener = function(event){
-								if(keys.indexOf(event.keyCode || event.which) != -1) return prev.apply(this, arguments);
-							};
-						} else {
-							listener = function(event){
-								if(keys.indexOf(event.keyCode || event.which) == -1) return prev.apply(this, arguments);
-							};
-						}
-						break;
-					case "button":
-						var buttons = dot.slice(1).map(function(a){
-							switch(a) {
-								case "main":
-								case "left":
-									return 0;
-								case "auxiliary":
-								case "wheel":
-								case "middle":
-									return 1;
-								case "secondary":
-								case "right":
-									return 2;
-								case "fourth":
-								case "back":
-									return 3;
-								case "fifth":
-								case "forward":
-									return 4;
-								default:
-									return parseInt(a);
+							break;
+						case "code":
+							var keys = dot.slice(1).map(a => a.toLowerCase().replace(/-/g, ""));
+							if(positive) {
+								listener = function(event){
+									if(keys.indexOf(event.code.toLowerCase()) != -1) return prev.apply(this, arguments);
+								};
+							} else {
+								listener = function(event){
+									if(keys.indexOf(event.code.toLowerCase()) == -1) return prev.apply(this, arguments);
+								};
 							}
-						});
-						if(positive) {
-							listener = function(event){
-								if(buttons.indexOf(event.button) != -1) return prev.apply(this, arguments);
-							};
-						} else {
-							listener = function(event){
-								if(buttons.indexOf(event.button) == -1) return prev.apply(this, arguments);
-							};
-						}
-						break;
-					case "location":
-						var locations = dot.slice(1).map(function(a){
-							switch(a) {
-								case "standard": return 0;
-								case "left": return 1;
-								case "right": return 2;
-								case "numpad": return 3;
-								default: return parseInt(a);
+							break;
+						case "keyCode":
+						case "key-code":
+							var keys = dot.slice(1).map(a => parseInt(a));
+							if(positive) {
+								listener = function(event){
+									if(keys.indexOf(event.keyCode || event.which) != -1) return prev.apply(this, arguments);
+								};
+							} else {
+								listener = function(event){
+									if(keys.indexOf(event.keyCode || event.which) == -1) return prev.apply(this, arguments);
+								};
 							}
-						});
-						if(positive) {
-							listener = function(event){
-								if(locations.indexOf(event.location) != -1) return prev.apply(this, arguments);
-							};
-						} else {
-							listener = function(event){
-								if(locations.indexOf(event.location) == -1) return prev.apply(this, arguments);
-							};
-						}
-						break;
-					case "throttle":
-						var delay = parseInt(dot[1]);
-						if(delay >= 0) {
-							var timeout = false;
-							listener = function(event){
-								if(!timeout) {
-									prev.apply(this, arguments);
-									timeout = true;
-									timeout = setTimeout(() => timeout = false, delay);
+							break;
+						case "button":
+							var buttons = dot.slice(1).map(function(a){
+								switch(a) {
+									case "main":
+									case "left":
+										return 0;
+									case "auxiliary":
+									case "wheel":
+									case "middle":
+										return 1;
+									case "secondary":
+									case "right":
+										return 2;
+									case "fourth":
+									case "back":
+										return 3;
+									case "fifth":
+									case "forward":
+										return 4;
+									default:
+										return parseInt(a);
 								}
-							};
-						} else {
-							throw new Error("Event delay must be higher or equals than 0.");
-						}
-						break;
-					case "debounce":
-						var delay = parseInt(dot[1]);
-						if(delay >= 0) {
-							var timeout;
-							listener = function(event){
-								if(timeout) clearTimeout(timeout);
-								var args = arguments;
-								timeout = setTimeout(() => {
-									timeout = 0;
-									prev.call(this, args);
-								}, delay);
-							};
-						} else {
-							throw new Error("Event delay must be higher or equals than 0.");
-						}
-						break;
-					default:
-						throw new Error("Unknown event modifier '" + mod + "'.");
-				}
-				break;
+							});
+							if(positive) {
+								listener = function(event){
+									if(buttons.indexOf(event.button) != -1) return prev.apply(this, arguments);
+								};
+							} else {
+								listener = function(event){
+									if(buttons.indexOf(event.button) == -1) return prev.apply(this, arguments);
+								};
+							}
+							break;
+						case "location":
+							var locations = dot.slice(1).map(function(a){
+								switch(a) {
+									case "standard": return 0;
+									case "left": return 1;
+									case "right": return 2;
+									case "numpad": return 3;
+									default: return parseInt(a);
+								}
+							});
+							if(positive) {
+								listener = function(event){
+									if(locations.indexOf(event.location) != -1) return prev.apply(this, arguments);
+								};
+							} else {
+								listener = function(event){
+									if(locations.indexOf(event.location) == -1) return prev.apply(this, arguments);
+								};
+							}
+							break;
+						case "throttle":
+							var delay = parseInt(dot[1]);
+							if(delay >= 0) {
+								var timeout = false;
+								listener = function(event){
+									if(!timeout) {
+										prev.apply(this, arguments);
+										timeout = true;
+										timeout = setTimeout(() => timeout = false, delay);
+									}
+								};
+							} else {
+								throw new Error("Event delay must be higher or equals than 0.");
+							}
+							break;
+						case "debounce":
+							var delay = parseInt(dot[1]);
+							if(delay >= 0) {
+								var timeout;
+								listener = function(event){
+									if(timeout) clearTimeout(timeout);
+									var args = arguments;
+									timeout = setTimeout(() => {
+										timeout = 0;
+										prev.call(this, args);
+									}, delay);
+								};
+							} else {
+								throw new Error("Event delay must be higher or equals than 0.");
+							}
+							break;
+						default:
+							throw new Error("Unknown event modifier '" + mod + "'.");
+					}
+					break;
+			}
 		}
 	});
 	if(event == "documentappend") {
@@ -655,13 +663,14 @@ Builder.prototype.removeClassName = function(className){
  * @since 0.69.0
  */
 Builder.prototype[Const.BUILDER_TYPE_NONE] = function({bind}, name, value){
-	this.attr(name, value, bind);
+	this.attr(name.toString(), value, bind);
 };
 
 /**
  * @since 0.63.0
  */
 Builder.prototype[Const.BUILDER_TYPE_PROP] = function({counter, bind}, name, value){
+	name = name.toString();
 	switch(name) {
 		case "visible": return this.visible(value, false, counter, bind);
 		case "hidden": return this.visible(value, true, counter, bind);
@@ -681,6 +690,7 @@ Builder.prototype[Const.BUILDER_TYPE_PROP] = function({counter, bind}, name, val
  * @since 0.121.0
  */
 Builder.prototype[Const.BUILDER_TYPE_STYLE] = function({counter, bind}, name, value){
+	name = name.toString();
 	if(/[!a-z-]/.test(name.charAt(0))) {
 		this.style(name, value, counter, bind);
 	} else {
@@ -692,6 +702,7 @@ Builder.prototype[Const.BUILDER_TYPE_STYLE] = function({counter, bind}, name, va
  * @since 0.96.0
  */
 Builder.prototype[Const.BUILDER_TYPE_CONCAT] = function({bind, anchor}, name, value){
+	name = name.toString();
 	switch(name) {
 		case "text": return this.text(value, bind, anchor);
 		case "html": return this.html(value, bind, anchor);
@@ -744,8 +755,8 @@ Builder.prototype.visibility = function({counter, bind}, value, visible){
  */
 Builder.prototype.form = function({counter, bind}, info, value, update){
 	var isObservable = SactoryObservable.isObservable(value);
-	var splitted = info.split("::");
-	var events = splitted.slice(1);
+	var events = info.split("::");
+	var modifiers = events.shift();
 	var updateType = Const.OBSERVABLE_UPDATE_TYPE_FORM_RANGE_START + Math.floor(Math.random() * Const.OBSERVABLE_UPDATE_TYPE_FORM_RANGE_LENGTH);
 	var inputType = this.element.type;
 	var get, converters = [];
@@ -807,77 +818,86 @@ Builder.prototype.form = function({counter, bind}, info, value, update){
 			}
 		}
 	}
-	splitted[0].split(":").slice(1).forEach(function(mod){
-		converters.push(function(){
-			switch(mod) {
-				case "number":
-				case "num":
-				case "float":
-					return function(){
-						return +this;
-					};
-				case "int":
-				case "integer":
-					return function(){
-						return Polyfill.trunc(+this);
-					};
-				case "str":
-				case "string":
-					return function(){
-						return this + "";
-					};
-				case "date":
-					switch(inputType) {
-						case "date":
-						case "month":
-							return function(){
-								var s = this.split('-');
-								return new Date(s[0], s[1] - 1, s[2] || 1);
-							};
-						case "time":
-							return function(){
-								var s = this.split(':');
-								var date = new Date();
-								date.setHours(s[0]);
-								date.setMinutes(s[1]);
-								date.setSeconds(0);
-								date.setMilliseconds(0);
-								return date;
-							};
-						case "datetime-local":
-						default:
-							return function(){
-								return new Date(this);
-							};
-					}
-				case "comma":
-					return function(){
-						return this.replace(/,/g, '.');
-					};
-				case "trim":
-					return String.prototype.trim;
-				case "trim-left":
-				case "trim-start":
-					return Polyfill.trimStart;
-				case "trim-right":
-				case "trim-end":
-					return Polyfill.trimEnd;
-				case "lower":
-				case "lowercase":
-					return String.prototype.toLowerCase;
-				case "upper":
-				case "uppercase":
-					return String.prototype.toUpperCase;
-				case "capital":
-				case "capitalize":
-					return function(){
-						return this.charAt(0).toUpperCase() + this.substr(1);
-					};
-				default:
-					throw new Error("Unknown value modifier '" + mod + "'.");
+	if(modifiers) {
+		modifiers.split(":").forEach(mod => {
+			if(mod.args) {
+				mod = mod.toValue();
+				if(typeof mod == "function") {
+					converters.push(mod);
+					return;
+				}
 			}
-		}());
-	});
+			converters.push(function(){
+				switch(mod) {
+					case "number":
+					case "num":
+					case "float":
+						return function(){
+							return +this;
+						};
+					case "int":
+					case "integer":
+						return function(){
+							return Polyfill.trunc(+this);
+						};
+					case "str":
+					case "string":
+						return function(){
+							return this + "";
+						};
+					case "date":
+						switch(inputType) {
+							case "date":
+							case "month":
+								return function(){
+									var s = this.split('-');
+									return new Date(s[0], s[1] - 1, s[2] || 1);
+								};
+							case "time":
+								return function(){
+									var s = this.split(':');
+									var date = new Date();
+									date.setHours(s[0]);
+									date.setMinutes(s[1]);
+									date.setSeconds(0);
+									date.setMilliseconds(0);
+									return date;
+								};
+							case "datetime-local":
+							default:
+								return function(){
+									return new Date(this);
+								};
+						}
+					case "comma":
+						return function(){
+							return this.replace(/,/g, '.');
+						};
+					case "trim":
+						return String.prototype.trim;
+					case "trim-left":
+					case "trim-start":
+						return Polyfill.trimStart;
+					case "trim-right":
+					case "trim-end":
+						return Polyfill.trimEnd;
+					case "lower":
+					case "lowercase":
+						return String.prototype.toLowerCase;
+					case "upper":
+					case "uppercase":
+						return String.prototype.toUpperCase;
+					case "capital":
+					case "capitalize":
+						return function(){
+							return this.charAt(0).toUpperCase() + this.substr(1);
+						};
+					default:
+						throw new Error("Unknown value modifier '" + mod + "'.");
+				}
+			}());
+		});
+	}
 	if(isObservable) {
 		if(value.computed) {
 			if(value.dependencies.length == 1 && value.dependencies[0].deep) {
@@ -919,6 +939,7 @@ Builder.prototype.form = function({counter, bind}, info, value, update){
 			get(newValue => converters.forEach(converter => newValue = converter.call(newValue, newValue)));
 		}, bind);
 	});
+	console.log(converters);
 };
 
 Builder.prototype.addAnimation = function(type, name, options){

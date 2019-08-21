@@ -271,7 +271,7 @@ Sactory.update = function(context, [attrs = [], iattrs, sattrs, transitions, vis
 				if(ext) {
 					if(typeof name[0] == "function") {
 						var widget = name[0];
-						name = name.slice(1).join("").substr(1); // assuming the first character is a column
+						name = name.slice(1).toString().substr(1); // assuming the first character is a column
 						if(name.length) {
 							widgetExt.push({
 								widget,
@@ -285,7 +285,7 @@ Sactory.update = function(context, [attrs = [], iattrs, sattrs, transitions, vis
 							return;
 						}
 					} else {
-						name = name + "";
+						name = name.toString();
 						var col = name.indexOf(':');
 						if(col == -1) {
 							widgetExt.push({
@@ -307,7 +307,7 @@ Sactory.update = function(context, [attrs = [], iattrs, sattrs, transitions, vis
 						}
 					}
 				} else {
-					name = name + "";
+					name = name.toString();
 					if(name.length) {
 						obj = widgetArgs;
 					} else {
@@ -419,7 +419,7 @@ Sactory.update = function(context, [attrs = [], iattrs, sattrs, transitions, vis
 	args.sort((a, b) => a.type - b.type);
 	
 	// apply attributes to builder
-	args.forEach(({type, name, value}) => updatedElement.__builder[type](context, name.toString(), value));
+	args.forEach(({type, name, value}) => updatedElement.__builder[type](context, name, value));
 
 	if(transitions) {
 		transitions.forEach(([type, name, options]) => updatedElement.__builder.addAnimation(type, name, options || {}));
@@ -650,16 +650,6 @@ Sactory.inherit = function(target, ...args){
 }
 
 /**
- * @since 0.127.0
- */
-Sactory.attr = function(...args){
-	args.toString = function(){
-		return this.join("");
-	};
-	return args;
-};
-
-/**
  * @since 0.90.0
  */
 Sactory.mixin = function(context, data){
@@ -697,6 +687,66 @@ Sactory.on = function(scope, context, name, value){
 	} else {
 		context.element.__builder.event(scope, name, value, context.bind);
 	}
+};
+
+function Attr(args) {
+	this.args = args;
+	this.length = args.length;
+	for(var i in args) {
+		this[i] = args[i];
+	}
+}
+
+Attr.prototype.get = function(index){
+	return this.args[index];
+};
+
+Attr.prototype.slice = function(){
+	return new Attr(Array.prototype.slice.apply(this.args, arguments));
+};
+
+Attr.prototype.split = function(separator){
+	var ret = [];
+	var curr;
+	var push = value => {
+		if(!curr) ret.push(curr = []);
+		curr.push(value);
+	};
+	this.args.forEach(arg => {
+		if(typeof arg == "function") {
+			push(arg);
+		} else {
+			var splitted = (arg + "").split(separator);
+			if(splitted.length) {
+				if(!splitted[0].length) {
+					curr = null;
+					splitted.shift();
+				}
+				var last = splitted.pop();
+				splitted.forEach(value => {
+					push(value);
+					curr = null;
+				});
+				if(last.length) push(last);
+			}
+		}
+	});
+	return ret.map(a => new Attr(a));
+};
+
+Attr.prototype.toValue = function(){
+	return this.args.length == 1 ? this.args[0] : this.toString();
+};
+
+Attr.prototype.toString = function(){
+	return this.args.join("");
+};
+
+/**
+ * @since 0.127.0
+ */
+Sactory.attr = function(...args){
+	return new Attr(args);
 };
 
 var currentId;

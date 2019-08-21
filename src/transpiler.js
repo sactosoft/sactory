@@ -1622,7 +1622,8 @@ Transpiler.prototype.open = function(){
 								case "value":
 									if(!attr.hasOwnProperty("value")) this.parser.error("Value for form attribute is required.");
 									if(column == start.name.length - 1) attr.parts.shift();
-									else start.name = start.name.substr(column);
+									else start.name = start.name.substr(column + 1);
+									if(start.name.charAt(0) == ":") start.name = ":" + start.name;
 									this.compileAttributeParts(attr);
 									forms.push([this.stringifyAttribute(attr), attr.value, attr.sourceValue || attr.value]);
 									break;
@@ -1880,7 +1881,7 @@ Transpiler.prototype.open = function(){
 				newMode = modeNames[tagName.substr(1)];
 				if(newMode !== undefined) create = update = append = false; // behave as a scope
 			} else if(tagName == '@') {
-				this.warn("<@ /> tag name is deprecated. Use <:element /> instead.", position);
+				this.warn("Tag name `<@ />` is deprecated. Use `<:element />` instead.", position);
 				create = append = false;
 			} else if(tagName) {
 				if(Object.prototype.hasOwnProperty.call(this.tagNames, tagName)) this.tagNames[tagName]++;
