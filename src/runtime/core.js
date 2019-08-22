@@ -165,7 +165,7 @@ Widget.createClassWidget = function(Class, context, args, namespace){
 	var element = instance.__element = instance.render(context, namespace);
 	if(instance instanceof Widget) instance.element = element;
 	if(!(element instanceof Node)) throw new Error("The widget's render function did not return an instance of 'Node', returned '" + element + "' instead.");
-	if(Class.style) Widget.createStyle(context, Class, element);
+	if(Class.style) Widget.createStyle({counter: context.counter}, Class, element);
 	if(Class.prototype.style) Widget.createStyle(context, instance, element);
 	return {instance, element};
 };

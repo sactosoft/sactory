@@ -1598,12 +1598,10 @@ Transpiler.prototype.open = function(){
 									transitions.push({type: type, name: this.stringifyAttribute(attr), value: attr.value})
 									break;*/
 								case "show":
-									var value = attr.hasOwnProperty("value") ? attr.value : 1;
-									visibility = `[${value}, ${attr.negated ^ 1}]`;
-									break;
+									temp = 1;
 								case "hide":
-									var value = attr.hasOwnProperty("value") ? attr.value : 0;
-									visibility = `[${value}, ${+attr.negated}]`;
+									var value = attr.hasOwnProperty("value") ? attr.value : 1;
+									visibility = `[${value}, ${attr.negated ^ (temp || 0)}]`;
 									break;
 								case "number":
 									start.name += ":number";
@@ -1737,6 +1735,8 @@ Transpiler.prototype.open = function(){
 		if(dattributes.root) parent = parent + ".getRootNode({composed: " + (dattributes.composed || "false") + "})";
 		else if(dattributes.head) parent = "document.head";
 		else if(dattributes.body) parent = "document.body";
+		else if(dattributes.document) parent = "document";
+		else if(dattributes.html) parent = "document.documentElement";
 		else if(dattributes.parent) parent = dattributes.parent;
 
 		if(parent == "\"\"" || dattributes.orphan) {
@@ -1821,7 +1821,7 @@ Transpiler.prototype.open = function(){
 						case "query-all":
 							all = true;
 						case "query":
-							element = `${this.runtime}.query${all ? "All" : ""}(${this.context}, ${arg}, ${parent})`;
+							element = parent = `${this.runtime}.query${all ? "All" : ""}(${this.context}, ${arg}, ${parent})`;
 							create = append = false;
 							break;
 						case "adopt-all":

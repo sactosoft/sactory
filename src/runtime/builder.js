@@ -939,7 +939,6 @@ Builder.prototype.form = function({counter, bind}, info, value, update){
 			get(newValue => converters.forEach(converter => newValue = converter.call(newValue, newValue)));
 		}, bind);
 	});
-	console.log(converters);
 };
 
 Builder.prototype.addAnimation = function(type, name, options){
