@@ -1,4 +1,4 @@
-var Parser = require("./parser");
+var Parser = require("./transpiler/parser");
 var { hyphenate, dehyphenate } = require("./util");
 
 var entities = require("./json/entities.json");

@@ -85,9 +85,11 @@ gulp.task("dist:sactory", function(){
 		"runtime/animation",
 		"runtime/bind",
 		"runtime/builder",
+		"runtime/chain",
+		"runtime/const",
 		"runtime/context",
-		"runtime/core",
 		"runtime/client",
+		"runtime/misc",
 		"runtime/observable",
 		"runtime/style",
 		"runtime/widget"
@@ -98,8 +100,11 @@ gulp.task("dist:transpiler", function(){
 	return make("transpiler", "Transpiler", [
 		"polyfill",
 		"const",
-		"parser",
-		"transpiler"
+		"transpiler/util",
+		"transpiler/parser",
+		"transpiler/mode",
+		"transpiler/transpiler",
+		"transpiler/eval"
 	]);
 });
 

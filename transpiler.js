@@ -1,1 +1,1 @@
-module.exports = require("./src/transpiler");
+module.exports = require("./src/transpiler/transpiler");

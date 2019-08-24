@@ -1,7 +1,6 @@
-var Const = require("../const");
-
 var SactoryContext = require("./context");
-var SactoryCore = require("./core");
+var SactoryConst = require("./const");
+var SactoryMisc = require("./core");
 var SactoryObservable = require("./observable");
 
 var Sactory = {};
@@ -251,25 +250,25 @@ Sactory.bindEach = function(scope, context1, context2, target, getter, fun){
 		}
 		currentBind.subscribe(target.subscribe(function(array, _, type, data){
 			switch(type) {
-				case Const.OBSERVABLE_UPDATE_TYPE_ARRAY_PUSH:
+				case SactoryConst.OUT_ARRAY_PUSH:
 					Array.prototype.forEach.call(data, function(value, i){
 						add("push", currentBind.fork(), context.element ? Sactory.anchor({element: context.element, bind: currentBind, anchor: lastAnchor}) : null, value, array.length - data.length + i, array);
 					});
 					break;
-				case Const.OBSERVABLE_UPDATE_TYPE_ARRAY_POP:
+				case SactoryConst.OUT_ARRAY_POP:
 					var popped = binds.pop();
 					if(popped) remove(popped);
 					break;
-				case Const.OBSERVABLE_UPDATE_TYPE_ARRAY_UNSHIFT:
+				case SactoryConst.OUT_ARRAY_UNSHIFT:
 					Array.prototype.forEach.call(data, function(value){
 						add("unshift", currentBind.fork(), context.element ? Sactory.anchor({element: context.element, bind: currentBind, anchor: firstAnchor.nextSibling}) : null, value, 0, array);
 					});
 					break;
-				case Const.OBSERVABLE_UPDATE_TYPE_ARRAY_SHIFT:
+				case SactoryConst.OUT_ARRAY_SHIFT:
 					var shifted = binds.shift();
 					if(shifted) remove(shifted);
 					break;
-				case Const.OBSERVABLE_UPDATE_TYPE_ARRAY_SPLICE:
+				case SactoryConst.OUT_ARRAY_SPLICE:
 					// insert new elements then call splice on binds and rollback
 					var index = data[0];
 					var ptr = binds[index];
@@ -298,7 +297,7 @@ Sactory.bindEach = function(scope, context1, context2, target, getter, fun){
 	} else {
 		// use normal bind and Sactory.forEach
 		Sactory.bind(scope, context, target, context => {
-			SactoryCore.forEach(scope, getter.call(scope), (...args) => fun.call(scope, context, ...args));
+			SactoryMisc.forEach(scope, getter.call(scope), (...args) => fun.call(scope, context, ...args));
 		});
 	}
 };
@@ -310,7 +309,7 @@ Sactory.bindEachMaybe = function(scope, context1, context2, target, getter, fun)
 	if(SactoryObservable.isObservable(target)) {
 		Sactory.bindEach(scope, context1, context2, target, getter, fun);
 	} else {
-		SactoryCore.forEach(scope, getter.call(scope), (...args) => fun.call(scope, context, ...args));
+		SactoryMisc.forEach(scope, getter.call(scope), (...args) => fun.call(scope, context, ...args));
 	}
 };
 

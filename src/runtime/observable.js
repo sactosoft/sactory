@@ -1,5 +1,5 @@
 var Polyfill = require("../polyfill");
-var Const = require("../const");
+var SactoryConst = require("./const");
 
 var Sactory = {};
 
@@ -295,13 +295,13 @@ ObservableArray.prototype = Object.create(Array.prototype);
 [
 	{name: "copyWithin"},
 	{name: "fill"},
-	{name: "pop", type: Const.OBSERVABLE_UPDATE_TYPE_ARRAY_POP},
-	{name: "push", type: Const.OBSERVABLE_UPDATE_TYPE_ARRAY_PUSH},
+	{name: "pop", type: SactoryConst.OUT_ARRAY_POP},
+	{name: "push", type: SactoryConst.OUT_ARRAY_PUSH},
 	{name: "reverse"},
-	{name: "shift", type: Const.OBSERVABLE_UPDATE_TYPE_ARRAY_SHIFT},
+	{name: "shift", type: SactoryConst.OUT_ARRAY_SHIFT},
 	{name: "sort"},
-	{name: "splice", type: Const.OBSERVABLE_UPDATE_TYPE_ARRAY_SPLICE},
-	{name: "unshift", type: Const.OBSERVABLE_UPDATE_TYPE_ARRAY_UNSHIFT}
+	{name: "splice", type: SactoryConst.OUT_ARRAY_SPLICE},
+	{name: "unshift", type: SactoryConst.OUT_ARRAY_UNSHIFT}
 ].forEach(function(fun){
 	if(Array.prototype[fun.name]) {
 		Object.defineProperty(ObservableArray.prototype, fun.name, {

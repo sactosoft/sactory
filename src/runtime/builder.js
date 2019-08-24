@@ -3,6 +3,7 @@ var Const = require("../const");
 var { hyphenate } = require("../util");
 
 var SactoryConfig = require("./config");
+var SactoryConst = require("./const");
 var SactoryObservable = require("./observable");
 var SactoryBind = require("./bind");
 var SactoryAnimation = require("./animation");
@@ -757,7 +758,7 @@ Builder.prototype.form = function({counter, bind}, info, value, update){
 	var isObservable = SactoryObservable.isObservable(value);
 	var events = info.split("::");
 	var modifiers = events.shift();
-	var updateType = Const.OBSERVABLE_UPDATE_TYPE_FORM_RANGE_START + Math.floor(Math.random() * Const.OBSERVABLE_UPDATE_TYPE_FORM_RANGE_LENGTH);
+	var updateType = SactoryConst.OUT_FORM_RANGE_START + Math.floor(Math.random() * SactoryConst.OUT_FORM_RANGE_LENGTH);
 	var inputType = this.element.type;
 	var get, converters = [];
 	// calculate property name and default converter

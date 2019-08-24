@@ -1,8 +1,6 @@
-var Sactory = {};
+var SactoryConst = require("./const");
 
-Sactory.SL_CONTAINER = "__container";
-Sactory.SL_CONTENT = "__content";
-Sactory.SL_INPUT = "__input";
+var Sactory = {};
 
 var widgets = {};
 
@@ -157,7 +155,7 @@ Registry.prototype.sub = function(name, main){
 };
 
 Registry.prototype.add = function(anchor, name, element){
-	this.targetSlots[name || Sactory.SL_CONTENT] = {anchor, element};
+	this.targetSlots[name || SactoryConst.SL_CONTENT] = {anchor, element};
 };
 
 Registry.prototype.addAll = function(anchor, names, element){
@@ -171,4 +169,4 @@ Sactory.widgets = {
 	shadow: ({mode = "open"}, {parentElement}) => parentElement.attachShadow({mode})
 };
 
-module.exports = { Widget, Registry };
+module.exports = { widgets, Widget, Registry };

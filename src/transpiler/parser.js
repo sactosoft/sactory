@@ -1,4 +1,4 @@
-var Polyfill = require("./polyfill");
+var Polyfill = require("../polyfill");
 
 function ParserError(message, fileName, lineNumber) {
 	var error = new Error(message, fileName, lineNumber);
