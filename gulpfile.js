@@ -85,10 +85,12 @@ gulp.task("dist:sactory", function(){
 		"runtime/animation",
 		"runtime/bind",
 		"runtime/builder",
+		"runtime/context",
 		"runtime/core",
 		"runtime/client",
 		"runtime/observable",
-		"runtime/style"
+		"runtime/style",
+		"runtime/widget"
 	]);
 });
 

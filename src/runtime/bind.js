@@ -1,5 +1,6 @@
 var Const = require("../const");
 
+var SactoryContext = require("./context");
 var SactoryCore = require("./core");
 var SactoryObservable = require("./observable");
 
@@ -163,7 +164,8 @@ Sactory.bind = function(scope, context, target, fun){
 /**
  * @since 0.102.0
  */
-Sactory.bindIfElse = function(scope, context, conditions, ...functions){
+Sactory.bindIfElse = function(scope, context1, context2, conditions, ...functions){
+	var context = SactoryContext.context(context1, context2);
 	var currentBindDependencies = (context.bind || Sactory.bindFactory).fork();
 	var currentBindContent = (context.bind || Sactory.bindFactory).fork();
 	var currentAnchor;
@@ -220,7 +222,8 @@ Sactory.bindIfElse = function(scope, context, conditions, ...functions){
 /**
  * @since 0.102.0
  */
-Sactory.bindEach = function(scope, context, target, getter, fun){
+Sactory.bindEach = function(scope, context1, context2, target, getter, fun){
+	var context = SactoryContext.context(context1, context2);
 	if(getter.call(scope).forEach) {
 		var currentBind = (context.bind || Sactory.bindFactory).fork();
 		var firstAnchor, lastAnchor;
@@ -303,9 +306,9 @@ Sactory.bindEach = function(scope, context, target, getter, fun){
 /**
  * @since 0.102.0
  */
-Sactory.bindEachMaybe = function(scope, context, target, getter, fun){
+Sactory.bindEachMaybe = function(scope, context1, context2, target, getter, fun){
 	if(SactoryObservable.isObservable(target)) {
-		Sactory.bindEach(scope, context, target, getter, fun);
+		Sactory.bindEach(scope, context1, context2, target, getter, fun);
 	} else {
 		SactoryCore.forEach(scope, getter.call(scope), (...args) => fun.call(scope, context, ...args));
 	}

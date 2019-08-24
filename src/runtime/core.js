@@ -2,6 +2,8 @@ var Polyfill = require("../polyfill");
 var Const = require("../const");
 var { hyphenate } = require("../util");
 var SactoryConfig = require("./config");
+var SactoryContext = require("./context");
+var { Widget, Registry } = require("./widget");
 
 Object.defineProperty(Node, "ANCHOR_NODE", {
 	writable: false,
@@ -13,23 +15,23 @@ Object.defineProperty(Node, "ANCHOR_NODE", {
 /**
  * @since 0.60.0
  */
-function Sactory(scope, {counter, bind, anchor, widgets, registry, selector}, element, ...functions) {
-	var context = {
-		scope, element,
-		counter, bind, anchor, widgets, registry, selector,
-		content: element,
-		parentAnchor: anchor,
-		document: element ? element.ownerDocument : document
-	};
+function Sactory(scope, context1, context2, ...functions) {
+	var context = SactoryContext.newChainContext(scope, context1, context2);
 	functions.forEach(([fun, ...args]) => fun.call(null, context, ...args));
 	return context.element;
 }
 
 /**
- * @since 0.122.0
+ * @since 0.128.0
  */
-Sactory.init = function(count){
-	return {counter: new SactoryConfig.Counter(count)};
+Sactory.all = function(scope, context1, context2, [ffun, ...fargs], ...functions){
+	var context = SactoryContext.newChainContext(scope, context1, context2);
+	context.all = true;
+	ffun.call(null, context, ...fargs);
+	Array.prototype.forEach.call(context.elements, element => {
+		functions.forEach(([fun, ...args]) => fun.call(null, Polyfill.assign({}, context, {element}), ...args));
+	});
+	return context.elements;
 };
 
 // constants
@@ -41,10 +43,6 @@ Sactory.NS_SVG = "http://www.w3.org/2000/svg";
 Sactory.NS_MATHML = "http://www.w3.org/1998/mathml";
 Sactory.NS_XUL = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
 Sactory.NS_XBL = "http://www.mozilla.org/xbl";
-
-Sactory.SL_CONTAINER = "__container";
-Sactory.SL_CONTENT = "__content";
-Sactory.SL_INPUT = "__input";
 
 /**
  * Checks whether the given version in compatible with the runtime version.
@@ -59,189 +57,67 @@ Sactory.check = function(v){
 	}
 };
 
-// widgets
-
-var widgets = {};
+/**
+ * @since 0.80.0
+ */
+Sactory.nop = function(context){
+	context.element = context.parentElement;
+};
 
 /**
- * Defines or replaces a widget.
- * @param {string} name - The case-sensitive name of the widget.
- * @param {class} widget - The widget class.
- * @since 0.73.0
+ * @since 0.128.0
  */
-Sactory.addWidget = function(name, widget){
-	if(widget) {
-		widgets[name] = widget;	
-	} else if(name && name.name) {
-		widgets[hyphenate(name.name)] = name;
+Sactory.use = function(context, element){
+	if(context.all) {
+		context.elements = element;
 	} else {
-		throw new Error("Cannot add widget: invalid or missing name.");
+		context.element = element;
 	}
 };
 
 /**
- * Removes a widget by its name.
- * @since 0.73.0
+ * @since 0.128.0
  */
-Sactory.removeWidget = function(name){
-	if(typeof name != "string") name = hyphenate(name.name);
-	delete widgets[name];
+Sactory.query = function(context, selector, on){
+	Sactory.use(context, (on || context.parentElement || context.document || document)[context.all ? "querySelectorAll" : "querySelector"](selector));
 };
 
 /**
- * Indicates whether a widget with the given name exists.
- * @since 0.89.0
+ * @since 0.128.0
  */
-Sactory.hasWidget = function(name){
-	return Object.prototype.hasOwnProperty.call(widgets, name);
+Sactory.slot = function(context, slotName, widgetName){
+	var slot, registry = context.registry;
+	do {
+		var name = widgetName || registry.main;
+		var slots = registry.slots[name];
+		if(slots) slot = slots[slotName || Sactory.SL_CONTENT];
+	} while(!slot && (registry = registry.parent));
+	if(slot) {
+		Polyfill.assign(context, slot);
+	}
 };
 
 /**
- * Gets the instance of the widget with the given name.
- * @since 0.112.0
+ * @since 0.128.0
  */
-Sactory.getWidget = function(name){
-	return widgets[name];
-};
-
-/**
- * Gets a list with the names of every registered widget.
- * @since 0.73.0
- */
-Sactory.getWidgetsNames = function(){
-	return Object.keys(widgets);
-};
-
-/**
- * Gets the widget with the given name associated to the
- * given element.
- * If no name is given the main widget is returned.
- * @since 0.112.0
- */
-Sactory.widget = function(element, name){
-	return element.__builderInstance && (name ? element.__builder.widgets[name] : element.__builder.widget) || null;
-};
-
-/**
- * Gets the widget with the given name associated to the
- * element queries with the given selector.
- * If no name is given the main widget is returned.
- * @since 0.115.0
- */
-Sactory.widgetSelector = function(selector, name){
-	var element = document.querySelector(selector);
-	return element && Sactory.widget(element, name);
-};
-
-/**
- * @class
- * @since 0.73.0
- */
-function Widget() {}
-
-Widget.prototype.element = null;
-
-/**
- * @since 0.73.0
- */
-Widget.prototype.render = function(args){
-	throw new Error("Widget's 'render' prototype function not implemented.");
+Sactory.clone = function(context, element, deep = true){
+	context.element = element.cloneNode(deep);
 };
 
 /**
  * @since 0.94.0
  */
-Widget.prototype.dispatchEvent = function(event, options = {}){
-	if(!this.element) throw new Error("Cannot dispatch event: the widget has not been rendered yet.");
-	this.element.__builder.dispatchEvent(event, options);
-};
-
-/**
- * @since 0.125.0
- */
-Widget.createClassWidget = function(Class, context, args, namespace){
-	var instance = new Class(args);
-	if(Class.prototype.init) instance.init({bind: context.bind});
-	var element = instance.__element = instance.render(context, namespace);
-	if(instance instanceof Widget) instance.element = element;
-	if(!(element instanceof Node)) throw new Error("The widget's render function did not return an instance of 'Node', returned '" + element + "' instead.");
-	if(Class.style) Widget.createStyle({counter: context.counter}, Class, element);
-	if(Class.prototype.style) Widget.createStyle(context, instance, element);
-	return {instance, element};
-};
-
-/*
- * @since 0.125.0
- */
-Widget.createStyle = function(context, styler, element){
-	var className = styler.__styled;
-	if(!className) {
-		styler.__styled = className = context.counter.nextPrefix();
-		styler.style(Polyfill.assign({}, context, {selector: "." + className, element: context.document.head}));
+Sactory.clear = function(context){
+	var child, element = SactoryContext.currentElement(context);
+	while(child = element.lastChild) {
+		element.removeChild(child);
 	}
-	element.__builder.addClass(className);
 };
-
-Sactory.Widget = Widget;
-
-/**
- * @class
- * @since 0.126.0
- */
-function WidgetRegistry(parent) {
-	this.parent = parent;
-	this.main = null;
-	this.named = {};
-}
-
-/**
- * @class
- * @since 0.73.0
- */
-function SlotRegistry(name) {
-	this.name = name;
-	this.slots = {};
-}
-
-/**
- * @since 0.73.0
- */
-SlotRegistry.prototype.add = function(anchor, name, element){
-	this.slots[name || Sactory.SL_CONTENT] = {element: element, anchor: anchor};
-	/* debug:
-	if(element) {
-		element.setAttribute(":slot", (element.hasAttribute(":slot") ? element.getAttribute(":slot") + "," : "") + (name || Sactory.SL_CONTENT));
-	}
-	*/
-};
-
-/**
- * @since 0.104.0
- */
-SlotRegistry.prototype.addAll = function(anchor, names, element){
-	names.forEach(name => this.add(anchor, name, element));
-};
-
-/**
- * @since 0.113.0
- */
-SlotRegistry.prototype.applyTo = function(element, main){
-	element.__builder.slots[this.name] = this.slots;
-	if(main) element.__builder.slots.__main = this.slots;
-};
-
-// init global functions used at runtime
-
-/**
- * Does literally nothing.
- * @since 0.80.0
- */
-Sactory.nop = function(){};
 
 /**
  * @since 0.60.0
  */
-Sactory.update = function(context, [attrs = [], iattrs, sattrs, transitions, visibility, widgetCheck, namespace, tagName, tagNameString]){
+Sactory.updateImpl = function(context, [attrs = [], iattrs, sattrs, transitions, visibility, widgetCheck, namespace, tagName, tagNameString]){
 
 	if(iattrs) {
 		iattrs.forEach(([type, before, names, after, value]) => {
@@ -335,7 +211,7 @@ Sactory.update = function(context, [attrs = [], iattrs, sattrs, transitions, vis
 	var updatedElement = context.container || context.element;
 
 	// create new context's widget registry
-	var widgetRegistry = new WidgetRegistry(context.widgets);
+	var registry = new Registry(context.registry);
 	
 	if(!updatedElement) {
 		var parentWidget, widget;
@@ -348,17 +224,17 @@ Sactory.update = function(context, [attrs = [], iattrs, sattrs, transitions, vis
 				if(parentName == "this") {
 					parentWidget = context.scope;
 				} else if(context.widgets) {
-					var registry = context.widgets;
+					var search = context.registry;
 					if(parentName) {
 						// search in named widgets
 						do {
-							parentWidget = registry.named[parentName];
-						} while(!parentWidget && (registry = registry.parent));
+							parentWidget = search.widgets.named[parentName];
+						} while(!parentWidget && (search = search.parent));
 					} else {
 						// search in main widgets
 						do {
-							parentWidget = registry.main;
-						} while(!parentWidget && (registry = registry.parent));
+							parentWidget = search.widgets.main;
+						} while(!parentWidget && (search = search.parent));
 					}
 				}
 				return parentWidget && parentWidget[":" + tagName.substr(columns + 2)]
@@ -366,27 +242,26 @@ Sactory.update = function(context, [attrs = [], iattrs, sattrs, transitions, vis
 		}
 		if((widgetCheck === undefined || widgetCheck) && ((widget = typeof tagName == "function" && tagName) || (widget = getWidget()))) {
 			var widgetName = tagNameString || tagName;
-			var registry = new SlotRegistry(widgetName);
-			var newContext = Polyfill.assign({}, context, {element: null, anchor: null, registry});
+			var slotRegistry = registry.sub(widgetName, true);
+			var newContext = SactoryContext.newContext(context, {element: null, anchor: null, registry: slotRegistry});
 			if(widget.prototype && widget.prototype.render) {
-				var {instance, element} = Widget.createClassWidget(widget, newContext, widgetArgs, namespace);
-				widgetRegistry.main = widgetRegistry.named[widgetName] = element.__builder.widget = element.__builder.widgets[widgetName] = instance;
+				var {instance, element} = Widget.createClassWidget(widget, newContext, widgetArgs);
+				registry.widgets.main = registry.widgets.named[widgetName] = element.__builder.widget = element.__builder.widgets[widgetName] = instance;
 				context.element = element;
 			} else {
-				context.element = widget.call(parentWidget, newContext, widgetArgs, namespace);
+				context.element = widget.call(parentWidget, widgetArgs, newContext);
 				if(!(context.element instanceof Node)) throw new Error("The widget did not return an instance of 'Node', returned '" + context.element + "' instead.");
 			}
-			registry.applyTo(context.element, true);
-			if(registry.slots[Sactory.SL_CONTENT]) {
-				var content = registry.slots[Sactory.SL_CONTENT];
+			if(slotRegistry.targetSlots[Sactory.SL_CONTENT]) {
+				var content = slotRegistry.targetSlots[Sactory.SL_CONTENT];
 				context.content = content.element || content.anchor.parentNode;
 				context.anchor = content.anchor;
 			} else {
 				context.content = context.element;
 			}
 			updatedElement = context.element;
-			if(registry.slots[Sactory.SL_CONTAINER]) updatedElement = context.container = registry.slots[Sactory.SL_CONTAINER].element;
-			if(registry.slots[Sactory.SL_INPUT]) context.input = registry.slots[Sactory.SL_INPUT].element;
+			if(slotRegistry.targetSlots[Sactory.SL_CONTAINER]) updatedElement = context.container = slotRegistry.targetSlots[Sactory.SL_CONTAINER].element;
+			if(slotRegistry.targetSlots[Sactory.SL_INPUT]) context.input = slotRegistry.targetSlots[Sactory.SL_INPUT].element;
 			/* debug:
 			if(context.element.setAttribute) {
 				if(typeof tagName == "function") {
@@ -397,12 +272,11 @@ Sactory.update = function(context, [attrs = [], iattrs, sattrs, transitions, vis
 			}
 			*/
 		} else {
-			var doc = context.parent && context.parent.ownerDocument || document;
 			var update = element => updatedElement = context.element = context.content = element;
 			if(namespace) {
-				update(doc.createElementNS(namespace, tagName));
+				update(context.document.createElementNS(namespace, tagName));
 			} else {
-				update(doc.createElement(tagName));
+				update(context.document.createElement(tagName));
 			}
 			/* debug:
 			if(context.element.setAttribute) {
@@ -411,9 +285,6 @@ Sactory.update = function(context, [attrs = [], iattrs, sattrs, transitions, vis
 			*/
 		}
 	}
-
-	// update context's widget registry
-	context.widgets = widgetRegistry;
 
 	// create priority for attributes based on type
 	args.sort((a, b) => a.type - b.type);
@@ -435,22 +306,24 @@ Sactory.update = function(context, [attrs = [], iattrs, sattrs, transitions, vis
 			if(!Object.prototype.hasOwnProperty.call(widgets, name)) throw new Error("Widget '" + name + "' could not be found.");
 			widget = widgets[name];
 		}
-		var registry = new SlotRegistry(name || "");
-		var newContext = Polyfill.assign({}, context, {anchor: null, registry});
+		var slotRegistry = registry.sub(name || "", false);
+		var newContext = SactoryContext.newContext(context, {anchor: null, registry: slotRegistry});
 		if(widget.prototype && widget.prototype.render) {
-			var {instance, element} = Widget.createClassWidget(widget, newContext, args, namespace);
+			var {instance, element} = Widget.createClassWidget(widget, newContext, args);
 			if(element !== updatedElement) throw new Error("The widget did not return the given element, hence does not support extension.");
-			if(name) widgetRegistry.named[name] = updatedElement.__builder.widgets[name] = instance;
+			if(name) registry.widgets.named[name] = updatedElement.__builder.widgets[name] = instance;
 		} else {
-			widget(newContext, args);
+			widget(args, newContext);
 		}
-		registry.applyTo(updatedElement, false);
 		/* debug:
 		if(context.element.setAttribute) {
 			context.element.setAttribute(":extend:" + (name || "anonymous"), !name && widget.name || "");
 		}
 		*/
 	});
+
+	// update context's widget registry
+	context.registry = registry;
 
 	/* debug:
 	if(context.element.setAttribute) {
@@ -461,65 +334,68 @@ Sactory.update = function(context, [attrs = [], iattrs, sattrs, transitions, vis
 };
 
 /**
+ * @since 0.128.0
+ */
+Sactory.update = function(context, options){
+	if(!context.element) {
+		// only update if not previously updated
+		context.element = context.parentElement;
+	}
+	Sactory.updateImpl(context, options);
+};
+
+/**
  * @since 0.60.0
  */
-Sactory.create = function(context, tagName, options){
+Sactory.create = function(context, tagName, options, tagNameString){
 	options[7] = tagName;
-	context.parent = context.container || context.element;
-	context.element = context.container = context.content = null; // delete parents
-	context.anchor = null; // invalidate the current anchor so the children will not use it
-	Sactory.update(context, options);
-};
-
-/**
- * @since 0.127.0
- */
-Sactory.createComputed = function(context, tagName, tagNameString, options){
 	options[8] = tagNameString;
-	Sactory.create(context, tagName, options);
+	context.anchor = null; // invalidate the current anchor so the children will not use it
+	context.created = true;
+	Sactory.updateImpl(context, options);
 };
 
 /**
- * @since 0.80.0
+ * @since 0.128.0
  */
-Sactory.createOrUpdate = function(context, condition, tagName, options){
-	if(condition) {
+Sactory.createIf = function(context, tagName, options, tagNameString){
+	if(context.parentElement) {
 		Sactory.update(context, options);
 	} else {
-		Sactory.create(context, tagName, options);
+		Sactory.create(context, tagName, options, tagNameString)
 	}
 };
 
 /**
- * @since 0.71.0
+ * @since 0.128.0
  */
-Sactory.clone = function(context, options){
-	context.element = context.container = context.content = context.element.cloneNode(true);
-	context.anchor = null; // invalidate the current anchor so the children will not use it
-	Sactory.update(context, options);
+Sactory.text = function(context, text){
+	SactoryContext.currentElement(context).__builder.text(text, context.bind, context.anchor);
 };
 
 /**
- * @since 0.73.0
+ * @since 0.128.0
  */
-Sactory.updateSlot = function(context, options, widgetName, slotName, fun){
-	var element = context.slot || context.element;
-	if(!widgetName) widgetName = "__main";
-	var slots = element.__builder.slots[widgetName];
-	if(!slots) throw new Error("Could not find widget '" + widgetName + "'.");
-	var slot = slots[slotName];
-	if(!slot) throw new Error("Could not find slot '" + slotName + "' for widget '" + widgetName + "'.");
-	if(slot.element) {
-		Sactory.update(Polyfill.assign({}, context, {element: slot.element}), options);
+Sactory.html = function(context, html){
+	SactoryContext.currentElement(context).__builder.html(html, context.bind, context.anchor);
+};
+
+/**
+ * @since 0.90.0
+ */
+Sactory.mixin = function(context, data){
+	if(data instanceof Node) {
+		Sactory.appendTo({element: data, bind: context.bind, parentAnchor: context.anchor}, SactoryContext.currentElement(context), {adoption: true});
+	} else if(data) {
+		Sactory.html(context, data);
 	}
-	fun.call(context.scope, Polyfill.assign({}, context, {element: slot.anchor ? slot.anchor.parentNode : slot.element, anchor: slot.anchor}));
 };
 
 /**
  * @since 0.60.0
  */
 Sactory.body = function(context, fun){
-	fun.call(context.scope, Polyfill.assign({}, context, {slot: context.element, element: context.content || context.element}));
+	fun.call(context.scope, SactoryContext.newContext(context, {slot: context.element, element: context.content || context.element || context.parentElement}));
 };
 
 /**
@@ -533,25 +409,50 @@ Sactory.forms = function(context, ...values){
 /**
  * @since 0.60.0
  */
-Sactory.append = function(context, parent, options = {}){
-	if(parent && parent.nodeType || typeof parent == "string" && (parent = document.querySelector(parent))) {
-		if(context.bind) {
-			if(options.adoption && context.element instanceof DocumentFragment) {
-				// special case for adopted fragments: add to the bind context its children instead of
-				// the document fragment itself because the children are removed when the fragment is appended,
-				// and removing the fragment from the DOM does not remove the children too.
-				Array.prototype.forEach.call(context.element.childNodes, function(child){
-					context.bind.appendChild(child);
-				});
-			} else {
-				context.bind.appendChild(context.element);
-			}
+Sactory.appendTo = function(context, parent, options = {}){
+	if(context.bind) {
+		if(options.adoption && context.element instanceof DocumentFragment) {
+			// special case for adopted fragments: add to the bind context its children instead of
+			// the document fragment itself because the children are removed when the fragment is appended,
+			// and removing the fragment from the DOM does not remove the children too.
+			Array.prototype.forEach.call(context.element.childNodes, function(child){
+				context.bind.appendChild(child);
+			});
+		} else {
+			context.bind.appendChild(context.element);
 		}
-		if(context.parentAnchor && context.parentAnchor.parentNode === parent) parent.insertBefore(context.element, context.parentAnchor);
-		else parent.appendChild(context.element);
-		if(options.aa) options.aa.call(context.element);
-		if(context.element.__builderInstance && context.element.__builder.events.append) context.element.__builder.dispatchEvent("append", {bubbles: false});
-		if(options.br) context.element.__builder.event(context.scope, "remove", options.br, context.bind);
+	}
+	if(context.parentAnchor && context.parentAnchor.parentNode === parent) parent.insertBefore(context.element, context.parentAnchor);
+	else parent.appendChild(context.element);
+	if(options.aa) options.aa.call(context.element);
+	if(context.element.__builderInstance && context.element.__builder.events.append) context.element.__builder.dispatchEvent("append", {bubbles: false});
+	if(options.br) context.element.__builder.event(context.scope, "remove", options.br, context.bind);
+};
+
+/**
+ * @since 0.128.0
+ */
+Sactory.append = function(context, options){
+	if(context.parentElement) {
+		Sactory.appendTo(context, context.parentElement, options);
+	}
+};
+
+/**
+ * @since 0.128.0
+ */
+Sactory.appendToIf = function(context, parent, options){
+	if(context.created) {
+		Sactory.appendTo(context, parent, options);
+	}
+};
+
+/**
+ * @since 0.128.0
+ */
+Sactory.appendIf = function(context, options){
+	if(context.created) {
+		Sactory.append(context, options);
 	}
 };
 
@@ -564,60 +465,6 @@ Sactory.unique = function(scope, {element}, id, fun){
 		var ret = fun.call(scope);
 		ret.__builder.addClass(className);
 		return ret;
-	}
-};
-
-/**
- * @since 0.32.0
- */
-Sactory.deprecatedQuery = function(scope, context, doc, parent, selector, all, fun){
-	var nodes = false;
-	if(all || (nodes = selector && typeof selector == "object" && typeof selector.length == "number")) {
-		if(!nodes) {
-			selector = doc.querySelectorAll(selector);
-		}
-		Array.prototype.forEach.call(selector, function(element){
-			fun.call(scope, Polyfill.assign({}, context, {element: element, parentElement: parent}));
-		});
-		return selector;
-	} else {
-		if(typeof selector == "string") {
-			selector = doc.querySelector(selector);
-		}
-		if(selector) fun.call(scope, Polyfill.assign({}, context, {element: selector, parentElement: parent}));
-		return selector;
-	}
-};
-
-/**
- * @since 0.126.0
- */
-Sactory.all = function(scope, context, elements, fun){
-	Array.prototype.forEach.call(elements, element => fun.call(scope, Polyfill.assign({}, context, {element})));
-	return elements;
-};
-
-/**
- * @since 0.126.0
- */
-Sactory.query = function(context, selector, on){
-	return (on || context.document || document).querySelector(selector);
-};
-
-/**
- * @since 0.126.0
- */
-Sactory.queryAll = function(context, selector, on){
-	return (on || context.document || document).querySelectorAll(selector);
-};
-
-/**
- * @since 0.94.0
- */
-Sactory.clear = function(context){
-	var child, element = context.content || context.element;
-	while(child = element.lastChild) {
-		element.removeChild(child);
 	}
 };
 
@@ -648,35 +495,6 @@ Sactory.inherit = function(target, ...args){
 	});
 	return target;
 }
-
-/**
- * @since 0.90.0
- */
-Sactory.mixin = function(context, data){
-	if(data instanceof Node) {
-		Sactory.append({element: data, bind: context.bind, parentAnchor: context.anchor}, context.element, {adoption: true});
-	} else if(data) {
-		Sactory.html(context, data);
-	}
-};
-
-/**
- * @since 0.78.0
- */
-Sactory.text = function(context, text){
-	if(context.element) {
-		context.element.__builder.text(text, context.bind, context.anchor);
-	}
-};
-
-/**
- * @since 0.78.0
- */
-Sactory.html = function(context, html){
-	if(context.element) {
-		context.element.__builder.html(html, context.bind, context.anchor);
-	}
-};
 
 /**
  * @since 0.78.0
