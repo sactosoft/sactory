@@ -110,7 +110,7 @@ Widget.createClassWidget = function(Class, context, args, namespace){
 	var element = instance.__element = instance.render(args, context);
 	if(instance instanceof Widget) instance.element = element;
 	if(!(element instanceof Node)) throw new Error("The widget's render function did not return an instance of 'Node', returned '" + element + "' instead.");
-	if(Class.style) Widget.createStyle({priority: context.priority, counter: context.counter, document: context.document}, Class, element);
+	if(Class.style) Widget.createStyle({__priority: context.__priority, counter: context.counter, document: context.document}, Class, element);
 	if(Class.prototype.style) Widget.createStyle(context, instance, element);
 	return {instance, element};
 };
@@ -156,10 +156,6 @@ Registry.prototype.sub = function(name, main){
 
 Registry.prototype.add = function(anchor, name, element){
 	this.targetSlots[name || SactoryConst.SL_CONTENT] = {anchor, element};
-};
-
-Registry.prototype.addAll = function(anchor, names, element){
-	names.forEach(name => this.add(anchor, name, element));
 };
 
 // default widgets

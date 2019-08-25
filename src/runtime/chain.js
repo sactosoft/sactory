@@ -338,6 +338,13 @@ Sactory.createIf = function(context, tagName, options, tagNameString){
 /**
  * @since 0.128.0
  */
+Sactory.slots = function(context, slots){
+	slots.forEach(name => context.registry.add(null, name, context.element));
+};
+
+/**
+ * @since 0.128.0
+ */
 Sactory.text = function(context, text){
 	SactoryContext.currentElement(context).__builder.text(text, context.bind, context.anchor);
 };

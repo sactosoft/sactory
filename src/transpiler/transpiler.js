@@ -52,7 +52,7 @@ function Transpiler(options) {
 	if(this.options.env.length == 1 && this.options.env[0] == "none") {
 		this.nextVar = Transpiler.prototype.nextVarName.bind(this);
 	} else {
-		this.options.env.forEach(function(env){
+		this.options.env.forEach(env => {
 			if(["none", "amd", "commonjs"].indexOf(env) == -1) {
 				throw new Error("Unknown env '" + env + "'.");
 			}
@@ -63,6 +63,13 @@ function Transpiler(options) {
 		this.nextVar = this.nextVarName = Transpiler.prototype.nextLatinVarName.bind(this);
 	}
 }
+
+/**
+ * @since 0.128.0
+ */
+Transpiler.transpile = function(options, source){
+	return new Transpiler(options).transpile(source);
+};
 
 /**
  * @since 0.49.0
@@ -130,7 +137,7 @@ Transpiler.prototype.endMode = function(){
 Transpiler.prototype.parseImpl = function(modeId, input, parentParser){
 	var parser = new Parser(input, (parentParser || this.parser).position);
 	var source = [];
-	var mode = startMode(modeId, this, parser, source);
+	var mode = startMode(modeId, this, parser, source, {inAttr: true});
 	if(mode.observables) {
 		parser.parseTemplateLiteral = expr => {
 			var parsed = this.parseCode(expr, parser);
@@ -812,7 +819,6 @@ Transpiler.prototype.open = function(){
 
 			var before = [], after = [];
 			var beforeClosing = "";
-			var call = true;
 			var inline = false;
 			var hasBody = false;
 
@@ -901,46 +907,45 @@ Transpiler.prototype.open = function(){
 				appendRef.push(data);
 			}
 
-			if(next == '/') {
-				this.parser.expect('>');
-				inline = true;
-				call = false;
-			}
-			if(!(dattributes.slot instanceof Array)) dattributes.slot = dattributes.slot ? [dattributes.slot] : [];
+			// new slots
+			if(!Array.isArray(dattributes.slot)) dattributes.slot = dattributes.slot ? [dattributes.slot] : [];
 			if(dattributes["slot-content"]) dattributes.slot.push(this.runtime + ".SL_CONTENT");
 			if(dattributes["slot-container"]) dattributes.slot.push(this.runtime + ".SL_CONTAINER");
 			if(dattributes["slot-input"]) dattributes.slot.push(this.runtime + ".SL_INPUT");
-			if(before && (call || dattributes.slot.length)) {
+			if(dattributes.slot.length) {
+				before.push([this.feature("slots"), `[${dattributes.slot.map(a => a === true ? 0 : a).join(", ")}]`]);
+			}
+
+			if(next == '/') {
+				this.parser.expect('>');
+				inline = true;
+			}
+			if(before && !inline) {
 				// create body
 				hasBody = true;
 				before.push([this.feature("body"), this.options.es6 ? `${this.context} => {` : `function(${this.context}){`]);
 				beforeClosing += "}";
 			}
 
-			var runtime = this.runtime;
-			var mapNext = a => `, [${a.join(", ")}]`;
-
+			// if nothing is used just make sure the right element is returned
 			if(!before.length && !after.length) {
 				before.push([this.feature("nop")]);
 			}
 
+			var mapNext = a => `, [${a.join(", ")}]`;
 			this.source.push(`${this.runtime}${all ? ".all" : ""}(this, ${this.arguments}, ${this.context}${before.map(mapNext).join("").slice(0, -1)}`);
 			currentClosing.unshift((before.length ? "]" : "") + after.map(mapNext).join("") + skipped + ")");
 
 			currentClosing.unshift(beforeClosing);
 
-			if(dattributes.slot.length) {
-				this.source.push(`${this.context}.registry.addAll(null, [${dattributes.slot.map(a => a === true ? 0 : a).join(", ")}], ${this.context}.element);`);
-			}
-
 			if(!inline) {
 
 				if(currentInheritance) {
 					currentInheritance.index = this.inheritCount++;
-					this.source.push(this.inheritance + ".push(" + options(true) + ")");
+					this.source.push(`${this.inheritance}.push(${options(true)});`);
 				} else if(currentNamespace) {
 					currentInheritance = {index: this.inheritCount++};
-					this.source.push(this.inheritance + ".push([,,,,," + currentNamespace + "])");
+					this.source.push(`${this.inheritance}.push([,,,,,${currentNamespace}]);`);
 				}
 
 			}
@@ -1108,7 +1113,7 @@ Transpiler.prototype.transpile = function(input){
 	this.after = "";
 	this.before = `/*! Transpiled${this.options.filename ? " from " + this.options.filename : ""} using Sactory v${v}. Do not edit manually. */`;
 	if(noenv) {
-		this.before += `var ${this.runtime}=${this.options.runtime || "Sactory"};var ${this.arguments}=[];`;
+		this.before += `var ${this.runtime}=${this.options.runtime || "Sactory"};`;
 	} else {
 		if(umd) this.before += "!function(a,b){";
 		if(this.options.env.indexOf("amd") != -1) {
@@ -1139,11 +1144,13 @@ Transpiler.prototype.transpile = function(input){
 			this.before += "){";
 		}
 	}
-	this.before += `var ${this.inheritance}=[];var ${this.context}=${this.runtime}.init(${this.count});`;
+	this.before += `var ${this.arguments}=[];var ${this.inheritance}=[];var ${this.context}=${this.runtime}.init(${this.count});`;
 	if(!this.options.hasOwnProperty("versionCheck") || this.options.versionCheck) this.before += `${this.runtime}.check("${v}");`;
 	this.source = [];
-
-	if(this.options.scope) this.before += this.context + ".element=" + this.options.scope + ";";
+	
+	if(this.options.scope) this.before += `${this.context}.element=${this.options.scope};`;
+	if(this.options.anchor) this.before += `${this.context}.anchor=${this.options.anchor};`;
+	if(this.options.bind) this.before += `${this.context}.bind=${this.options.bind};`;
 	
 	this.tags = [];
 	this.inherit = [];
@@ -1166,7 +1173,7 @@ Transpiler.prototype.transpile = function(input){
 	
 	this.endMode();
 
-	if(!noenv) this.after += "});";
+	if(!noenv) this.after += "}.bind(this));";
 
 	var source = this.source.join("");
 

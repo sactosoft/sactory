@@ -1,9 +1,0 @@
-<p>Not adopted</p>
-<:adopt (create("Adopted!")) />
-
-<div>
-	<p>Inside a div</p>
-	<:adopt (create("Still adopted")) />
-</div>
-
-<{[create("First"), create("Second"), create("Third")]} :adopt />

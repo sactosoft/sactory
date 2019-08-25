@@ -1,5 +1,0 @@
-<card>
-	<:slot (header)>Hello</:slot>
-	This is the card's content
-	<:slot (footer)>(c) 2019 Sactory</:slot>
-</card>

@@ -5,9 +5,9 @@
 	"main": "index.js",
 	"scripts": {
 		"dist": "gulp dist",
-		"compile": "node ./src/watcher.js compile",
-		"watch": "node ./src/watcher.js watch",
-		"unittest": "node ./unittest.js && start ./unittest/index.html"
+		"test": "node ./test.js",
+		"test-es6": "node ./test.js && start ./test-es6.html",
+		"test-es5": "node ./test.js && start ./test-es5.html"
 	},
 	"repository": {
 		"type": "git",
@@ -16,6 +16,7 @@
 	"keywords": [
 		"sactory",
 		"html",
+		"xml",
 		"dom"
 	],
 	"author": "Mark White",

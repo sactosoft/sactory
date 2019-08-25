@@ -1,4 +1,4 @@
 node_modules
 /dist
-/unittest/index.html
+/test-*.html
 /package-lock.json

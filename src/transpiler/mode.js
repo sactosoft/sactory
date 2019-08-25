@@ -794,7 +794,7 @@ SourceCodeMode.prototype.next = function(match){
 			}
 			break;
 		case '=':
-			if(this.parser.peek() == ">") {
+			if(!this.attributes.inAttr && this.parser.peek() == ">") {
 				// arrow function, inject arguments
 				// find the source and index where the last non-whitespace character is located
 				var find = sub => {
@@ -840,7 +840,7 @@ SourceCodeMode.prototype.next = function(match){
 		case '{':
 			var fun = this.parser.last == ')';
 			this.restoreIndex('{');
-			if(fun && !this.parser.lastKeywordAtIn(this.parser.lastParenthesis, "if", "else", "for", "while", "do", "switch")) {
+			if(!this.attributes.inAttr && fun && !this.parser.lastKeywordAtIn(this.parser.lastParenthesis, "if", "else", "for", "while", "do", "switch", "catch")) {
 				// new function declaration, inject arguments declaration
 				this.add(`var ${this.transpiler.arguments}=arguments;`);
 			}
