@@ -1144,10 +1144,11 @@ Transpiler.prototype.transpile = function(input){
 			this.before += "){";
 		}
 	}
+	if(this.options.before) this.before += this.options.before;
 	this.before += `var ${this.arguments}=[];var ${this.inheritance}=[];var ${this.context}=${this.runtime}.init(${this.count});`;
 	if(!this.options.hasOwnProperty("versionCheck") || this.options.versionCheck) this.before += `${this.runtime}.check("${v}");`;
 	this.source = [];
-	
+
 	if(this.options.scope) this.before += `${this.context}.element=${this.options.scope};`;
 	if(this.options.anchor) this.before += `${this.context}.anchor=${this.options.anchor};`;
 	if(this.options.bind) this.before += `${this.context}.bind=${this.options.bind};`;
@@ -1173,6 +1174,7 @@ Transpiler.prototype.transpile = function(input){
 	
 	this.endMode();
 
+	if(this.options.after) this.after += this.options.after;
 	if(!noenv) this.after += "}.bind(this));";
 
 	var source = this.source.join("");
