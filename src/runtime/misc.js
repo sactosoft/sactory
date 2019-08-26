@@ -1,6 +1,71 @@
 var SactoryConfig = require("./config");
+var SactoryObservable = require("./observable");
 
 var Sactory = {};
+
+function Attr(args) {
+	this.args = args;
+	this.length = args.length;
+	for(var i in args) {
+		this[i] = args[i];
+	}
+}
+
+Attr.prototype.get = function(index){
+	return this.args[index];
+};
+
+Attr.prototype.slice = function(){
+	return new Attr(Array.prototype.slice.apply(this.args, arguments));
+};
+
+Attr.prototype.split = function(separator){
+	var ret = [];
+	var curr;
+	var push = value => {
+		if(!curr) ret.push(curr = []);
+		curr.push(value);
+	};
+	this.args.forEach(arg => {
+		if(typeof arg == "function") {
+			push(arg);
+		} else {
+			var splitted = (arg + "").split(separator);
+			if(splitted.length) {
+				if(!splitted[0].length) {
+					curr = null;
+					splitted.shift();
+				}
+				var last = splitted.pop();
+				splitted.forEach(value => {
+					push(value);
+					curr = null;
+				});
+				if(last.length) push(last);
+			}
+		}
+	});
+	return ret.map(a => new Attr(a));
+};
+
+Attr.prototype.toValue = function(){
+	return this.args.length == 1 ? this.args[0] : this.toString();
+};
+
+Attr.prototype.toString = function(){
+	return this.args.join("");
+};
+
+function BuilderObservable(fun, dependencies) {
+	this.fun = fun;
+	this.dependencies = dependencies;
+}
+
+BuilderObservable.prototype.use = function(bind){
+	var ret = SactoryObservable.coff(this.fun);
+	ret.addDependencies(this.dependencies, bind);
+	return ret;
+};
 
 /**
  * Checks whether the given version in compatible with the runtime version.
@@ -70,64 +135,32 @@ Sactory.on = function(scope, context, name, value){
 	}
 };
 
-function Attr(args) {
-	this.args = args;
-	this.length = args.length;
-	for(var i in args) {
-		this[i] = args[i];
-	}
-}
-
-Attr.prototype.get = function(index){
-	return this.args[index];
-};
-
-Attr.prototype.slice = function(){
-	return new Attr(Array.prototype.slice.apply(this.args, arguments));
-};
-
-Attr.prototype.split = function(separator){
-	var ret = [];
-	var curr;
-	var push = value => {
-		if(!curr) ret.push(curr = []);
-		curr.push(value);
-	};
-	this.args.forEach(arg => {
-		if(typeof arg == "function") {
-			push(arg);
-		} else {
-			var splitted = (arg + "").split(separator);
-			if(splitted.length) {
-				if(!splitted[0].length) {
-					curr = null;
-					splitted.shift();
-				}
-				var last = splitted.pop();
-				splitted.forEach(value => {
-					push(value);
-					curr = null;
-				});
-				if(last.length) push(last);
-			}
-		}
-	});
-	return ret.map(a => new Attr(a));
-};
-
-Attr.prototype.toValue = function(){
-	return this.args.length == 1 ? this.args[0] : this.toString();
-};
-
-Attr.prototype.toString = function(){
-	return this.args.join("");
-};
-
 /**
  * @since 0.127.0
  */
 Sactory.attr = function(...args){
 	return new Attr(args);
+};
+
+/**
+ * @since 0.129.0
+ */
+Sactory.bo = function(fun, dependencies, maybeDependencies){
+	if(maybeDependencies) {
+		Array.prototype.push.apply(dependencies, maybeDependencies.filter(SactoryObservable.isObservable));
+	}
+	if(dependencies.length) {
+		return new BuilderObservable(fun, dependencies);
+	} else {
+		return fun();
+	}
+};
+
+/**
+ * @since 0.129.0
+ */
+Sactory.isBuilderObservable = function(value){
+	return value instanceof BuilderObservable;
 };
 
 var currentId;

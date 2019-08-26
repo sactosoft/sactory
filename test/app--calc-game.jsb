@@ -1,7 +1,9 @@
-var left = **;
-var right = **;
-var op = **;
+var left = &;
+var right = &;
+var op = &;
 var expected;
+
+var result = &"";
 
 var level = 1;
 
@@ -13,8 +15,6 @@ var update = () => {
 };
 
 update();
-
-var result = **"";
 
 var check = () => {
 	if(parseInt(*result) === expected) {

@@ -2,11 +2,12 @@ var Polyfill = require("../polyfill");
 var Const = require("../const");
 var { hyphenate } = require("../util");
 
+var SactoryAnimation = require("./animation");
+var SactoryBind = require("./bind");
 var SactoryConfig = require("./config");
 var SactoryConst = require("./const");
+var SactoryMisc = require("./misc");
 var SactoryObservable = require("./observable");
-var SactoryBind = require("./bind");
-var SactoryAnimation = require("./animation");
 
 // global variable for hidden elements. A single class is used
 // in the whole web page to hide elements.
@@ -59,18 +60,28 @@ Builder.prototype.contentSlot = null;
 Builder.prototype.subscribe = function(bind, subscription){
 	if(bind) bind.subscriptions.push(subscription);
 };
+
+/**
+ * @since 0.129.0
+ */
+Builder.prototype.observe = function(bind, bo, fun){
+	var ret, observable = bo.use(bind);
+	this.subscribe(bind, ret = observable.subscribe(fun));
+	fun(observable.value);
+	return ret;
+};
 	
 Builder.prototype.attr = function(name, value, bind){
-	if(SactoryObservable.isObservable(value)) {
-		this.subscribe(bind, SactoryObservable.observe(value, value => this.element.setAttribute(name, value)));
+	if(SactoryMisc.isBuilderObservable(value)) {
+		this.observe(bind, value, value => this.element.setAttribute(name, value));
 	} else {
 		this.element.setAttribute(name, value);
 	}
 };
 	
 Builder.prototype.prop = function(name, value, bind, type){
-	if(SactoryObservable.isObservable(value)) {
-		this.subscribe(bind, SactoryObservable.observe(value, value => this.element[name] = value, type));
+	if(SactoryMisc.isBuilderObservable(value)) {
+		this.observe(bind, value, value => this.element[name] = value, type);
 	} else {
 		this.element[name] = value;
 	}
@@ -106,8 +117,8 @@ Builder.prototype.visible = function(value, reversed, counter, bind){
 			this.addClass(hidden);
 		}
 	};
-	if(SactoryObservable.isObservable(value)) {
-		this.subscribe(bind, SactoryObservable.observe(value, (newValue, oldValue) => update(newValue, oldValue)));
+	if(SactoryMisc.isBuilderObservable(value)) {
+		this.observe(bind, value, (newValue, oldValue) => update(newValue, oldValue));
 		// add animations functionalities
 		var updateImpl = update;
 		update = (newValue, oldValue) => {
@@ -190,8 +201,8 @@ Builder.prototype.complexStyle = function(name, value, counter, bind){
 			wrap = value => `.${className}${name}{${prop}:${value};}`;
 		}
 	}
-	if(SactoryObservable.isObservable(value)) {
-		this.subscribe(bind, SactoryObservable.observe(value, value => node.textContent = wrap(value)));
+	if(SactoryMisc.isBuilderObservable(value)) {
+		this.observe(bind, value, value => node.textContent = wrap(value));
 	} else {
 		node.textContent = wrap(value);
 	}
@@ -217,9 +228,8 @@ Builder.prototype.style = function(name, value, counter, bind){
 			prop = name.substr(1);
 			get = value => `${value} !important`;
 		}
-		if(SactoryObservable.isObservable(value)) {
-			var subscription = SactoryObservable.observe(value, update);
-			this.subscribe(bind, subscription);
+		if(SactoryMisc.isBuilderObservable(value)) {
+			var subscription = this.observe(bind, value, update);
 			this.styles.push({name, value, subscription, bind});
 		} else if(value === false) {
 			update("0");
@@ -252,7 +262,8 @@ Builder.prototype.styleImpl = function(values, counter){
 	var className = counter.nextPrefix();
 	var update = () => node.textContent = `.${className}{${values.join("")}}`;
 	values.forEach(({value, bind}) => {
-		if(SactoryObservable.isObservable(value)) {
+		if(SactoryMisc.isBuilderObservable(value)) {
+			value = value.use(bind);
 			this.subscribe(bind, value.subscribe(update));
 		}
 	});
@@ -263,12 +274,12 @@ Builder.prototype.styleImpl = function(values, counter){
 	
 Builder.prototype.text = function(value, bind, anchor){
 	var textNode;
-	if(SactoryObservable.isObservable(value)) {
+	if(SactoryMisc.isBuilderObservable(value)) {
 		textNode = document.createTextNode("");
-		this.subscribe(bind, SactoryObservable.observe(value, value => {
+		this.observe(bind, value, value => {
 			textNode.textContent = value + "";
 			textNode.observed = true;
-		}));
+		});
 	} else {
 		textNode = document.createTextNode(value);
 	}
@@ -287,7 +298,8 @@ Builder.prototype.html = function(value, bind, anchor){
 		children = Array.prototype.slice.call(container.childNodes, 0);
 		children.forEach(child => this.append(child, bind, anchor));
 	};
-	if(SactoryObservable.isObservable(value)) {
+	if(SactoryMisc.isBuilderObservable(value)) {
+		value = value.use(bind);
 		// create an anchor to maintain the right order
 		var innerAnchor = SactoryBind.anchor({element: this.element, bind, anchor});
 		this.subscribe(bind, value.subscribe(value => {
@@ -306,7 +318,7 @@ Builder.prototype.html = function(value, bind, anchor){
  * @since 0.100.0
  */
 Builder.prototype.className = function(className, bind){
-	if(SactoryObservable.isObservable(className)) {
+	if(SactoryMisc.isBuilderObservable(className)) {
 		var value = className.value;
 		this.subscribe(bind, className.subscribe(newValue => {
 			this.removeClassName(value);
@@ -328,7 +340,8 @@ Builder.prototype.className = function(className, bind){
  * @since 0.100.0
  */
 Builder.prototype.classNameIf = function(className, condition, bind){
-	if(SactoryObservable.isObservable(condition)) {
+	if(SactoryMisc.isBuilderObservable(condition)) {
+		condition = condition.use(bind);
 		this.subscribe(bind, condition.subscribe(newValue => {
 			if(newValue) {
 				// add class
@@ -671,20 +684,7 @@ Builder.prototype[Const.BUILDER_TYPE_NONE] = function({bind}, name, value){
  * @since 0.63.0
  */
 Builder.prototype[Const.BUILDER_TYPE_PROP] = function({counter, bind}, name, value){
-	name = name.toString();
-	switch(name) {
-		case "visible": return this.visible(value, false, counter, bind);
-		case "hidden": return this.visible(value, true, counter, bind);
-		case "enabled":
-			if(SactoryObservable.isObservable(value)) {
-				this.prop("disabled", SactoryObservable.computedObservable(null, bind, [value], value => !value), bind);
-			} else {
-				this.prop("disabled", !value, bind);
-			}
-			break;
-		default:
-			this.prop(name, value, bind);
-	}
+	this.prop(name.toString(), value, bind);
 };
 
 /**
@@ -721,7 +721,7 @@ Builder.prototype[Const.BUILDER_TYPE_CONCAT] = function({bind, anchor}, name, va
  * @since 0.69.0
  */
 Builder.prototype[Const.BUILDER_TYPE_ON] = function({scope, bind, anchor}, name, value){
-	this.event(scope, name, SactoryObservable.unobserve(value), bind);
+	this.event(scope, name, value, bind);
 };
 
 /**
@@ -744,8 +744,8 @@ Builder.prototype.visibility = function({counter, bind}, value, visible){
 			this.removeClass(hidden);
 		}
 	};
-	if(SactoryObservable.isObservable(value)) {
-		this.subscribe(bind, SactoryObservable.observe(value, (newValue, oldValue) => update(newValue, oldValue)));
+	if(SactoryMisc.isBuilderObservable(value)) {
+		this.observe(bind, value, (newValue, oldValue) => update(newValue, oldValue));
 	} else {
 		update(value);
 	}
@@ -755,7 +755,11 @@ Builder.prototype.visibility = function({counter, bind}, value, visible){
  * @since 0.46.0
  */
 Builder.prototype.form = function({counter, bind}, info, value, update){
-	var isObservable = SactoryObservable.isObservable(value);
+	var isObservable = false;
+	if(SactoryMisc.isBuilderObservable(value)) {
+		isObservable = true;
+		value = value.use(bind);
+	}
 	var events = info.split("::");
 	var modifiers = events.shift();
 	var updateType = SactoryConst.OUT_FORM_RANGE_START + Math.floor(Math.random() * SactoryConst.OUT_FORM_RANGE_LENGTH);

@@ -1,5 +1,5 @@
-var data = **[];
-var input = **;
+var data = &[];
+var input = &;
 
 var add = () => {
 	if(*input) {

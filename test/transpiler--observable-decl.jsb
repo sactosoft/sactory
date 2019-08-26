@@ -1,0 +1,12 @@
+var a = &;
+var a = &0;
+var c = &"string";
+var d = &window.document.documentElement;
+var e = & => 1;
+var f = & => *a + 1;
+var g = & => { return *a + 1 };
+var h = (&) => *a + 1;
+var i = (&) => { return *a + 1 };
+var j = function(&){ return *a + 1 };
+var k = function name(&){ return *a + 1 };
+//var l = function functionName(&){ return *a + 1 };

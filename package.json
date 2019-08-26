@@ -1,13 +1,12 @@
 {
 	"name": "sactory",
-	"version": "0.128.0",
+	"version": "0.129.0",
 	"description": "HTML-spiced javascript for DOM creation and manipulation",
 	"main": "index.js",
 	"scripts": {
 		"dist": "gulp dist",
 		"test": "node ./test.js",
-		"test-es6": "node ./test.js && start ./test-es6.html",
-		"test-es5": "node ./test.js && start ./test-es5.html"
+		"test-open": "node ./test.js && start ./_test/index.html"
 	},
 	"repository": {
 		"type": "git",

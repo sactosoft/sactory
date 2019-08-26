@@ -164,8 +164,9 @@ Transpiler.prototype.parseCode = function(input, parentParser){
 	var maybeObservables = mode.maybeObservables ? uniq(mode.maybeObservables) : [];
 	var ret = {
 		source, observables, maybeObservables,
-		toValue: () => observables.length || maybeObservables.length ? `${this.feature(maybeObservables.length ? "maybeComputedObservable" : "computedObservable")}(this, ${this.context}.bind, ${ret.toSpreadValue()})` : source,
-		toSpreadValue: () => `[${observables.join(", ")}], ${this.options.es6 ? `() => ${source}` : `function(){return ${source}}`}, [${maybeObservables.join(", ")}]`
+		toValue: () => observables.length || maybeObservables.length ? `${this.feature("coff")}(${ret.toSpreadValue()})${observables.length ? `.d(${this.arguments}, ${this.context}, ${observables.join(", ")})` : ""}${maybeObservables.length ? `.m(${this.arguments}, ${this.context}, ${maybeObservables.join(", ")})` : ""}` : source,
+		toAttrValue: () => observables.length || maybeObservables.length ? `${this.feature("bo")}(${ret.toSpreadValue()}, [${observables.join(", ")}]${maybeObservables.length ? `, [${maybeObservables.join(", ")}]` : ""})` : source,
+		toSpreadValue: () => this.options.es6 ? `() => ${source}` : `function(){return ${source}}.bind(this)`
 	};
 	return ret;
 };
@@ -401,7 +402,7 @@ Transpiler.prototype.open = function(){
 						attr.value = this.wrapFunction(attr.value, false, "event");
 					}
 					var parsed = this.parseCode(attr.value);
-					attr.value = attr.type != '+' ? parsed.toValue() : parsed.source;
+					attr.value = attr.type != '+' ? parsed.toAttrValue() : parsed.source;
 					attr.sourceValue = parsed.source;
 					skip(true);
 				}
@@ -1059,6 +1060,16 @@ Transpiler.prototype.compileAttributeParts = function(attr){
  */
 Transpiler.prototype.stringifyAttribute = function(attr){
 	return attr.computed ? attr.name : '"' + attr.name + '"';
+};
+
+/**
+ * @since 0.129.0
+ */
+Transpiler.prototype.makeObservable = function(expr, observables, maybeObservables){
+	var ret = `${this.feature("coff")}(${this.options.es6 ? `() => ${expr}` : `function(){return ${expr}}.bind(this)`})`;
+	if(observables.length) ret += `.d(${this.arguments}, ${this.context}, [${observables.join(", ")}])`;
+	if(maybeObservables.length) ret += `.m(${this.arguments}, ${this.context}, [${maybeObservables.join(", ")}])`;
+	return ret;
 };
 
 /**

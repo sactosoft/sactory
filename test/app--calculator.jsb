@@ -1,13 +1,11 @@
-var expr = **"";
-var result = **NaN;
-
-@subscribe(expr, value => {
+var expr = &"";
+var result = & => {
 	try {
-		*result = eval(value);
+		return eval(*expr);
 	} catch(e) {
-		*result = NaN;
+		return NaN;
 	}
-});
+};
 
 <:this>
 	<input *text=expr /> = ${*result}

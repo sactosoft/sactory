@@ -34,9 +34,9 @@ fs.readdirSync("./test/").forEach(filename => {
 data = data.map(({type, name, source, error, result}) => `{type:"${type}",name:"${name}",source:${JSON.stringify(source)},error:${JSON.stringify(error)},time:${Math.round(result.time * 1000) / 1000},content:${result.source && JSON.stringify(result.source.contentOnly)}}`);
 
 var source = transpile({mode: "auto-code@logic,trimmed"}, `
-var es6 = @watch(true, "__test__es6");
+var es6 = &true; //TODO store
 var tests, container, sources = {}, editors;
-var bind, showSource = **false;
+var bind, showSource = &false;
 
 function test(info, outcome) {
 	if(bind) bind.rollback();

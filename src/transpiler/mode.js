@@ -170,8 +170,7 @@ TextExprMode.prototype.addCurrent = function(){
 		if(expr.length) {
 			var joined = expr.join(" + ");
 			if(observables.length || maybeObservables.length) {
-				joined = this.transpiler.feature(maybeObservables.length ? "maybeComputedObservable" : "computedObservable") + "(this, " + this.context + ".bind, [" +
-					uniq(observables).join(", ") + "], function(){return " + joined + "}" + (maybeObservables.length ? ", [" + maybeObservables.join(", ") + "]" : "") + ")";
+				joined = `${this.transpiler.feature("bo")}(${this.transpiler.options.es6 ? `() => ${joined}` : `function(){return ${joined}}.bind(this)`}, [${uniq(observables).join(", ")}]${maybeObservables.length ? `, [${uniq(maybeObservables).join(", ")}]` : ""})`
 			}
 			this.addText(joined);
 		}
@@ -591,7 +590,7 @@ OptionalLogicMode.prototype = Object.create(LogicMode.prototype);
  * @since 0.15.0
  */
 function SourceCodeMode(transpiler, parser, source, attributes) {
-	BreakpointMode.call(this, transpiler, parser, source, attributes, ['(', ')', '@', '*', '^', '=', '{']);
+	BreakpointMode.call(this, transpiler, parser, source, attributes, ['(', ')', '@', '&', '*', '^', '=', '{']);
 	this.observables = [];
 	this.maybeObservables = [];
 	this.parentheses = [];
@@ -643,6 +642,23 @@ SourceCodeMode.prototype.lookBehind = function(){
 		index--;
 	}
 	return this.parser.input.substring(index + 1, end + 1);
+};
+
+/**
+ * @since 0.129.0
+ */
+SourceCodeMode.prototype.injectInSource = function(search, str){
+	var sourceIndex = this.transpiler.source.length - 1;
+	var source, index;
+	do {
+		source = this.transpiler.source[sourceIndex];
+		var index = source.lastIndexOf(search);
+		if(index != -1) {
+			this.transpiler.source[sourceIndex] = source.substring(0, index) + str + source.substr(index);
+			return true;
+		}
+	} while(sourceIndex-- > 0);
+	return false;
 };
 
 SourceCodeMode.prototype.next = function(match){
@@ -755,6 +771,48 @@ SourceCodeMode.prototype.next = function(match){
 					fallback();
 				}
 			}
+			break;
+		case '&':
+			var args = `${this.transpiler.arguments}, ${this.transpiler.context}, `;
+			var space = this.parser.skipImpl({strings: false});
+			this.parser.parseTemplateLiteral = null;
+			//TODO check for function (closing parenthesis or equal sign)
+			if(this.parser.readIf('=')) {
+				this.parser.expect('>');
+				var parsed = this.transpiler.parseCode(this.parser.readExpression());
+				this.add(`${this.transpiler.feature("coff")}(()${space}=>${parsed.source})`);
+				if(parsed.observables.length) this.add(`.d(${args}${uniq(parsed.observables).join(", ")})`);
+				if(parsed.maybeObservables.length) this.add(`.m(${args}${uniq(parsed.maybeObservables).join(", ")})`);
+			} else if(this.parser.readIf(')')) {
+				this.add(space);
+				var popped = this.parentheses.pop();
+				if(popped) this.add(popped);
+				this.parser.lastParenthesis = this.parser.parentheses.pop();
+				this.handleParenthesis(')');
+				if(this.parser.lastParenthesis >= 0) {
+					var search = "function";
+					this.add(this.parser.skipImpl({strings: false}));
+					if(this.parser.readIf('=')) {
+						this.parser.expect('>');
+						this.add("=>");
+						search = "(";
+					}
+					// inject start
+					if(this.injectInSource(search, `${this.transpiler.feature("coff")}(`)) {
+						// add expression
+						var parsed = this.transpiler.parseCode(this.parser.readExpression());
+						this.add(`${parsed.source})`);
+						if(parsed.observables.length) this.add(`.d(${args}${uniq(parsed.observables).join(", ")})`);
+						if(parsed.maybeObservables.length) this.add(`.m(${args}${uniq(parsed.maybeObservables).join(", ")})`);
+					}
+				}
+			} else {
+				var parsed = this.transpiler.parseCode(this.parser.readSingleExpression(true));
+				this.add(`${space}${this.transpiler.feature("cofv")}(${parsed.source})`);
+			}
+			this.transpiler.updateTemplateLiteralParser();
+			this.parser.last = ')';
+			this.parser.lastIndex = this.parser.index;
 			break;
 		case '*':
 			if(this.parser.couldStartRegExp()) {

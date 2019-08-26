@@ -1,5 +1,5 @@
 var count = 0;
-var values = **[count++];
+var values = &[count++];
 
 <:this>
 	<button +click={ *values.push(count++) }>Push</button>
