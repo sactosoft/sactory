@@ -22,7 +22,7 @@ fs.readdirSync("./test/").forEach(filename => {
 	var source = fs.readFileSync("./test/" + filename, "utf8");
 	var error, result = {};
 	try {
-		result = transpile({filename, mode: "auto-code@logic", versionCheck: false, env: ["amd"], es6: true, bind: "__bind", before: "return function(__bind){", after: "}"}, source);
+		result = transpile({filename, mode: mode ? mode.replace(/./g, ",") : "auto-code@logic", versionCheck: false, env: ["amd"], es6: true, bind: "__bind", before: "return function(__bind){", after: "}"}, source);
 		fs.writeFile(`./_test/${type}--${name}__es6.js`, result.source.all, nop);
 		fs.writeFile(`./_test/${type}--${name}__es5.js`, babel(result.source.all), nop);
 	} catch(e) {
@@ -100,8 +100,7 @@ function format(num){
 		return num + ".000";
 	} else {
 		var i = num.length - dot;
-		//while(i++ < 4) {
-		while(++i < 5) {
+		while(i++ < 4) {
 			num += "0";
 		}
 		return num;

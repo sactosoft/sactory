@@ -1,5 +1,5 @@
 <:this>
-	<div :early #code>
+	<div :early>
 		assert(<:element />.parentNode === this);
 	</div>
 </:this>
