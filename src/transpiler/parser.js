@@ -186,14 +186,28 @@ Parser.prototype.lastKeywordIn = function(){
 };
 
 /**
+ * Checks whether the last keyword is a plus or a minus sign and is not preceded
+ * by another plus or minus sign, hence it is not a post increment/decrement.
+ * @since 0.128.0
+ */
+Parser.prototype.lastKeywordIsPlusMinus = function(){
+	if(this.last == "+" || this.last == "-") {
+		return this.input.charAt(this.lastIndex - 1) != this.last;
+	} else {
+		return false;
+	}
+};
+
+/**
  * Indicates whether the conditions for a regular expression to start are met.
  * @since 0.50.0
  */
 Parser.prototype.couldStartRegExp = function(){
-	return this.last === undefined || !this.last.match(/^[a-zA-Z0-9_$\)\]\.]$/) ||
+	return this.last === undefined || !this.last.match(/^[a-zA-Z0-9_$\)\].+-]$/) ||
 		this.lastKeywordIn("return", "throw", "typeof", "do", "in", "instanceof", "new", "delete", "else") ||
 		this.last == ')' && this.lastParenthesis !== undefined && this.lastKeywordAtIn(this.lastParenthesis, "if", "else", "for", "while") ||
-		/\n/.test(this.input.substring(this.lastIndex, this.index)) && this.lastKeywordIn("++", "--", "break", "continue");
+		/\n/.test(this.input.substring(this.lastIndex, this.index)) && this.lastKeywordIn("++", "--", "break", "continue") ||
+		this.lastKeywordIsPlusMinus();
 };
 
 /**

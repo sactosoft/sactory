@@ -20,7 +20,7 @@ var babel = source => {
 fs.readdirSync("./test/").forEach(filename => {
 	var [type, name, mode] = filename.slice(0, -4).split("--");
 	var source = fs.readFileSync("./test/" + filename, "utf8");
-	var error, result;
+	var error, result = {};
 	try {
 		result = transpile({filename, mode: "auto-code@logic", versionCheck: false, env: ["amd"], es6: true, bind: "__bind", before: "return function(__bind){", after: "}"}, source);
 		fs.writeFile(`./_test/${type}--${name}__es6.js`, result.source.all, nop);
@@ -208,7 +208,7 @@ function format(num){
 								if(info.error) {
 									<:element ~class="failed" />
 									<td ~text=info.name />
-									<td colspan=3>COMPILATION FAILED</td>
+									<td colspan=3 />
 								} else {
 									var outcome;
 									var run = function(){ test(info, outcome) };
