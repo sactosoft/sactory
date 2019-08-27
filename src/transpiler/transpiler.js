@@ -196,9 +196,15 @@ Transpiler.prototype.updateTemplateLiteralParser = function(){
 /**
  * @since 0.46.0
  */
-Transpiler.prototype.wrapFunction = function(value, ret){
+Transpiler.prototype.wrapFunction = function(value, ret, ...args){
 	if(value.charAt(0) == '{' && value.charAt(value.length - 1) == '}') {
-		return "function(" + Array.prototype.slice.call(arguments, 2).join(", ") + "){" + (ret ? "return " : "") + value.substring(1, value.length - 1) + "}";
+		args = args.join(", ");
+		value = value.slice(1, -1);
+		if(this.options.es6) {
+			return `(${args}) => ${ret ? `(${value})` : `{${value}}`}`;
+		} else {
+			return `function(${args}){${ret ? `return (${value})` : value}}.bind(this)`;
+		}
 	} else {
 		return value;
 	}

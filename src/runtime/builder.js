@@ -64,11 +64,18 @@ Builder.prototype.subscribe = function(bind, subscription){
 /**
  * @since 0.129.0
  */
-Builder.prototype.observe = function(bind, bo, fun){
-	var ret, observable = bo.use(bind);
-	this.subscribe(bind, ret = observable.subscribe(fun));
+Builder.prototype.observeImpl = function(bind, observable, fun){
+	var ret = observable.subscribe(fun);
+	this.subscribe(bind, ret);
 	fun(observable.value);
 	return ret;
+};
+
+/**
+ * @since 0.129.0
+ */
+Builder.prototype.observe = function(bind, bo, fun){
+	return this.observeImpl(bind, bo.use(bind), fun);
 };
 	
 Builder.prototype.attr = function(name, value, bind){
@@ -755,7 +762,7 @@ Builder.prototype.visibility = function({counter, bind}, value, visible){
  * @since 0.46.0
  */
 Builder.prototype.form = function({counter, bind}, info, value, update){
-	var isObservable = false;
+	var isObservable = SactoryObservable.isObservable(value);
 	if(SactoryMisc.isBuilderObservable(value)) {
 		isObservable = true;
 		value = value.use(bind);
@@ -778,10 +785,7 @@ Builder.prototype.form = function({counter, bind}, info, value, update){
 			}
 			// subscription that sets `checked` to true when the value of the
 			// observable is equal to the attribute value of the element
-			var element = this.element;
-			this.subscribe(bind, SactoryObservable.observe(value, function(value){
-				element.checked = value == element.value;
-			}, updateType));
+			this.observeImpl(bind, value, value => this.element.checked = value == this.element.value, updateType);
 		}
 		// the event is called only when radio is selected
 		get = callback => callback(this.element.value);
@@ -789,13 +793,10 @@ Builder.prototype.form = function({counter, bind}, info, value, update){
 		if(isObservable) {
 			// a multiple select does not bind to a property, instead it updates the options,
 			// setting the selected property, everytime the observable is updated
-			var options = this.element.options;
-			this.subscribe(bind, SactoryObservable.observe(value, function(value){
+			this.observeImpl(bind, value, value => {
 				// options is a live collection, no need to get the value again from the element
-				Array.prototype.forEach.call(options, function(option){
-					option.selected = value.indexOf(option.value) != -1;
-				});
-			}, updateType));
+				Array.prototype.forEach.call(this.element.options, option => option.selected = value.indexOf(option.value) != -1);
+			}, updateType);
 		}
 		// the get function maps the values of the selected options (obtained from the
 		// `selectedOptions` property or a polyfill)
@@ -805,7 +806,7 @@ Builder.prototype.form = function({counter, bind}, info, value, update){
 		// as empty strings
 		var convert = value => value === null || value === undefined ? "" : value;
 		if(isObservable) {
-			this.subscribe(bind, SactoryObservable.observe(value, value => this.element.value = convert(value), updateType));
+			this.observeImpl(bind, value, value => this.element.value = convert(value), updateType);
 		} else {
 			this.prop("value", convert(value), bind, updateType);
 		}

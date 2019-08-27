@@ -1,4 +1,5 @@
 var SactoryConfig = require("./config");
+var SactoryContext = require("./context");
 var SactoryObservable = require("./observable");
 
 var Sactory = {};
@@ -133,6 +134,13 @@ Sactory.on = function(scope, context, name, value){
 	} else {
 		context.element.__builder.event(scope, name, value, context.bind);
 	}
+};
+
+/**
+ * @since 0.130.0
+ */
+Sactory.$$on = function(context1, context2, element, name, value){
+	element.__builder.event(null, name, value, SactoryContext.context(context1, context2).bind);
 };
 
 /**

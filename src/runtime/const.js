@@ -23,6 +23,7 @@ Sactory.SL_INPUT = "__input";
 
 // observable's update types
 
+Sactory.OUT_ARRAY_SET = 1048570;
 Sactory.OUT_ARRAY_PUSH = 1048571;
 Sactory.OUT_ARRAY_POP = 1048572;
 Sactory.OUT_ARRAY_UNSHIFT = 1048573;

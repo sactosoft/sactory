@@ -1,5 +1,4 @@
 var rowId = 1;
-var selected = &;
 var data = &[];
 
 /*var benchmark = (fun, ...args) => {
@@ -18,7 +17,15 @@ var run = () => *data = buildData(1000);
 
 var runLots = () => *data = buildData(10000);
 
-var add = () => *data.concat(buildData(1000));
+var add = () => *data.push(...buildData(1000));
+
+var partialUpdate = () => {
+	for(var i=0; i<*data.length; i+=10) {
+		var item = *data[i];
+		item.label += " !!!";
+		*data.set(i, item);
+	}
+};
 
 var clear = () => *data = [];
 
@@ -27,7 +34,7 @@ var swapRows = () => {
 	*data.splice(998, 1, ...swapped);
 };
 
-var select = id => *selected = id;
+var select = selected => *selected = !*selected;
 
 var remove = id => *data.splice(*data.findIndex(a => a.id == id), 1);
 
@@ -39,7 +46,11 @@ var buildData = count => {
 	var nouns = ["table", "chair", "house", "bbq", "desk", "car", "pony", "cookie", "sandwich", "burger", "pizza", "mouse", "keyboard"];
 	var data = [];
     for(var i = 0; i<count; i++) {
-		data.push({id: rowId++, label: adjectives[_random(adjectives.length)] + " " + colors[_random(colors.length)] + " " + nouns[_random(nouns.length)]});
+		data.push({
+			id: rowId++,
+			label: adjectives[_random(adjectives.length)] + " " + colors[_random(colors.length)] + " " + nouns[_random(nouns.length)],
+			selected: &false
+		});
 	}
 	return data;
 };
@@ -64,7 +75,7 @@ var buildData = count => {
 						<button type="button" class="btn btn-primary btn-block" id="add" on:click={benchmark(add)}>Append 1,000 rows</button>
 					</div>
 					<div class="col-sm-6 smallpad">
-						<button type="button" class="btn btn-primary btn-block" id="update" on:click={partialUpdate}>Update every 10th row</button>
+						<button type="button" class="btn btn-primary btn-block" id="update" on:click={benchmark(partialUpdate)}>Update every 10th row</button>
 					</div>
 					<div class="col-sm-6 smallpad">
 						<button type="button" class="btn btn-primary btn-block" id="clear" on:click={benchmark(clear)}>Clear</button>
@@ -78,11 +89,11 @@ var buildData = count => {
 	</div>
 	<table class="table table-hover table-striped test-data">
 		<tbody>
-			foreach(*data as row, num) {
-				<tr class:danger=(*selected === row.id)>
- 					<td class="col-md-1">${row.id}</td>
-					<td class="col-md-4"><a on:click={benchmark(select,row.id)} ~text=row.label /></td>
-					<td class="col-md-1"><a on:click={benchmark(remove,row.id)}><span class="glyphicon glyphicon-remove" aria-hidden="true"></span>&times;</a></td>
+			foreach(*data as {id, label, selected}) {
+				<tr ~class:danger=*selected>
+ 					<td class="col-md-1" ~text=id />
+					<td class="col-md-4"><a on:click={benchmark(select,selected)} ~text=label /></td>
+					<td class="col-md-1"><a on:click={benchmark(remove,id)}><span class="glyphicon glyphicon-remove" aria-hidden="true"></span>&times;</a></td>
 					<td class="col-md-6"></td>
 				</tr>
 			}

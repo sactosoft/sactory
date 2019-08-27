@@ -29,9 +29,10 @@ Subscription.prototype.dispose = function(){
  * @since 0.129.0
  */
 function Observable(fun) {
-	this._value = fun();
+	this._value = this.wrapValue(fun());
 	this._calc = () => this.value = fun();
 	this._subscriptions = [];
+	this._dependencies = 0;
 }
 
 /**
@@ -47,6 +48,7 @@ Observable.prototype.addDependencies = function(dependencies, bind){
 	if(bind) {
 		subscriptions.forEach(subscription => bind.subscribe(subscription));
 	}
+	this._dependencies += dependencies.length;
 };
 
 /**
@@ -80,6 +82,17 @@ Observable.prototype.unsubscribe = function({id}){
 };
 
 /**
+ * @since 0.130.0
+ */
+Observable.prototype.$$subscribe = function(context1, context2, callback, type){
+	var subscription = this.subscribe(callback, type);
+	var { bind } = SactoryContext.context(context1, context2);
+	if(bind) {
+		bind.subscribe(subscription);
+	}
+};
+
+/**
  * @since 0.129.0
  */
 Observable.prototype.propagateUpdate = function(newValue, oldValue, type, args){
@@ -109,6 +122,17 @@ Observable.prototype.shouldUpdate = function(newValue, oldValue){
 /**
  * @since 0.129.0
  */
+Observable.prototype.wrapValue = function(value){
+	if(Array.isArray(value) || value instanceof Observable.Array) {
+		return new Observable.Array(this, value);
+	} else {
+		return value;
+	}
+};
+
+/**
+ * @since 0.129.0
+ */
 Object.defineProperty(Observable.prototype, "value", {
 	configurable: true,
 	get() {
@@ -117,11 +141,71 @@ Object.defineProperty(Observable.prototype, "value", {
 	set(value) {
 		if(this.shouldUpdate(this._value, value)) {
 			var oldValue = this._value;
-			this._value = value;
+			this._value = this.wrapValue(value);
 			this.propagateUpdate(value, oldValue);
 		}
 	}
 });
+
+// conversion
+
+Observable.prototype.valueOf = function(){
+	return this._value;
+};
+
+Observable.prototype.toJSON = function(){
+	return this._value && this._value.toJSON ? this._value.toJSON() : this._value;
+};
+
+Observable.prototype.toString = function(){
+	return this._value + "";
+};
+
+// modifiers
+
+Observable.prototype.storage = function(storage, key, version){
+	this._key = key + (version ? "__v" + version : "");
+	var sup = this.propagateUpdate;
+	Object.defineProperty(this, "propagateUpdate", {
+		value(value) {
+			storage.setItem(this._key, JSON.stringify(value));
+			sup.apply(this, arguments);
+		}
+	});
+	var item = storage.getItem(this._key);
+	if(item) {
+		this.value = JSON.parse(storage.getItem(this._key));
+	}
+	return this;
+};
+
+var noStorage = type => function(key){
+	console.warn(type + " is not available. Observable assigned to key '" + key + "' will not be saved to it.");
+	return this;
+};
+
+if(typeof localStorage != "undefined") {
+	Observable.prototype.localStorage = function(key, version){
+		return this.storage(localStorage, key, version);
+	};
+} else {
+	Observable.prototype.localStorage = noStorage("localStorage");
+}
+
+if(typeof sessionStorage != "undefined") {
+	Observable.prototype.sessionStorage = function(key, version){
+		return this.storage(sessionStorage, key, version);
+	};
+} else {
+	Observable.prototype.sessionStorage = noStorage("sessionStorage");
+}
+
+/**
+ * @since 0.129.0
+ */
+Observable.prototype.nowrap = function(){
+	Object.defineProperty(this, "wrapValue", {value: value => value});
+};
 
 // functions used internally
 
@@ -140,6 +224,73 @@ Observable.prototype.m = function(context1, context2, ...dependencies){
 	this.addMaybeDependencies(dependencies, SactoryContext.context(context1, context2).bind);
 	return this;
 };
+
+// wrappers
+
+/**
+ * @class
+ * @since 0.66.0
+ */
+Observable.Array = (SysArray => {
+
+	function Array(observable, value) {
+		SysArray.call(this);
+		SysArray.prototype.push.apply(this, value);
+		Object.defineProperty(this, "observable", {
+			enumerable: false,
+			value: observable
+		});
+		var length = this.length;
+		Object.defineProperty(this, "length", {
+			configurable: false,
+			enumerable: false,
+			writable: true,
+			value: length
+		});
+	}
+
+	Array.prototype = Object.create(SysArray.prototype);
+
+	[
+		{name: "copyWithin"},
+		{name: "fill"},
+		{name: "pop", type: SactoryConst.OUT_ARRAY_POP},
+		{name: "push", type: SactoryConst.OUT_ARRAY_PUSH},
+		{name: "reverse"},
+		{name: "shift", type: SactoryConst.OUT_ARRAY_SHIFT},
+		{name: "sort"},
+		{name: "splice", type: SactoryConst.OUT_ARRAY_SPLICE},
+		{name: "unshift", type: SactoryConst.OUT_ARRAY_UNSHIFT}
+	].forEach(({name, type}) => {
+		if(SysArray.prototype[name]) {
+			Object.defineProperty(Array.prototype, name, {
+				enumerable: false,
+				value() {
+					var ret = SysArray.prototype[name].apply(this, arguments);
+					this.observable.triggerUpdate(type, arguments);
+					return ret;
+				}
+			});
+		}
+	});
+
+	Object.defineProperty(Array.prototype, "set", {
+		value(index, value) {
+			this[index] = value;
+			this.observable.triggerUpdate(SactoryConst.OUT_ARRAY_SET, [index, value]);
+			return value;
+		}
+	});
+
+	Object.defineProperty(Array.prototype, "toJSON", {
+		value() {
+			return SysArray.apply(null, this);
+		}
+	});
+
+	return Array;
+	
+})(Array);
 
 /**
  * Creates an observable from a function.
@@ -177,3 +328,5 @@ Sactory.value = function(value){
 		return value;
 	}
 };
+
+module.exports = Sactory;

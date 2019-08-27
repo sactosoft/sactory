@@ -161,6 +161,13 @@ Sactory.bind = function(scope, context, target, fun){
 };
 
 /**
+ * @since 0.130.0
+ */
+Sactory.$$bind = function(context1, context2, target, fun){
+
+};
+
+/**
  * @since 0.102.0
  */
 Sactory.bindIfElse = function(scope, context1, context2, conditions, ...functions){
@@ -236,7 +243,7 @@ Sactory.bindEach = function(scope, context1, context2, target, getter, fun){
 		}
 		var binds = [];
 		function add(action, bind, anchor, value, index, array) {
-			fun.call(scope, Polyfill.assign({}, context, {bind: bind, anchor: anchor}), value, index, array);
+			fun.call(scope, Polyfill.assign({}, context, {bind, anchor}), value, index, array);
 			binds[action]({bind, anchor});
 		}
 		function remove(bind) {
@@ -250,6 +257,17 @@ Sactory.bindEach = function(scope, context1, context2, target, getter, fun){
 		}
 		currentBind.subscribe(target.subscribe(function(array, _, type, data){
 			switch(type) {
+				case SactoryConst.OUT_ARRAY_SET:
+					var [index, value] = data;
+					var ptr = binds[index];
+					if(ptr) {
+						// replace
+						ptr.bind.rollback();
+						fun.call(scope, Polyfill.assign({}, context, ptr), value, index, array);
+					} else {
+						//TODO
+					}
+					break;
 				case SactoryConst.OUT_ARRAY_PUSH:
 					Array.prototype.forEach.call(data, function(value, i){
 						add("push", currentBind.fork(), context.element ? Sactory.anchor({element: context.element, bind: currentBind, anchor: lastAnchor}) : null, value, array.length - data.length + i, array);

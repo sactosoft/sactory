@@ -1,7 +1,7 @@
 var expr = &"";
 var result = & => {
 	try {
-		return eval(*expr);
+		return +eval(*expr);
 	} catch(e) {
 		return NaN;
 	}

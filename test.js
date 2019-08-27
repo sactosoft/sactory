@@ -34,7 +34,7 @@ fs.readdirSync("./test/").forEach(filename => {
 data = data.map(({type, name, source, error, result}) => `{type:"${type}",name:"${name}",source:${JSON.stringify(source)},error:${JSON.stringify(error)},time:${Math.round(result.time * 1000) / 1000},content:${result.source && JSON.stringify(result.source.contentOnly)}}`);
 
 var source = transpile({mode: "auto-code@logic,trimmed"}, `
-var es6 = &true; //TODO store
+var es6 = (&true).localStorage("__test_es6");
 var tests, container, sources = {}, editors;
 var bind, showSource = &false;
 
@@ -224,13 +224,13 @@ function format(num){
 					</table>
 				</div>
 			</td>
-			<td *hide=showSource rowspan=2 class="border">
+			<td *hide=*showSource rowspan=2 class="border">
 				<div &padding="8px" &max-height="100%" &overflow-y="auto"><div :ref=container /></div>
 			</td>
-			<td :ref=sources.upper *show=showSource class="border" />
+			<td :ref=sources.upper *show=*showSource class="border" />
 		</tr>
 		<tr>
-			<td :ref=sources.lower *show=showSource class="border" />
+			<td :ref=sources.lower *show=*showSource class="border" />
 		</tr>
 	</table>
 </:body>

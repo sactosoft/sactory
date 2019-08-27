@@ -590,7 +590,7 @@ OptionalLogicMode.prototype = Object.create(LogicMode.prototype);
  * @since 0.15.0
  */
 function SourceCodeMode(transpiler, parser, source, attributes) {
-	BreakpointMode.call(this, transpiler, parser, source, attributes, ['(', ')', '@', '&', '*', '^', '=', '{']);
+	BreakpointMode.call(this, transpiler, parser, source, attributes, ['(', ')', '@', '$', '&', '*', '^', '=', '{']);
 	this.observables = [];
 	this.maybeObservables = [];
 	this.parentheses = [];
@@ -772,11 +772,28 @@ SourceCodeMode.prototype.next = function(match){
 				}
 			}
 			break;
+		case '$':
+			if(this.parser.readIf('$')) {
+				var input = this.parser.input.substr(this.parser.index);
+				if(Polyfill.startsWith.call(input, "on(")) {
+					this.parser.index += 3;
+					this.add(`$$on(${this.transpiler.arguments}, ${this.transpiler.context}, `);
+					this.parser.last = ',';
+				} else if(Polyfill.startsWith.call(input, "subscribe(")) {
+					this.parser.index += 10;
+					this.add(`$$subscribe(${this.transpiler.arguments}, ${this.transpiler.context}, `);
+					this.parser.last = ',';
+				} else {
+					this.restoreIndex('$');
+				}
+			} else {
+				this.restoreIndex('$');
+			}
+			break;
 		case '&':
 			var args = `${this.transpiler.arguments}, ${this.transpiler.context}, `;
 			var space = this.parser.skipImpl({strings: false});
 			this.parser.parseTemplateLiteral = null;
-			//TODO check for function (closing parenthesis or equal sign)
 			if(this.parser.readIf('=')) {
 				this.parser.expect('>');
 				var parsed = this.transpiler.parseCode(this.parser.readExpression());
@@ -817,6 +834,7 @@ SourceCodeMode.prototype.next = function(match){
 		case '*':
 			if(this.parser.couldStartRegExp()) {
 				if(this.parser.readIf('*')) {
+					this.transpiler.warn("The `**value` syntax used to create a new observable is deprecated. Use `&value` instead.");
 					// new observable
 					var position = this.parser.position;
 					this.parser.parseTemplateLiteral = null;
