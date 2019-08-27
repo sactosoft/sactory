@@ -1,7 +1,10 @@
 function defineBuilder(Class) {
-	Object.defineProperty(Class.prototype, "__builder", {
-		get: function(){
-			return this.__builderInstance || (this.__builderInstance = new Builder(this));
+	Object.defineProperty(Class.prototype, "~builder", {
+		configurable: true,
+		get() {
+			var value = new Builder(this);
+			Object.defineProperty(this, "~builder", {value});
+			return value;
 		}
 	});
 }
@@ -11,6 +14,10 @@ defineBuilder(Document);
 defineBuilder(Element);
 defineBuilder(DocumentFragment);
 if(typeof ShadowRoot == "function") defineBuilder(ShadowRoot);
+
+EventTarget.prototype.$$on = function(context1, context2, name, value){
+	Sactory.$$on(context1, context2, this, name, value);
+};
 
 /**
  * @since 0.123.0

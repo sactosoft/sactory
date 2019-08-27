@@ -373,7 +373,7 @@ Builder.prototype.classNameIf = function(className, condition, bind){
 /**
  * @since 0.22.0
  */
-Builder.prototype.event = function(context, name, value, bind){
+Builder.prototype.event = function(name, value, bind){
 	var split = name.split(':');
 	if(name.args) split = split.map(a => a.toValue());
 	var event = split.shift();
@@ -388,9 +388,7 @@ Builder.prototype.event = function(context, name, value, bind){
 		} else {
 			switch(mod) {
 				case "this":
-					listener = function(event){
-						return prev.call(context, event, this);
-					};
+					console.warn(`Event modifier ":this" does no longer work. Either bind the function yourself or use an arrow function to maintain the right scope.`);
 					break;
 				case "noargs":
 					listener = function(){
@@ -618,6 +616,12 @@ Builder.prototype.event = function(context, name, value, bind){
 			}
 		}
 	});
+	if(value) {
+		var prev = listener;
+		listener = function(event){
+			prev.call(this, event, this);
+		};
+	}
 	if(event == "documentappend") {
 		// special event
 		event = "append";
@@ -629,7 +633,7 @@ Builder.prototype.event = function(context, name, value, bind){
 			} else {
 				var parent = this.parentNode;
 				while(parent.parentNode) parent = parent.parentNode;
-				parent.__builder.eventImpl("append", listener, options, bind);
+				parent["~builder"].eventImpl("append", listener, options, bind);
 			}
 		};
 	}
@@ -727,8 +731,8 @@ Builder.prototype[Const.BUILDER_TYPE_CONCAT] = function({bind, anchor}, name, va
 /**
  * @since 0.69.0
  */
-Builder.prototype[Const.BUILDER_TYPE_ON] = function({scope, bind, anchor}, name, value){
-	this.event(scope, name, value, bind);
+Builder.prototype[Const.BUILDER_TYPE_ON] = function({bind}, name, value){
+	this.event(name, value, bind);
 };
 
 /**
@@ -941,7 +945,7 @@ Builder.prototype.form = function({counter, bind}, info, value, update){
 		converters.push(update);
 	}
 	events.forEach(type => {
-		this.event(null, type, () => {
+		this.event(type, () => {
 			get(newValue => converters.forEach(converter => newValue = converter.call(newValue, newValue)));
 		}, bind);
 	});

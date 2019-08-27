@@ -2,13 +2,14 @@ var Polyfill = require("../polyfill");
 var Const = require("../const");
 var SactoryConst = require("./const");
 var SactoryContext = require("./context");
+var SactoryMisc = require("./misc");
 var { widgets, Widget, Registry } = require("./widget");
 
 /**
  * @since 0.60.0
  */
-function Sactory(scope, context1, context2, ...functions) {
-	var context = SactoryContext.newChainContext(scope, context1, context2);
+function Sactory(context1, context2, ...functions) {
+	var context = SactoryContext.newChainContext(context1, context2);
 	functions.forEach(([fun, ...args]) => fun.call(null, context, ...args));
 	return context.element;
 }
@@ -16,8 +17,8 @@ function Sactory(scope, context1, context2, ...functions) {
 /**
  * @since 0.128.0
  */
-Sactory.all = function(scope, context1, context2, [ffun, ...fargs], ...functions){
-	var context = SactoryContext.newChainContext(scope, context1, context2);
+Sactory.all = function(context1, context2, [ffun, ...fargs], ...functions){
+	var context = SactoryContext.newChainContext(context1, context2);
 	context.all = true;
 	ffun.call(null, context, ...fargs);
 	Array.prototype.forEach.call(context.elements, element => {
@@ -113,6 +114,9 @@ Sactory.updateImpl = function(context, [attrs = [], iattrs, sattrs, transitions,
 			var ext = type == Const.BUILDER_TYPE_EXTEND_WIDGET;
 			if(ext || type == Const.BUILDER_TYPE_WIDGET) {
 				var obj;
+				if(SactoryMisc.isBuilderObservable(value)) {
+					value = value.use(context.bind);
+				}
 				if(ext) {
 					if(typeof name[0] == "function") {
 						var widget = name[0];
@@ -190,9 +194,7 @@ Sactory.updateImpl = function(context, [attrs = [], iattrs, sattrs, transitions,
 				return widgets[tagName];
 			} else {
 				var parentName = tagName.substring(0, columns);
-				if(parentName == "this") {
-					parentWidget = context.scope;
-				} else if(context.widgets) {
+				if(context.registry) {
 					var search = context.registry;
 					if(parentName) {
 						// search in named widgets
@@ -214,8 +216,10 @@ Sactory.updateImpl = function(context, [attrs = [], iattrs, sattrs, transitions,
 			var slotRegistry = registry.sub(widgetName, true);
 			var newContext = SactoryContext.newContext(context, {element: null, anchor: null, registry: slotRegistry});
 			if(widget.prototype && widget.prototype.render) {
-				var {instance, element} = Widget.createClassWidget(widget, newContext, widgetArgs);
-				registry.widgets.main = registry.widgets.named[widgetName] = element.__builder.widget = element.__builder.widgets[widgetName] = instance;
+				var instance = Widget.newInstance(widget, newContext, widgetArgs);
+				registry.widgets.main = registry.widgets.named[widgetName] = instance; // register here so the widget can access its children when rendering
+				var element = Widget.render(widget, instance, newContext, widgetArgs);
+				element["~builder"].widget = element["~builder"].widgets[widgetName] = instance;
 				context.element = element;
 			} else {
 				context.element = widget.call(parentWidget, widgetArgs, newContext);
@@ -259,15 +263,15 @@ Sactory.updateImpl = function(context, [attrs = [], iattrs, sattrs, transitions,
 	args.sort((a, b) => a.type - b.type);
 	
 	// apply attributes to builder
-	args.forEach(({type, name, value}) => updatedElement.__builder[type](context, name, value));
+	args.forEach(({type, name, value}) => updatedElement["~builder"][type](context, name, value));
 
 	if(transitions) {
-		transitions.forEach(([type, name, options]) => updatedElement.__builder.addAnimation(type, name, options || {}));
+		transitions.forEach(([type, name, options]) => updatedElement["~builder"].addAnimation(type, name, options || {}));
 	}
 
 	if(visibility) {
 		var [value, visible] = visibility;
-		updatedElement.__builder.visibility(context, value, visible);
+		updatedElement["~builder"].visibility(context, value, visible);
 	}
 
 	widgetExt.forEach(({widget, name, args}) => {
@@ -278,9 +282,9 @@ Sactory.updateImpl = function(context, [attrs = [], iattrs, sattrs, transitions,
 		var slotRegistry = registry.sub(name || "", false);
 		var newContext = SactoryContext.newContext(context, {anchor: null, registry: slotRegistry});
 		if(widget.prototype && widget.prototype.render) {
-			var {instance, element} = Widget.createClassWidget(widget, newContext, args);
+			var {instance, element} = Widget.newInstanceRender(widget, newContext, args);
 			if(element !== updatedElement) throw new Error("The widget did not return the given element, hence does not support extension.");
-			if(name) registry.widgets.named[name] = updatedElement.__builder.widgets[name] = instance;
+			if(name) registry.widgets.named[name] = updatedElement["~builder"].widgets[name] = instance;
 		} else {
 			widget(args, newContext);
 		}
@@ -296,7 +300,7 @@ Sactory.updateImpl = function(context, [attrs = [], iattrs, sattrs, transitions,
 
 	/* debug:
 	if(context.element.setAttribute) {
-		context.element.setAttribute(":id", context.element.__builder.runtimeId);
+		context.element.setAttribute(":id", context.element["~builder"].runtimeId);
 	}
 	*/
 	
@@ -346,14 +350,14 @@ Sactory.slots = function(context, slots){
  * @since 0.128.0
  */
 Sactory.text = function(context, text){
-	SactoryContext.currentElement(context).__builder.text(text, context.bind, context.anchor);
+	SactoryContext.currentElement(context)["~builder"].text(text, context.bind, context.anchor);
 };
 
 /**
  * @since 0.128.0
  */
 Sactory.html = function(context, html){
-	SactoryContext.currentElement(context).__builder.html(html, context.bind, context.anchor);
+	SactoryContext.currentElement(context)["~builder"].html(html, context.bind, context.anchor);
 };
 
 /**
@@ -371,7 +375,7 @@ Sactory.mixin = function(context, data){
  * @since 0.60.0
  */
 Sactory.body = function(context, fun){
-	fun.call(context.scope, SactoryContext.newContext(context, {slot: context.element, element: context.content || context.element || context.parentElement}));
+	fun(SactoryContext.newContext(context, {slot: context.element, element: context.content || context.element || context.parentElement}));
 };
 
 /**
@@ -379,7 +383,7 @@ Sactory.body = function(context, fun){
  */
 Sactory.forms = function(context, ...values){
 	var input = context.input || context.content;
-	values.forEach(([info, value, update]) => input.__builder.form(context, info, value, update));
+	values.forEach(([info, value, update]) => input["~builder"].form(context, info, value, update));
 };
 
 /**
@@ -401,8 +405,8 @@ Sactory.appendTo = function(context, parent, options = {}){
 	if(context.parentAnchor && context.parentAnchor.parentNode === parent) parent.insertBefore(context.element, context.parentAnchor);
 	else parent.appendChild(context.element);
 	if(options.aa) options.aa.call(context.element);
-	if(context.element.__builderInstance && context.element.__builder.events.append) context.element.__builder.dispatchEvent("append", {bubbles: false});
-	if(options.br) context.element.__builder.event(context.scope, "remove", options.br, context.bind);
+	if(context.element["~builder"] && context.element["~builder"].events.append) context.element["~builder"].dispatchEvent("append", {bubbles: false});
+	if(options.br) context.element["~builder"].event(context.scope, "remove", options.br, context.bind);
 };
 
 /**

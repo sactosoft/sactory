@@ -79,9 +79,7 @@ Mode.prototype.start = function(){};
 
 Mode.prototype.end = function(){};
 
-Mode.prototype.afterappend = function(){};
-
-Mode.prototype.beforeremove = function(){};
+Mode.prototype.chainAfter = function(){};
 
 Mode.prototype.parse = function(handle, eof){};
 
@@ -154,21 +152,21 @@ TextExprMode.prototype.addCurrent = function(){
 		// just whitespace
 		this.addSpace(this.current[0].value);
 	} else {
-		var expr = [];
-		var observables = [];
-		var maybeObservables = [];
-		for(var i in this.current) {
-			var curr = this.current[i];
-			if(curr.text) {
-				if(curr.value.length) expr.push(stringify(this.replaceText(curr.value)));
-			} else {
-				Array.prototype.push.apply(observables, curr.value.observables);
-				Array.prototype.push.apply(maybeObservables, curr.value.maybeObservables);
-				expr.push('(' + curr.value.source + ')'); 
-			}
-		}
+		var expr = this.current.filter(c => !c.text || c.value.length);
 		if(expr.length) {
-			var joined = expr.join(" + ");
+			// create joined
+			var joined = this.transpiler.options.es6 ?
+				`\`${expr.map(({text, value}) => text ? this.replaceText(value).replace(/(`|\\)/gm, "\\$1") : "${" + value.source + "}").join("")}\`` :
+				`"" + ${expr.map(({text, value}) => text ? stringify(this.replaceText(value)) : `(${value.source})`).join(" + ")}`;
+			// collect observables
+			var observables = [];
+			var maybeObservables = [];
+			expr.forEach(({text, value}) => {
+				if(!text) {
+					observables.push(...value.observables);
+					maybeObservables.push(...value.maybeObservables);
+				}
+			});
 			if(observables.length || maybeObservables.length) {
 				joined = `${this.transpiler.feature("bo")}(${this.transpiler.options.es6 ? `() => ${joined}` : `function(){return ${joined}}.bind(this)`}, [${uniq(observables).join(", ")}]${maybeObservables.length ? `, [${uniq(maybeObservables).join(", ")}]` : ""})`
 			}
@@ -200,7 +198,7 @@ TextExprMode.prototype.endChain = function(){
 		}
 	});
 	if(!empty) {
-		this.add(`${this.runtime}(this, ${this.transpiler.arguments}, ${this.context}${source});`);
+		this.add(`${this.runtime}(${this.transpiler.arguments}, ${this.context}${source});`);
 	} else {
 		this.add(source);
 	}
@@ -684,111 +682,48 @@ SourceCodeMode.prototype.next = function(match){
 			this.handleParenthesis(match);
 			break;
 		case '@':
-			if(this.parser.readIf('@')) {
-				this.add(this.runtime);
-			} else {
-				var skip = this.parser.skipImpl({strings: false});
-				var peek = this.parser.peek();
-				var fallback = function(){
-					if(peek === undefined || !/[a-zA-Z0-9_]/.test(peek)) {
-						this.add(this.context);
-						if(skip) this.add(skip);
-					} else {
-						this.add('@' + skip);
-					}
-				}.bind(this);
-				var match = this.parser.input.substr(this.parser.index).match(/^(?:((?:\.?[a-zA-Z0-9_$]+)*)(\s*)\()/);
-				if(match) {
-					var add = (fun, args) => {
-						this.parser.index += match[0].length;
-						this.add(skip + fun + match[2] + "(" + (args || ""));
-						this.parentheses.push(false);
-					};
-					switch(match[1]) {
-						case "subscribe":
-							add(this.transpiler.feature("subscribe"), this.context + ", ");
-							break;
-						case "rollback":
-							add(this.transpiler.feature("rollback"), this.context + ", ");
-							break;
-						case "watch":
-						case "watch.deep":
-						case "watch.deps":
-						case "watch.always":
-							// new observable
-							var type = match[1].substr(5);
-							this.parser.index += match[0].length;
-							this.parser.parseTemplateLiteral = null;
-							var parsed = this.transpiler.parseCode(this.parser.readExpression());
-							this.transpiler.updateTemplateLiteralParser();
-							if(parsed.observables && parsed.observables.length || parsed.maybeObservables && parsed.maybeObservables.length || type == ".deps") {
-								// computed
-								this.add(this.transpiler.feature("computedObservable") + type + "(this, " + this.context + ".bind, " + parsed.toSpreadValue());
-							} else {
-								this.add(this.transpiler.feature("observable") + type + "(" + parsed.source);
-							}
-							this.parentheses.push(false);
-							break;
-						case "text":
-						case "html":
-							this.parser.index += match[0].length - 1;
-							this.add(this.transpiler.feature(match[1]) + "(" + this.context + ", " + this.parseCodeToValue("skipEnclosedContent") + ")");
-							break;
-						case "on":
-							add(this.transpiler.feature("on"), "this, " + this.context + ", ");
-							break;
-						case "slot":
-							add(this.context + ".registry.add", this.transpiler.feature("anchor") + "(" + this.context + "), ");
-							break;
-						case "animations.add":
-							add(this.transpiler.feature("addAnimation"));
-							break;
-						case "ready":
-						case "quote":
-							add(this.transpiler.feature(match[1]));
-							break;
-						case "rgb":
-						case "rgba":
-						case "hsl":
-						case "hsla":
-						case "darken":
-						case "lighten":
-						case "saturate":
-						case "desaturate":
-						case "grayscale":
-						case "greyscale":
-						case "invert":
-						case "pastel":
-						case "sepia":
-						case "mix":
-						case "contrast":
-							add(this.transpiler.feature("css." + match[1]));
-							break;
-						default:
-							fallback();
-					}
-				} else {
-					fallback();
+			var skip = this.parser.skipImpl({strings: false});
+			var peek = this.parser.peek();
+			var match = this.parser.input.substr(this.parser.index).match(/^(?:((?:\.?[a-zA-Z0-9_$]+)*)(\s*)\()/);
+			if(match) {
+				switch(match[1]) {
+					case "subscribe":
+						this.transpiler.warn("The `@subscribe` function does not exist anymore. Use `Observable.prototype.$$subscribe` instead.");
+						break;
+					case "rollback":
+						this.transpiler.warn("The `@rollback` function does not exist anymore. Use `Sactory.$$rollback` instead.");
+						break;
+					case "watch":
+					case "watch.deep":
+					case "watch.deps":
+					case "watch.always":
+						this.transpiler.warn("The `@" + match[1] + "` function does not exist anymore. Use The `& => value` syntax instead.");
+						break;
+					case "on":
+						this.transpiler.warn("The `@on` function does not exist anymore. Use `Sactory.$$on(element, event, listener)` or `EventTarget.prototype.$$on(event, listener)` instead");
+						break;
+					case "slot":
+						this.transpiler.warn("The `@slot` function does not exist anymore. Use the `<:anchor />` tag name with the slot attribute instead.");
+						break;
 				}
 			}
+			this.add('@' + skip);
 			break;
 		case '$':
 			if(this.parser.readIf('$')) {
 				var input = this.parser.input.substr(this.parser.index);
-				if(Polyfill.startsWith.call(input, "on(")) {
-					this.parser.index += 3;
-					this.add(`$$on(${this.transpiler.arguments}, ${this.transpiler.context}, `);
-					this.parser.last = ',';
-				} else if(Polyfill.startsWith.call(input, "subscribe(")) {
-					this.parser.index += 10;
-					this.add(`$$subscribe(${this.transpiler.arguments}, ${this.transpiler.context}, `);
-					this.parser.last = ',';
-				} else {
-					this.restoreIndex('$');
+				var functions = ["on", "subscribe", "rollback"];
+				for(var i in functions) {
+					var fname = functions[i];
+					if(Polyfill.startsWith.call(input, fname + "(")) {
+						this.parser.index += fname.length + 1;
+						this.add(`$$${fname}(${this.transpiler.arguments}, ${this.transpiler.context}, `);
+						this.parser.last = ',';
+						return;
+					}
 				}
-			} else {
-				this.restoreIndex('$');
 			}
+			this.restoreIndex('$');
 			break;
 		case '&':
 			var args = `${this.transpiler.arguments}, ${this.transpiler.context}, `;
@@ -834,19 +769,9 @@ SourceCodeMode.prototype.next = function(match){
 		case '*':
 			if(this.parser.couldStartRegExp()) {
 				if(this.parser.readIf('*')) {
-					this.transpiler.warn("The `**value` syntax used to create a new observable is deprecated. Use `&value` instead.");
-					// new observable
-					var position = this.parser.position;
-					this.parser.parseTemplateLiteral = null;
-					var parsed = this.transpiler.parseCode(this.parser.readSingleExpression(true));
-					this.transpiler.updateTemplateLiteralParser();
-					if(parsed.observables && parsed.observables.length || parsed.maybeObservables && parsed.maybeObservables.length) {
-						// should be computed
-						this.transpiler.warn("The observable syntax `**` cannot be used to create computed observables, use `@watch` instead.", position);
-					}
-					this.add(this.transpiler.feature("observable") + "(" + parsed.source + ")");
-					this.parser.last = ')';
-					this.parser.lastIndex = this.parser.index;
+					this.transpiler.warn("The `**value` syntax used to create a new observable does not work anymore. Use `&value` instead.");
+					this.add('*');
+					this.restoreIndex('*');
 				} else {
 					// get/set observable
 					this.addObservable(this.observables, this.maybeObservables, "");
@@ -1018,7 +943,7 @@ function SSBMode(transpiler, parser, source, attributes) {
 	this.expr = [];
 	this.scopes = [transpiler.nextVarName()];
 	this.scope = attributes.scope;
-	this.scoped = !!attributes.scoped;
+	this.scoped = attributes.scoped && transpiler.nextId();
 	this.inExpr = false;
 }
 
@@ -1034,7 +959,7 @@ SSBMode.prototype = Object.create(LogicMode.prototype);
 
 SSBMode.prototype.addScope = function(selector){
 	var scope = this.transpiler.nextVarName();
-	this.add("var " + scope + "=" + this.transpiler.feature("select") + "(" + this.scopes[this.scopes.length - 1] + ", " + selector + ");");
+	this.add(`var ${scope}=${this.transpiler.feature("select")}(${this.scopes[this.scopes.length - 1]}, ${selector});`);
 	this.scopes.push(scope);
 };
 
@@ -1048,9 +973,11 @@ SSBMode.prototype.skip = function(){
 };
 
 SSBMode.prototype.start = function(){
-	this.add(`${this.transpiler.feature("compileAndBindStyle")}(${this.context}, ${this.transpiler.options.es6 ? "() => " : "function()"}{`);
+	var args = this.transpiler.className;
+	if(this.attributes.dollar != false) args += ", $";
+	this.add(`${this.transpiler.feature("cabs")}(${this.context}, ${this.transpiler.options.es6 ? `(${args}) => ` : `function(${args})`}{`);
 	this.add(`var ${this.scopes[0]}=${this.transpiler.feature("root")}();`);
-	if(this.scoped) this.addScope(`'.' + ${this.runtime}.config.prefix + ${this.context}.element.__builder.runtimeId`);
+	if(this.scoped) this.addScope(`'.' + ${this.transpiler.className}`);
 	else if(this.scope) this.addScope(JSON.stringify('.' + this.scope));
 };
 
@@ -1184,19 +1111,11 @@ SSBMode.prototype.end = function(){
 		}
 	});
 	// add return statement
-	this.add(`return ${this.scopes[0]}.content}, [${uniq(this.observables).join(", ")}], [${this.maybeObservables.join(", ")}])`);
+	this.add(`return ${this.scopes[0]}.content}${this.transpiler.options.es6 ? "" : ".bind(this)"}, [${uniq(this.observables).join(", ")}], [${this.maybeObservables.join(", ")}])`);
 };
 
-SSBMode.prototype.actionImpl = function(type){
-	if(this.scoped) return `function(){this.parentNode.__builder.${type}Class(${this.runtime}.config.prefix + this.__builder.runtimeId)}`;
-};
-
-SSBMode.prototype.afterappend = function(){
-	return this.actionImpl("add");
-};
-
-SSBMode.prototype.beforeremove = function(){
-	return this.actionImpl("remove");
+SSBMode.prototype.chainAfter = function(){
+	if(this.scoped) return "scope";
 };
 
 SSBMode.createExprImpl = function(expr, info, transpiler){

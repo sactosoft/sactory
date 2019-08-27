@@ -3,15 +3,16 @@ require("../dom");
 
 var Builder = require("./builder");
 
-Builder.prototype.event = function(context, name, value, bind){
-	this.element.ownerDocument.addEventListener(this.element, name, value);
+Builder.prototype.eventImpl = function(event, listener, options){
+	this.events[event] = true;
+	this.element.ownerDocument.addEventListener(this.element, event, listener, options);
 };
 
-Object.defineProperty(Node.prototype, "__builder", {
+Object.defineProperty(Node.prototype, "~builder", {
 	configurable: true,
 	get() {
 		var value = new Builder(this);
-		Object.defineProperty(this, "__builder", {value});
+		Object.defineProperty(this, "~builder", {value});
 		return value;
 	}
 });

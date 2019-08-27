@@ -1,4 +1,4 @@
-var data = &[];
+var data = (&[]).localStorage("__test_todo");
 var input = &;
 
 var add = () => {

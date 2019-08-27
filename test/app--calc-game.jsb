@@ -40,9 +40,9 @@ var remove = () => {
 	check();
 };
 
-@on(document, "keyup:key.0-9", event => add(event.key));
-@on(document, "keyup:key.-", event => invert());
-@on(document, "keyup:key.backspace", event => remove());
+document.$$on("keyup:key.0-9", event => add(event.key));
+document.$$on("keyup:key.-", event => invert());
+document.$$on("keyup:key.backspace", event => remove());
 
 <:this>
 	<style :scoped>

@@ -150,17 +150,30 @@ Sactory.convertStyle = function(root){
  * if present.
  * @since 0.49.0
  */
-Sactory.compileAndBindStyle = function({scope, element, bind, selector}, fun, observables, maybe){
-	var reload, observable = SactoryObservable.coff(fun.bind(scope));
-	if(selector) {
-		reload = () => element.textContent = Sactory.convertStyle([{selector, value: fun.call(scope)}]);
-	} else {
-		reload = () => element.textContent = Sactory.convertStyle(fun.call(scope));
-	}
+Sactory.compileAndBindStyle = Sactory.cabs = function({counter, element, bind, selector}, fun, observables, maybe){
+	var className = element["~builder"].scopedClassName = counter.nextPrefix();
+	var conv = selector ? value => ([{selector, value}]) : value => value;
+	var observable = Sactory.coff(() => element.textContent = Sactory.convertStyle(conv(fun(className, Sactory.css))));
 	observable.addDependencies(observables, bind);
 	observable.addMaybeDependencies(maybe, bind);
-	observable.subscribe(reload);
-	reload();
+};
+
+/**
+ * @since 0.129.0
+ */
+Sactory.scope = function({counter, element, bind}){
+	var builder = element["~builder"];
+	var className = builder.scopedClassName;
+	var add = () => {
+		var builder = element.parentNode["~builder"];
+		builder.addClass(className);
+		if(bind) bind.addRollback(() => builder.removeClass(className));
+	};
+	if(element.parentNode) {
+		add();
+	} else {
+		builder.event("append", add, bind);
+	}
 };
 
 /**

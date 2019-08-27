@@ -60,7 +60,7 @@ Sactory.getWidgetsNames = function(){
  * @since 0.112.0
  */
 Sactory.widget = function(element, name){
-	return element.__builderInstance && (name ? element.__builder.widgets[name] : element.__builder.widget) || null;
+	return element["~builder"] && (name ? element["~builder"].widgets[name] : element["~builder"].widget) || null;
 };
 
 /**
@@ -99,20 +99,26 @@ Widget.prototype.render = function(){
  */
 Widget.prototype.dispatchEvent = function(event, options = {}){
 	if(!this.element) throw new Error("Cannot dispatch event: the widget has not been rendered yet.");
-	this.element.__builder.dispatchEvent(event, options);
+	this.element["~builder"].dispatchEvent(event, options);
+};
+
+/**
+ * @since 0.129.0
+ */
+Widget.newInstance = function(Class, context, args){
+	return new Class(args, args, context);
 };
 
 /**
  * @since 0.125.0
  */
-Widget.createClassWidget = function(Class, context, args, namespace){
-	var instance = new Class(args, context);
-	var element = instance.__element = instance.render(args, context);
+Widget.render = function(Class, instance, context, args){
+	var element = instance.__element = instance.render(args, args, context);
 	if(instance instanceof Widget) instance.element = element;
 	if(!(element instanceof Node)) throw new Error("The widget's render function did not return an instance of 'Node', returned '" + element + "' instead.");
 	if(Class.style) Widget.createStyle({__priority: context.__priority, counter: context.counter, document: context.document}, Class, element);
 	if(Class.prototype.style) Widget.createStyle(context, instance, element);
-	return {instance, element};
+	return element;
 };
 
 /*
@@ -124,7 +130,15 @@ Widget.createStyle = function(context, styler, element){
 		styler.__styled = className = context.counter.nextPrefix();
 		styler.style(Polyfill.assign({}, context, {selector: "." + className, element: context.document.head}));
 	}
-	element.__builder.addClass(className);
+	element["~builder"].addClass(className);
+};
+
+/**
+ * @since 0.129.0
+ */
+Widget.newInstanceRender = function(Class, args, context){
+	var instance = Widget.newInstance(Class, context, args);
+	return {instance, element: Widget.render(Class, instance, context, args)};
 };
 
 Sactory.Widget = Widget;

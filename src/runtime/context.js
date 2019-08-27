@@ -46,9 +46,8 @@ Sactory.newContext = function(context, newContext){
  * right context, suitable to be used in chaining.
  * @since 0.128.0
  */
-Sactory.newChainContext = function(scope, context1, context2){
+Sactory.newChainContext = function(context1, context2){
 	return (({__priority, counter, element, bind, anchor, registry, selector}) => ({
-		scope,
 		__priority: __priority + 1,
 		counter, bind, anchor, registry, selector,
 		parentElement: element,

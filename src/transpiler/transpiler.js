@@ -192,23 +192,6 @@ Transpiler.prototype.parseTemplateLiteral = function(expr, parser){
 Transpiler.prototype.updateTemplateLiteralParser = function(){
 	this.parser.parseTemplateLiteral = this.parseTemplateLiteral.bind(this);
 };
-
-/**
- * @since 0.46.0
- */
-Transpiler.prototype.wrapFunction = function(value, ret, ...args){
-	if(value.charAt(0) == '{' && value.charAt(value.length - 1) == '}') {
-		args = args.join(", ");
-		value = value.slice(1, -1);
-		if(this.options.es6) {
-			return `(${args}) => ${ret ? `(${value})` : `{${value}}`}`;
-		} else {
-			return `function(${args}){${ret ? `return (${value})` : value}}.bind(this)`;
-		}
-	} else {
-		return value;
-	}
-};
 	
 /**
  * Inserts a semicolon after a tag creation if needed.
@@ -403,12 +386,18 @@ Transpiler.prototype.open = function(){
 					this.parser.index++;
 					attr.beforeValue = skip();
 					this.parser.parseTemplateLiteral = null;
-					attr.value = this.parser.readAttributeValue();
+					var value = this.parser.readAttributeValue();
+					var parsed = this.parseCode(value);
 					if(attr.type == '+') {
-						attr.value = this.wrapFunction(attr.value, false, "event");
+						var source = parsed.source;
+						if(source.charAt(0) == '{' && source.charAt(source.length - 1) == '}') {
+							attr.value = this.options.es6 ? `(event, target) => ${source}` : `function(event, target)${source}.bind(this)`;
+						} else {
+							attr.value = source;
+						}
+					} else {
+						attr.value = parsed.toAttrValue();
 					}
-					var parsed = this.parseCode(attr.value);
-					attr.value = attr.type != '+' ? parsed.toAttrValue() : parsed.source;
 					attr.sourceValue = parsed.source;
 					skip(true);
 				}
@@ -843,6 +832,7 @@ Transpiler.prototype.open = function(){
 			}
 
 			// before
+
 			if(query) {
 				// querying element(s)
 				var data = [this.feature("query"), element];
@@ -863,6 +853,7 @@ Transpiler.prototype.open = function(){
 				// using specific element(s)
 				before.push([this.feature("use"), element]);
 			}
+
 			if(create) {
 				// tagName must be called before options, so it is calculated before attributes
 				var data = [this.feature(optional ? "createIf" : "create"), false, options()];
@@ -887,13 +878,19 @@ Transpiler.prototype.open = function(){
 			}
 
 			// after
+
 			if(forms.length) {
 				var v = this.value;
-				after.push([this.feature("forms"), forms.map(function(value){
-					value.push("function(" + v + "){" + value.pop() + "=" + v + "}");
-					return "[" + value.join(", ") + "]";
+				after.push([this.feature("forms"), forms.map(value => {
+					if(this.options.es6) {
+						value.push(`${this.value} => {${value.pop()}=${this.value}}`);
+					} else {
+						value.push(`function(${this.value}){${value.pop()}=${this.value}}.bind(this)`);
+					}
+					return `[${value.join(", ")}]`;
 				}).join(", ")]);
 			}
+
 			var appendRef = dattributes.early ? before : after;
 			if(adopt) {
 				var data = [this.feature("adopt")];
@@ -904,14 +901,13 @@ Transpiler.prototype.open = function(){
 				if(parent) feature += "To";
 				if(optional) feature += "If";
 				var data = [this.feature(feature)];
-				var options = [];
-				var aa = this.currentMode.parser.afterappend();
-				var br = this.currentMode.parser.beforeremove();
-				if(aa) options.push("aa:" + aa);
-				if(br) options.push("br:" + br);
 				if(parent) data.push(parent || 0);
-				if(options.length) data.push("{" + options.join(", ") + "}");
 				appendRef.push(data);
+			}
+
+			var chainAfter = this.currentMode.parser.chainAfter();
+			if(chainAfter) {
+				after.push([this.feature(chainAfter)]);
 			}
 
 			// new slots
@@ -930,8 +926,13 @@ Transpiler.prototype.open = function(){
 			if(before && !inline) {
 				// create body
 				hasBody = true;
-				before.push([this.feature("body"), this.options.es6 ? `${this.context} => {` : `function(${this.context}){`]);
-				beforeClosing += "}";
+				if(this.options.es6) {
+					before.push([this.feature("body"), `${this.context} => {`]);
+					beforeClosing += "}";
+				} else {
+					before.push([this.feature("body"), `function(${this.context}){`]);
+					beforeClosing += "}.bind(this)";
+				}
 			}
 
 			// if nothing is used just make sure the right element is returned
@@ -940,7 +941,7 @@ Transpiler.prototype.open = function(){
 			}
 
 			var mapNext = a => `, [${a.join(", ")}]`;
-			this.source.push(`${this.runtime}${all ? ".all" : ""}(this, ${this.arguments}, ${this.context}${before.map(mapNext).join("").slice(0, -1)}`);
+			this.source.push(`${this.runtime}${all ? ".all" : ""}(${this.arguments}, ${this.context}${before.map(mapNext).join("").slice(0, -1)}`);
 			currentClosing.unshift((before.length ? "]" : "") + after.map(mapNext).join("") + skipped + ")");
 
 			currentClosing.unshift(beforeClosing);
@@ -1051,13 +1052,13 @@ Transpiler.prototype.getDefaultAttributeValue = function({type, negated}){
 Transpiler.prototype.compileAttributeParts = function(attr){
 	if(attr.computed) {
 		var names = [];
-		attr.parts.forEach(function(part){
-			if(part.computed) names.push('(' + part.name + ')');
+		attr.parts.forEach(part => {
+			if(part.computed) names.push(`(${part.name})`);
 			else names.push(JSON.stringify(part.name));
 		});
 		attr.name = `${this.feature("attr")}(${names.join(", ")})`;
 	} else {
-		attr.name = attr.parts.map(function(part){ return part.name }).join("");
+		attr.name = attr.parts.map(part => part.name).join("");
 	}
 };
 
@@ -1117,6 +1118,7 @@ Transpiler.prototype.transpile = function(input){
 	this.arguments = this.nextVar();
 	this.inheritance = this.nextVar();
 	this.value = this.nextVar();
+	this.className = this.nextVar();
 
 	this.tagNames = {};
 	var features = this.features = {};
@@ -1217,7 +1219,8 @@ Transpiler.prototype.transpile = function(input){
 			runtime: this.runtime,
 			context: this.context,
 			inheritance: this.inheritance,
-			value: this.value
+			value: this.value,
+			className: this.className
 		},
 		scope: this.options.scope,
 		sequence: this.count,

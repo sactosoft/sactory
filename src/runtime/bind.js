@@ -36,7 +36,7 @@ Bind.prototype.rollback = function(){
 	}
 	if(this.elements.length) {
 		this.elements.forEach(element => {
-			if(element.__builderInstance && element.__builder.events.remove) element.__builder.dispatchEvent("remove", {bubbles: false});
+			if(element["~builder"] && element["~builder"].events.remove) element["~builder"].dispatchEvent("remove", {bubbles: false});
 			if(element.parentNode) element.parentNode.removeChild(element);
 		});
 		this.elements = [];
@@ -332,18 +332,10 @@ Sactory.bindEachMaybe = function(scope, context1, context2, target, getter, fun)
 };
 
 /**
- * @since 0.58.0
+ * @since 0.130.0
  */
-Sactory.subscribe = function({bind}, observable, callback, type){
-	var subscription = SactoryObservable.observe(observable, callback, type, true);
-	if(bind) bind.subscribe(subscription);
-	return subscription;
-};
-
-/**
- * @since 0.119.0
- */
-Sactory.rollback = function({bind}, callback){
+Sactory.$$rollback = function(context1, context2, callback){
+	var { bind } = SactoryContext.context(context1, context2);
 	if(bind) bind.addRollback(callback);
 };
 

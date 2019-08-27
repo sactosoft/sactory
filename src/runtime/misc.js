@@ -92,7 +92,7 @@ Sactory.unique = function(scope, {element}, id, fun){
 	var className = SactoryConfig.config.prefix + id;
 	if(!(element && element.ownerDocument || document).querySelector("." + className)) {
 		var ret = fun.call(scope);
-		ret.__builder.addClass(className);
+		ret["~builder"].addClass(className);
 		return ret;
 	}
 };
@@ -126,21 +126,10 @@ Sactory.inherit = function(target, ...args){
 }
 
 /**
- * @since 0.78.0
- */
-Sactory.on = function(scope, context, name, value){
-	if(arguments.length == 5) {
-		arguments[2].__builder.event(scope, arguments[3], arguments[4], context.bind);
-	} else {
-		context.element.__builder.event(scope, name, value, context.bind);
-	}
-};
-
-/**
  * @since 0.130.0
  */
 Sactory.$$on = function(context1, context2, element, name, value){
-	element.__builder.event(null, name, value, SactoryContext.context(context1, context2).bind);
+	element["~builder"].event(name, value, SactoryContext.context(context1, context2).bind);
 };
 
 /**
