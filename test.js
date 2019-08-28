@@ -61,7 +61,7 @@ function testAll() {
 		if(!info.error) {
 			var outcome = tests.childNodes[i + 1].childNodes[3];
 			<:use (outcome) @textContent="QUEUED" />
-			setTimeout(test.bind(null, info, outcome), ++count * 100);
+			setTimeout(test.bind(null, info, outcome), ++count * (1000 / 30));
 		}
 	});
 }

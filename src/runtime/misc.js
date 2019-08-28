@@ -177,31 +177,33 @@ Sactory.prevId = function(){
 };
 
 /**
- * @since 0.98.0
+ * @since 0.129.0
  */
-Sactory.forEach = function(scope, value, fun){
-	if(value.forEach) {
-		value.forEach(fun.bind(scope));
-	} else {
-		// assuming it's an object
-		var index = 0;
-		for(var key in value) {
-			fun.call(scope, key, value[key], index++, value);
-		}
+Sactory.forEachArray = function(value, fun){
+	value.forEach(fun);
+};
+
+/**
+ * @since 0.129.0
+ */
+Sactory.forEachObject = function(value, fun){
+	var index = 0;
+	for(var key in value) {
+		fun(key, value[key], index++, value);
 	}
 };
 
 /**
  * @since 0.98.0
  */
-Sactory.range = function(scope, from, to, fun){
+Sactory.range = function(from, to, fun){
 	if(from < to) {
 		for(var i=from; i<to; i++) {
-			fun.call(scope, i);
+			fun(i);
 		}
 	} else {
 		for(var i=from; i>to; i--) {
-			fun.call(scope, i);
+			fun(i);
 		}
 	}
 };

@@ -1,5 +1,5 @@
 var a = &;
-var a = &0;
+var b = &0;
 var c = &"string";
 var d = &window.document.documentElement;
 var e = & => 1;

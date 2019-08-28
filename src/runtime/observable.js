@@ -125,7 +125,12 @@ Observable.prototype.shouldUpdate = function(newValue, oldValue){
  * @since 0.129.0
  */
 Observable.prototype.wrapValue = function(value){
+	if(value instanceof Observable) {
+		// copy observable
+		value = value.value;
+	}
 	if(Array.isArray(value) || value instanceof Observable.Array) {
+		// wrap in special container class
 		return new Observable.Array(this, value);
 	} else {
 		return value;

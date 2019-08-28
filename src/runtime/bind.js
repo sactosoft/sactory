@@ -103,7 +103,8 @@ Sactory.anchor = function({element, bind, anchor}){
 /**
  * @since 0.124.0
  */
-Sactory.comment = function({element, bind, anchor}, value){
+Sactory.comment = function(context1, context2, value){
+	var { element, bind, anchor } = SactoryContext.context(context1, context2);
 	var ret = (element && element.ownerDocument || document).createComment(value + "");
 	if(SactoryObservable.isObservable(value)) {
 		var subscription = value.subscribe(value => ret.textContent = value);
@@ -120,19 +121,12 @@ Sactory.comment = function({element, bind, anchor}, value){
 /**
  * @since 0.11.0
  */
-Sactory.bind = function(scope, context, target, fun){
+Sactory.bind = function(context1, context2, dependencies, maybeDependencies, fun){
+	var context = SactoryContext.context(context1, context2);
 	var currentBind = (context.bind || Sactory.bindFactory).fork();
 	var currentAnchor = null;
-	var oldValue;
-	var subscribe = !context.bind ? function(){} : function(subscriptions) {
-		if(context.bind) context.bind.subscribe(subscriptions);
-	};
-	function record(value) {
-		fun.call(scope, Polyfill.assign({}, context, {bind: currentBind, anchor: currentAnchor}), oldValue = value);
-	}
-	function rollback() {
-		currentBind.rollback();
-	}
+	var subscribe = !context.bind ? () => {} : subscriptions => context.bind.subscribe(subscriptions);
+	var reload = () => fun(Polyfill.assign({}, context, {bind: currentBind, anchor: currentAnchor}));
 	if(context.element) {
 		currentAnchor = Sactory.anchor(context);
 		/* debug:
@@ -140,37 +134,19 @@ Sactory.bind = function(scope, context, target, fun){
 		currentAnchor.textContent = " bind ";
 		*/
 	}
-	if(target.observe) target = target.observe;
-	if(target.forEach) {
-		target.forEach(function(ob){
-			subscribe(ob.subscribe(function(){
-				rollback();
-				record();
-			}));
-		});
-		record();
-	} else if(SactoryObservable.isObservable(target)) {
-		subscribe(target.subscribe(function(value){
-			rollback();
-			record(value);
+	dependencies.concat(maybeDependencies.filter(SactoryObservable.isObservable)).forEach(dependency => {
+		subscribe(dependency.subscribe(() => {
+			currentBind.rollback();
+			reload();
 		}));
-		record(target.value);
-	} else {
-		throw new Error("Cannot bind to the given value: not an observable or an array of observables.");
-	}
-};
-
-/**
- * @since 0.130.0
- */
-Sactory.$$bind = function(context1, context2, target, fun){
-
+	});
+	reload();
 };
 
 /**
  * @since 0.102.0
  */
-Sactory.bindIfElse = function(scope, context1, context2, conditions, ...functions){
+Sactory.bindIfElse = function(context1, context2, conditions, ...functions){
 	var context = SactoryContext.context(context1, context2);
 	var currentBindDependencies = (context.bind || Sactory.bindFactory).fork();
 	var currentBindContent = (context.bind || Sactory.bindFactory).fork();
@@ -181,37 +157,37 @@ Sactory.bindIfElse = function(scope, context1, context2, conditions, ...function
 	// filter maybe observables
 	conditions.forEach(([, observables, maybe]) => {
 		if(maybe) {
-			observables.push(...SactoryObservable.filterObservables(maybe));
+			observables.push(...maybe.filter(SactoryObservable.isObservable));
 		}
 	});
 	var active = 0xFEE1DEAD;
 	var results;
-	function reload() {
+	var reload = () => {
 		// reset results
 		results = conditions.map(() => null);
 		// calculate new results and call body
 		for(var i=0; i<results.length; i++) {
 			var [getter] = conditions[i];
-			if(!getter || (results[i] = !!getter.call(scope))) {
+			if(!getter || (results[i] = !!getter())) {
 				active = i;
-				functions[i].call(scope, Polyfill.assign({}, context, {bind: currentBindContent, anchor: currentAnchor}));
+				functions[i](Polyfill.assign({}, context, {bind: currentBindContent, anchor: currentAnchor}));
 				return;
 			}
 		}
 		// no result found
 		active = 0xFEE1DEAD;
-	}
-	function recalc() {
+	};
+	var recalc = () => {
 		currentBindContent.rollback();
 		reload();
-	}
+	};
 	conditions.forEach(([getter, observables], i) => {
 		if(observables) {
 			observables.forEach(dependency => {
-				currentBindDependencies.subscribe(dependency.subscribe(function(){
+				currentBindDependencies.subscribe(dependency.subscribe(() => {
 					if(i <= active) {
 						// the change may affect what is being displayed
-						var result = !!getter.call(scope);
+						var result = !!getter();
 						if(result != results[i]) {
 							// the condition has changes, need to recalc
 							results[i] = result;
@@ -228,106 +204,97 @@ Sactory.bindIfElse = function(scope, context1, context2, conditions, ...function
 /**
  * @since 0.102.0
  */
-Sactory.bindEach = function(scope, context1, context2, target, getter, fun){
+Sactory.bindEach = function(context1, context2, target, getter, fun){
 	var context = SactoryContext.context(context1, context2);
-	if(getter.call(scope).forEach) {
-		var currentBind = (context.bind || Sactory.bindFactory).fork();
-		var firstAnchor, lastAnchor;
-		if(context.element) {
-			firstAnchor = Sactory.anchor(context);
-			lastAnchor = Sactory.anchor(context);
-			/* debug:
-			firstAnchor.textContent = " bind-each:first ";
-			lastAnchor.textContent = " bind-each:last ";
-			*/
-		}
-		var binds = [];
-		function add(action, bind, anchor, value, index, array) {
-			fun.call(scope, Polyfill.assign({}, context, {bind, anchor}), value, index, array);
-			binds[action]({bind, anchor});
-		}
-		function remove(bind) {
-			bind.bind.rollback();
-			if(bind.anchor) bind.anchor.parentNode.removeChild(bind.anchor);
-		}
-		function updateAll() {
-			getter.call(scope).forEach(function(value, index, array){
-				add("push", currentBind.fork(), context.element ? Sactory.anchor({element: context.element, bind: currentBind, anchor: lastAnchor}) : null, value, index, array);
-			});
-		}
-		currentBind.subscribe(target.subscribe(function(array, _, type, data){
-			switch(type) {
-				case SactoryConst.OUT_ARRAY_SET:
-					var [index, value] = data;
-					var ptr = binds[index];
-					if(ptr) {
-						// replace
-						ptr.bind.rollback();
-						fun.call(scope, Polyfill.assign({}, context, ptr), value, index, array);
-					} else {
-						//TODO
-					}
-					break;
-				case SactoryConst.OUT_ARRAY_PUSH:
-					Array.prototype.forEach.call(data, function(value, i){
-						add("push", currentBind.fork(), context.element ? Sactory.anchor({element: context.element, bind: currentBind, anchor: lastAnchor}) : null, value, array.length - data.length + i, array);
-					});
-					break;
-				case SactoryConst.OUT_ARRAY_POP:
-					var popped = binds.pop();
-					if(popped) remove(popped);
-					break;
-				case SactoryConst.OUT_ARRAY_UNSHIFT:
-					Array.prototype.forEach.call(data, function(value){
-						add("unshift", currentBind.fork(), context.element ? Sactory.anchor({element: context.element, bind: currentBind, anchor: firstAnchor.nextSibling}) : null, value, 0, array);
-					});
-					break;
-				case SactoryConst.OUT_ARRAY_SHIFT:
-					var shifted = binds.shift();
-					if(shifted) remove(shifted);
-					break;
-				case SactoryConst.OUT_ARRAY_SPLICE:
-					// insert new elements then call splice on binds and rollback
-					var index = data[0];
-					var ptr = binds[index];
-					var anchorTo = ptr && ptr.anchor && ptr.anchor.nextSibling;
-					var args = [];
-					Array.prototype.slice.call(data, 2).forEach(function(value){
-						args.push({value});
-					});
-					Array.prototype.splice.apply(binds, Array.prototype.slice.call(data, 0, 2).concat(args)).forEach(function(removed){
-						removed.bind.rollback();
-						if(removed.anchor) removed.anchor.parentNode.removeChild(removed.anchor);
-					});
-					args.forEach(function(info, i){
-						info.bind = currentBind.fork();
-						info.anchor = anchorTo ? Sactory.anchor({element: context.element, bind: currentBind, anchor: anchorTo}) : null;
-						fun.call(scope, Polyfill.assign({}, context, {bind: info.bind, anchor: info.anchor}), info.value, i + index, array);
-					});
-					break;
-				default:
-					binds.forEach(remove);
-					binds = [];
-					updateAll();
-			}
-		}));
-		updateAll();
-	} else {
-		// use normal bind and Sactory.forEach
-		Sactory.bind(scope, context, target, context => {
-			SactoryMisc.forEach(scope, getter.call(scope), (...args) => fun.call(scope, context, ...args));
+	var currentBind = (context.bind || Sactory.bindFactory).fork();
+	var firstAnchor, lastAnchor;
+	if(context.element) {
+		firstAnchor = Sactory.anchor(context);
+		lastAnchor = Sactory.anchor(context);
+		/* debug:
+		firstAnchor.textContent = " bind-each:first ";
+		lastAnchor.textContent = " bind-each:last ";
+		*/
+	}
+	var binds = [];
+	function add(action, bind, anchor, value, index, array) {
+		fun(Polyfill.assign({}, context, {bind, anchor}), value, index, array);
+		binds[action]({bind, anchor});
+	}
+	function remove(bind) {
+		bind.bind.rollback();
+		if(bind.anchor) bind.anchor.parentNode.removeChild(bind.anchor);
+	}
+	function updateAll() {
+		getter().forEach((value, index, array) => {
+			add("push", currentBind.fork(), context.element ? Sactory.anchor({element: context.element, bind: currentBind, anchor: lastAnchor}) : null, value, index, array);
 		});
 	}
+	currentBind.subscribe(target.subscribe((array, _, type, data) => {
+		switch(type) {
+			case SactoryConst.OUT_ARRAY_SET:
+				var [index, value] = data;
+				var ptr = binds[index];
+				if(ptr) {
+					// replace
+					ptr.bind.rollback();
+					fun(Polyfill.assign({}, context, ptr), value, index, array);
+				} else {
+					//TODO
+				}
+				break;
+			case SactoryConst.OUT_ARRAY_PUSH:
+				Array.prototype.forEach.call(data, (value, i) => {
+					add("push", currentBind.fork(), context.element ? Sactory.anchor({element: context.element, bind: currentBind, anchor: lastAnchor}) : null, value, array.length - data.length + i, array);
+				});
+				break;
+			case SactoryConst.OUT_ARRAY_POP:
+				var popped = binds.pop();
+				if(popped) remove(popped);
+				break;
+			case SactoryConst.OUT_ARRAY_UNSHIFT:
+				Array.prototype.forEach.call(data, value => {
+					add("unshift", currentBind.fork(), context.element ? Sactory.anchor({element: context.element, bind: currentBind, anchor: firstAnchor.nextSibling}) : null, value, 0, array);
+				});
+				break;
+			case SactoryConst.OUT_ARRAY_SHIFT:
+				var shifted = binds.shift();
+				if(shifted) remove(shifted);
+				break;
+			case SactoryConst.OUT_ARRAY_SPLICE:
+				// insert new elements then call splice on binds and rollback
+				var index = data[0];
+				var ptr = binds[index];
+				var anchorTo = ptr && ptr.anchor && ptr.anchor.nextSibling;
+				var args = Array.prototype.slice.call(data, 2).map(value => ({value}));
+				binds.splice(data[0], data[1], ...args).forEach(removed => {
+					removed.bind.rollback();
+					if(removed.anchor) removed.anchor.parentNode.removeChild(removed.anchor);
+				});
+				args.forEach((info, i) => {
+					info.bind = currentBind.fork();
+					info.anchor = anchorTo ? Sactory.anchor({element: context.element, bind: currentBind, anchor: anchorTo}) : null;
+					fun(Polyfill.assign({}, context, {bind: info.bind, anchor: info.anchor}), info.value, i + index, array);
+				});
+				break;
+			default:
+				binds.forEach(remove);
+				binds = [];
+				updateAll();
+		}
+	}));
+	updateAll();
 };
 
 /**
  * @since 0.102.0
  */
-Sactory.bindEachMaybe = function(scope, context1, context2, target, getter, fun){
+Sactory.bindEachMaybe = function(context1, context2, target, getter, fun){
 	if(SactoryObservable.isObservable(target)) {
-		Sactory.bindEach(scope, context1, context2, target, getter, fun);
+		Sactory.bindEach(context1, context2, target, getter, fun);
 	} else {
-		SactoryMisc.forEach(scope, getter.call(scope), (...args) => fun.call(scope, context, ...args));
+		var context = SactoryContext.context(context1, context2);
+		SactoryMisc.forEach(scope, getter(), (...args) => fun(context, ...args));
 	}
 };
 

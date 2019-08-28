@@ -48,7 +48,9 @@ function Mode(transpiler, parser, source, attributes) {
 	this.parser = parser;
 	this.source = source;
 	this.runtime = transpiler.runtime;
+	this.arguments = transpiler.arguments;
 	this.context = transpiler.context;
+	this.es6 = transpiler.options.es6;
 	this.attributes = attributes;
 }
 
@@ -155,7 +157,7 @@ TextExprMode.prototype.addCurrent = function(){
 		var expr = this.current.filter(c => !c.text || c.value.length);
 		if(expr.length) {
 			// create joined
-			var joined = this.transpiler.options.es6 ?
+			var joined = this.es6 ?
 				`\`${expr.map(({text, value}) => text ? this.replaceText(value).replace(/(`|\\)/gm, "\\$1") : "${" + value.source + "}").join("")}\`` :
 				`"" + ${expr.map(({text, value}) => text ? stringify(this.replaceText(value)) : `(${value.source})`).join(" + ")}`;
 			// collect observables
@@ -168,7 +170,7 @@ TextExprMode.prototype.addCurrent = function(){
 				}
 			});
 			if(observables.length || maybeObservables.length) {
-				joined = `${this.transpiler.feature("bo")}(${this.transpiler.options.es6 ? `() => ${joined}` : `function(){return ${joined}}.bind(this)`}, [${uniq(observables).join(", ")}]${maybeObservables.length ? `, [${uniq(maybeObservables).join(", ")}]` : ""})`
+				joined = `${this.transpiler.feature("bo")}(${this.es6 ? `() => ${joined}` : `function(){return ${joined}}.bind(this)`}, [${uniq(observables).join(", ")}]${maybeObservables.length ? `, [${uniq(maybeObservables).join(", ")}]` : ""})`
 			}
 			this.addText(joined);
 		}
@@ -198,7 +200,7 @@ TextExprMode.prototype.endChain = function(){
 		}
 	});
 	if(!empty) {
-		this.add(`${this.runtime}(${this.transpiler.arguments}, ${this.context}${source});`);
+		this.add(`${this.runtime}(${this.arguments}, ${this.context}${source});`);
 	} else {
 		this.add(source);
 	}
@@ -406,17 +408,31 @@ LogicMode.prototype.parseLogic = function(expected, type, closing){
 						rest = parser.input.substr(parser.index);
 					}
 					if(expr) {
-						// divided in 4 parts so it can be modified later
-						this.add(this.transpiler.feature("forEach") + "(this, ")
-						this.add(expr);
-						this.add(", function(");
-						this.add(rest + ")");
+						var column = rest.indexOf(":");
+						if(column == -1) {
+							// divided in 4 parts so it can be modified later
+							this.add(this.transpiler.feature("forEachArray") + "(")
+							this.add(expr);
+							if(this.es6) {
+								this.add(", (");
+								this.add(rest + ") =>");
+							} else {
+								this.add(", function(");
+								this.add(rest + ")");
+							}
+						} else {
+							// object
+							statement.type = part.type = "object-foreach";
+							rest = rest.substring(0, column) + "," + rest.substr(column + 1);
+							this.add(`${this.transpiler.feature("forEachObject")}(${expr}, ${this.es6 ? `(${rest}) =>` : `function(${rest})`}`);
+						}
 					} else {
 						statement.type = part.type = "range";
-						this.add(`${this.transpiler.feature("range")}(this, ${from}, ${to}, function(${rest})`);
+						this.add(`${this.transpiler.feature("range")}(${from}, ${to}, ${this.es6 ? `(${rest}) =>` : `function(${rest})`}`);
 					}
+					if(!this.es6) statement.end += ".bind(this)";
+					statement.end += ");";
 					statement.inlineable = false;
-					statement.end = ");";
 				} else {
 					this.add(expected + skipped + source);
 				}
@@ -441,7 +457,7 @@ LogicMode.prototype.parseLogic = function(expected, type, closing){
 };
 
 LogicMode.prototype.find = function(){
-	return this.parser.find(['$', '#', '<', 'c', 'l', 'v', 'b', 'd', 'i', 'e', 'f', 'w', 's', '}', '\n'], false, false);
+	return this.parser.find(['$', '#', '<', 'c', 'l', 'v', 'b', 'd', 'i', 'e', 'f', 's', '}', '\n'], false, false);
 };
 
 LogicMode.prototype.parse = function(handle, eof){
@@ -471,9 +487,6 @@ LogicMode.prototype.parse = function(handle, eof){
 			break;
 		case 'f':
 			if(!this.parseLogic("foreach", 1) && !this.parseLogic("for", 1)) this.pushText('f');
-			break;
-		case 'w':
-			if(!this.parseLogic("while", 1)) this.pushText('w');
 			break;
 		case 's':
 			if(!this.parseLogic("switch", 1)) this.pushText('s');
@@ -529,13 +542,13 @@ LogicMode.prototype.end = function(){
 			if(popped.type == "if") {
 				// calculate conditions and remove them from source
 				var conditions = [];
-				var replacement = `, function(${this.context})`;
-				popped.parts.forEach(function(part){
+				var replacement = this.es6 ? `, ${this.context} =>` : `, function(${this.context})`;
+				popped.parts.forEach(part => {
 					var source = this.source[part.declStart].substr(part.type.length);
 					if(part.type == "else") {
 						conditions.push("[]");
 					} else {
-						var condition = this.transpiler.options.es6 ? `() => ${source}` : `function(){return ${source}}`;
+						var condition = this.es6 ? `() => ${source}` : `function(){return ${source}}.bind(this)`;
 						conditions.push(`[${condition}, [${uniq(part.observables)}]${part.maybeObservables.length ? `, [${uniq(part.maybeObservables)}]` : ""}]`);
 					}
 					this.source[part.declStart] = replacement;
@@ -543,24 +556,30 @@ LogicMode.prototype.end = function(){
 						this.source[part.declStart] += "{";
 						this.source[part.close] += "}";
 					}
-				}.bind(this));
-				this.source[popped.startIndex] = `${this.transpiler.feature("bindIfElse")}(this, ${this.transpiler.arguments}, ${this.context}, [${conditions.join(", ")}]` + this.source[popped.startIndex];
-				this.source[popped.endIndex] = ");" + this.source[popped.endIndex];
+				});
+				this.source[popped.startIndex] = `${this.transpiler.feature("bindIfElse")}(${this.arguments}, ${this.context}, [${conditions.join(", ")}]` + this.source[popped.startIndex];
+				this.source[popped.endIndex] = (this.es6 ? "" : ".bind(this)") + ");" + this.source[popped.endIndex];
 			} else if(popped.type == "foreach") {
 				// the source is divided in 4 parts
 				var expr = this.source[popped.startIndex + 1];
-				var getter = this.transpiler.options.es6 ? `() => ${expr}` : `function(){return ${expr}}`;
+				var getter = this.es6 ? `() => ${expr}` : `function(){return ${expr}}.bind(this)`;
 				var maybe = !!popped.maybeObservables.length;
 				this.source[popped.startIndex] = "";
 				this.source[popped.startIndex + 1] = "";
-				this.source[popped.startIndex + 2] = `${this.transpiler.feature("bindEach" + (maybe ? "Maybe" : ""))}(this, ${this.transpiler.arguments}, ${this.context}, ${(maybe ? popped.maybeObservables : popped.observables)[0]}, ${getter}, function(${this.context}, `;
+				this.source[popped.startIndex + 2] = `${this.transpiler.feature("bindEach" + (maybe ? "Maybe" : ""))}(${this.arguments}, ${this.context}, ${(maybe ? popped.maybeObservables : popped.observables)[0]}, ${getter}, ${!this.es6 ? "function" : ""}(${this.context}, `;
 				// no need to close as the end is the same as the Sactory.forEach function call
 			} else {
 				// normal bind
-				this.source[popped.startIndex] = this.transpiler.feature("bind") + "(this, " + this.context +
-					", [" + uniq(popped.observables).join(", ") + "]" + (popped.maybeObservables.length ? ".concat(" + this.transpiler.feature("filterObservables") + "([" + uniq(popped.maybeObservables) + "]))" : "") +
-					", function(" + this.context + "){" + this.source[popped.startIndex];
-				this.source[popped.endIndex] = "});" + this.source[popped.endIndex];
+				var start = `${this.transpiler.feature("bind")}(${this.arguments}, ${this.transpiler.context}, [${uniq(popped.observables).join(", ")}], [${popped.maybeObservables.join(", ")}], `;
+				var end = "}";
+				if(this.es6) {
+					start += `${this.context} => `;
+				} else {
+					start += `function(${this.context})`;
+					end += ".bind(this)";
+				}
+				this.source[popped.startIndex] = `${start}{${this.source[popped.startIndex]}`;
+				this.source[popped.endIndex] = `${end});${this.source[popped.endIndex]}`;
 			}
 		}
 		if(popped.end.length) {
@@ -721,7 +740,7 @@ SourceCodeMode.prototype.next = function(match){
 					var fname = functions[i];
 					if(Polyfill.startsWith.call(input, fname + "(")) {
 						this.parser.index += fname.length + 1;
-						this.add(`$$${fname}(${this.transpiler.arguments}, ${this.transpiler.context}, `);
+						this.add(`$$${fname}(${this.arguments}, ${this.transpiler.context}, `);
 						this.parser.last = ',';
 						return;
 					}
@@ -732,7 +751,7 @@ SourceCodeMode.prototype.next = function(match){
 		case '&':
 			var skip = () => this.parser.skipImpl({strings: false});
 			var args = (parsed, async) => {
-				var ac = `${this.transpiler.arguments}, ${this.transpiler.context}, `;
+				var ac = `${this.arguments}, ${this.transpiler.context}, `;
 				if(async) this.add(`.async()`);
 				if(parsed.observables.length) this.add(`.d(${ac}${uniq(parsed.observables).join(", ")})`);
 				if(parsed.maybeObservables.length) this.add(`.m(${ac}${uniq(parsed.maybeObservables).join(", ")})`);
@@ -868,12 +887,12 @@ SourceCodeMode.prototype.next = function(match){
 					//TODO do not inject when there is already a rest parameter
 					var info = find(1);
 					var char = info.source.charAt(-info.left - 1);
-					inject((char != '(' && char != ',' ? ", " : "") + "..." + this.transpiler.arguments, info);
+					inject((char != '(' && char != ',' ? ", " : "") + "..." + this.arguments, info);
 				} else {
 					// wrap single argument (one keyword)
 					// inject after the keyword
 					var info = find(2);
-					inject(`, ...${this.transpiler.arguments})`, info);
+					inject(`, ...${this.arguments})`, info);
 					// add open parenthesis
 					var index = info.index;
 					var source = this.transpiler.source[index]; // getting it again as it may be changed
@@ -895,7 +914,7 @@ SourceCodeMode.prototype.next = function(match){
 			this.restoreIndex('{');
 			if(!this.attributes.inAttr && fun && !this.parser.lastKeywordAtIn(this.parser.lastParenthesis, "if", "else", "for", "while", "do", "switch", "catch")) {
 				// new function declaration, inject arguments declaration
-				this.add(`var ${this.transpiler.arguments}=arguments;`);
+				this.add(`var ${this.arguments}=arguments;`);
 			}
 			break;
 	}
@@ -1027,14 +1046,14 @@ SSBMode.prototype.skip = function(){
 SSBMode.prototype.start = function(){
 	var args = this.transpiler.className;
 	if(this.attributes.dollar != false) args += ", $";
-	this.add(`${this.transpiler.feature("cabs")}(${this.context}, ${this.transpiler.options.es6 ? `(${args}) => ` : `function(${args})`}{`);
+	this.add(`${this.transpiler.feature("cabs")}(${this.context}, ${this.es6 ? `(${args}) => ` : `function(${args})`}{`);
 	this.add(`var ${this.scopes[0]}=${this.transpiler.feature("root")}();`);
 	if(this.scoped) this.addScope(`'.' + ${this.transpiler.className}`);
 	else if(this.scope) this.addScope(JSON.stringify('.' + this.scope));
 };
 
 SSBMode.prototype.find = function(){
-	return this.parser.find(['$', '<', 'v', 'c', 'l', 'i', 'e', 'f', 'w', '{', '}', ';'], false, false);
+	return this.parser.find(['$', '<', 'v', 'c', 'l', 'i', 'e', 'f', '{', '}', ';'], false, false);
 };
 
 SSBMode.prototype.lastValue = function(callback, parser){
@@ -1163,7 +1182,7 @@ SSBMode.prototype.end = function(){
 		}
 	});
 	// add return statement
-	this.add(`return ${this.scopes[0]}.content}${this.transpiler.options.es6 ? "" : ".bind(this)"}, [${uniq(this.observables).join(", ")}], [${this.maybeObservables.join(", ")}])`);
+	this.add(`return ${this.scopes[0]}.content}${this.es6 ? "" : ".bind(this)"}, [${uniq(this.observables).join(", ")}], [${this.maybeObservables.join(", ")}])`);
 };
 
 SSBMode.prototype.chainAfter = function(){

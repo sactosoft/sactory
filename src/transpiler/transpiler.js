@@ -201,7 +201,7 @@ Transpiler.prototype.addSemicolon = function(){
 	if(this.currentMode.options.code) {
 		var skip = this.parser.skip();
 		var peek = this.parser.peek();
-		if(peek != ';' && peek != ':' && peek != ',' && peek != '.' && peek != ')' && peek != ']' && peek != '}' && peek != '&' && peek != '|') this.source.push(";");
+		if(!/[;:,.)\]}&|=]/.test(peek)) this.source.push(";");
 		if(skip) this.source.push(skip);
 	} else {
 		this.source.push(";");
@@ -256,7 +256,7 @@ Transpiler.prototype.open = function(){
 			if(next == "--") {
 				// xml comment
 				this.parser.index += 2;
-				this.source.push(this.feature("comment") + "(" + this.context + ", " + this.parseText(this.parser.findSequence("-->", true).slice(0, -3)) + ")");
+				this.source.push(`${this.feature("comment")}(${this.arguments}, ${this.context}, ${this.parseText(this.parser.findSequence("-->", true).slice(0, -3))})`);
 				this.addSemicolon();
 			} else if(next == "/*") {
 				// code comment
@@ -808,10 +808,10 @@ Transpiler.prototype.open = function(){
 				this.source.push(" = ");
 			}
 
-			if(dattributes.unique) {
+			/*if(dattributes.unique) {
 				this.source.push(`${this.feature("unique")}(this, ${this.context}, ${this.nextId()}, function(){return `);
 				currentClosing.unshift("})");
-			}
+			}*/
 
 			var before = [], after = [];
 			var beforeClosing = "";
@@ -819,9 +819,15 @@ Transpiler.prototype.open = function(){
 			var hasBody = false;
 
 			if(tagName == ":bind") {
-				this.source.push(this.feature("bind") + "(" + ["this", this.context, dattributes.to].join(", ") +
-					", function(" + this.context + (dattributes.as ? ", " + dattributes.as : "") + "){");
-				currentClosing.unshift("})");
+				var to = dattributes.to;
+				this.source.push(`${this.feature("bind")}(${this.arguments}, ${this.context}, [${Array.isArray(to) ? to : to.join(", ")}], `);
+				if(this.options.es6) {
+					this.source.push(`${this.context} => {`);
+					currentClosing.unshift("})");
+				} else {
+					this.source.push(`function(${this.context}){`);
+					currentClosing.unshift("}.bind(this))");
+				}
 			}
 
 			if(tagName == ":xml") {
