@@ -1134,6 +1134,7 @@ Transpiler.prototype.transpile = function(input){
 	this.inheritance = this.nextVar();
 	this.value = this.nextVar();
 	this.className = this.nextVar();
+	this.unit = this.nextVar();
 
 	this.tagNames = {};
 	var features = this.features = {};
@@ -1235,9 +1236,7 @@ Transpiler.prototype.transpile = function(input){
 			chain: this.chain,
 			context: this.context,
 			arguments: this.arguments,
-			inheritance: this.inheritance,
-			value: this.value,
-			className: this.className
+			inheritance: this.inheritance
 		},
 		scope: this.options.scope,
 		sequence: this.count,

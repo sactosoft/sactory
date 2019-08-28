@@ -33,45 +33,33 @@ Sactory.select = function(parent, selector){
 	return ret;
 };
 
-/**
- * Converts a css unit to a number and update the `unit` object that stores
- * the unit type.
- * @param {Object} unit - Storage for the unit. The same expression should use the same storage.
- * @param {string|*} value - The value that, if of type string, is checked for unit conversion.
- * @returns The value stripped from the unit and converted to number, if a unit was found, or the unmodified value.
- * @throws {Error} If a unit has already been used in the same expression and it's different from the current one.
- * @since 0.37.0
+var units = ["px", "%", "rem", "em", "s", "pt", "vh", "vw", "vmin", "vmax", "cm", "mm", "in", "pc", "ex", "ch"];
+
+/** 
+ * @since 0.130.0
  */
-Sactory.unit = function(unit, value){
-	if(typeof value == "string") {
-		function check(u) {
-			if(Polyfill.endsWith.call(value, u)) {
-				if(unit.unit && unit.unit != u) throw new Error("Units '" + unit.unit + "' and '" + u + "' are not compatible. Use the calc() css function instead.");
-				unit.unit = u;
-				value = parseFloat(value.substring(0, value.length - u.length));
-				return true;
+Sactory.computeUnit = Sactory.cu = function(fun){
+	var unit = "";
+	var value = fun(value => {
+		if(typeof value == "string") {
+			for(var i in units) {
+				var u = units[i];
+				if(Polyfill.endsWith.call(value, u)) {
+					var number = +value.slice(0, -u.length);
+					if(!isNaN(number)) {
+						if(unit && unit != u) {
+							throw new Error(`Units '${unit}' and '${u}' are not compatible. Use the calc() css function instead.`);
+						} else {
+							unit = u;
+							return number;
+						}
+					}
+				}
 			}
 		}
-		check("cm") || check("mm") || check("in") || check("px") || check("pt") || check("pc") ||
-		check("rem") || check("em") || check("ex") || check("ch") || check("vw") || check("vh") || check("vmin") || check("vmax") || check("%") ||
-		check("s");
-	}
-	return value;
-};
-
-/**
- * Computes the result of an expression that uses {@link unit}.
- * @param {Object} unit - Storage for the unit populated by {@link unit}.
- * @param {number|*} result - The result of the expression. If a number it is checked for unit concatenation and rounded to 3 decimal places.
- * @returns the number concatenated with the unit if present, the unmodified value otherwise.
- * @since 0.37.0
- */
-Sactory.computeUnit = function(unit, result){
-	if(typeof result == "number" && unit.unit) {
-		return Math.round(result * 1000) / 1000 + unit.unit;
-	} else {
-		return result;
-	}
+		return value;
+	});
+	return typeof value == "number" ? Math.round(value * 10000) / 10000 + unit : value;
 };
 
 Sactory.compileStyle = function(root) {
