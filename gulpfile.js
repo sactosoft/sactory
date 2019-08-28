@@ -84,7 +84,7 @@ gulp.task("dist:sactory", function(){
 		"runtime/config", // must be first
 		"runtime/animation",
 		"runtime/bind",
-		"runtime/builder",
+		"runtime/core",
 		"runtime/chain",
 		"runtime/const",
 		"runtime/context",

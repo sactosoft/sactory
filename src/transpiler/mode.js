@@ -193,14 +193,14 @@ TextExprMode.prototype.endChain = function(){
 		if(type) {
 			// text or mixin
 			empty = false;
-			source += `, [${this.transpiler.feature(type)}, ${data.join("")}]`;
+			source += `, [${this.transpiler.chainFeature(type)}, ${data.join("")}]`;
 		} else {
 			// whitespace
 			source += data[0];
 		}
 	});
 	if(!empty) {
-		this.add(`${this.runtime}(${this.arguments}, ${this.context}${source});`);
+		this.add(`${this.transpiler.chain}(${this.arguments}, ${this.context}${source});`);
 	} else {
 		this.add(source);
 	}
@@ -1186,7 +1186,7 @@ SSBMode.prototype.end = function(){
 };
 
 SSBMode.prototype.chainAfter = function(){
-	if(this.scoped) return "scope";
+	if(this.scoped) return [this.transpiler.feature("scope")];
 };
 
 SSBMode.createExprImpl = function(expr, info, transpiler){

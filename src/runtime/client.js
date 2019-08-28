@@ -2,7 +2,7 @@ function defineBuilder(Class) {
 	Object.defineProperty(Class.prototype, "~builder", {
 		configurable: true,
 		get() {
-			var value = new Builder(this);
+			var value = new Sactory(this);
 			Object.defineProperty(this, "~builder", {value});
 			return value;
 		}

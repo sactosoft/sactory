@@ -841,28 +841,28 @@ Transpiler.prototype.open = function(){
 
 			if(query) {
 				// querying element(s)
-				var data = [this.feature("query"), element];
+				var data = [this.chainFeature("query"), element];
 				if(parent) data.push(parent);
 				before.push(data);
 			} else if(clone) {
 				// cloning an element
-				var data = [this.feature("clone"), element];
+				var data = [this.chainFeature("clone"), element];
 				if(Object.prototype.hasOwnProperty.call(dattributes, "deep")) data.push(+dattributes.deep);
 				before.push(data);
 			} else if(slotName) {
 				// using a slot
-				var data = [this.feature("slot"), `"${slotName}"`];
+				var data = [this.chainFeature("slot"), `"${slotName}"`];
 				if(tagName) data.push(`"${tagName}"`);
 				before.push(data);
 				append = false;
 			} else if(element) {
 				// using specific element(s)
-				before.push([this.feature("use"), element]);
+				before.push([this.chainFeature("use"), element]);
 			}
 
 			if(create) {
 				// tagName must be called before options, so it is calculated before attributes
-				var data = [this.feature(optional ? "createIf" : "create"), false, options()];
+				var data = [this.chainFeature(optional ? "createIf" : "create"), false, options()];
 				if(widget) {
 					data[1] = this.runtime + ".widgets." + widget;
 				} else if(computed || this.options.widgets && this.options.widgets.indexOf(tagName) != -1) {
@@ -874,12 +874,12 @@ Transpiler.prototype.open = function(){
 				before.push(data);
 			} else if(update) {
 				if(dattributes.clear) {
-					before.push([this.feature("clear")]);
+					before.push([this.chainFeature("clear")]);
 				}
 				var optString = options().toString();
 				if(optString.length > 2) {
 					// only trigger update if needed
-					before.push([this.feature("update"), optString]);
+					before.push([this.chainFeature("update"), optString]);
 				}
 			}
 
@@ -887,7 +887,7 @@ Transpiler.prototype.open = function(){
 
 			if(forms.length) {
 				var v = this.value;
-				after.push([this.feature("forms"), forms.map(value => {
+				after.push([this.chainFeature("forms"), forms.map(value => {
 					if(this.options.es6) {
 						value.push(`${this.value} => {${value.pop()}=${this.value}}`);
 					} else {
@@ -899,21 +899,21 @@ Transpiler.prototype.open = function(){
 
 			var appendRef = dattributes.early ? before : after;
 			if(adopt) {
-				var data = [this.feature("adopt")];
+				var data = [this.chainFeature("adopt")];
 				if(parent) data.append(parent);
 				appendRef.push(data);
 			} else if(append) {
 				var feature = "append";
 				if(parent) feature += "To";
 				if(optional) feature += "If";
-				var data = [this.feature(feature)];
+				var data = [this.chainFeature(feature)];
 				if(parent) data.push(parent || 0);
 				appendRef.push(data);
 			}
 
 			var chainAfter = this.currentMode.parser.chainAfter();
 			if(chainAfter) {
-				after.push([this.feature(chainAfter)]);
+				after.push(chainAfter);
 			}
 
 			// new slots
@@ -922,7 +922,7 @@ Transpiler.prototype.open = function(){
 			if(dattributes["slot-container"]) dattributes.slot.push(this.runtime + ".SL_CONTAINER");
 			if(dattributes["slot-input"]) dattributes.slot.push(this.runtime + ".SL_INPUT");
 			if(dattributes.slot.length) {
-				before.push([this.feature("slots"), `[${dattributes.slot.map(a => a === true ? 0 : a).join(", ")}]`]);
+				before.push([this.chainFeature("slots"), `[${dattributes.slot.map(a => a === true ? 0 : a).join(", ")}]`]);
 			}
 
 			if(next == '/') {
@@ -933,21 +933,21 @@ Transpiler.prototype.open = function(){
 				// create body
 				hasBody = true;
 				if(this.options.es6) {
-					before.push([this.feature("body"), `${this.context} => {`]);
+					before.push([this.chainFeature("body"), `${this.context} => {`]);
 					beforeClosing += "}";
 				} else {
-					before.push([this.feature("body"), `function(${this.context}){`]);
+					before.push([this.chainFeature("body"), `function(${this.context}){`]);
 					beforeClosing += "}.bind(this)";
 				}
 			}
 
 			// if nothing is used just make sure the right element is returned
 			if(!before.length && !after.length) {
-				before.push([this.feature("nop")]);
+				before.push([this.chainFeature("nop")]);
 			}
 
 			var mapNext = a => `, [${a.join(", ")}]`;
-			this.source.push(`${this.runtime}${all ? ".all" : ""}(${this.arguments}, ${this.context}${before.map(mapNext).join("").slice(0, -1)}`);
+			this.source.push(`${this.chain}${all ? ".all" : ""}(${this.arguments}, ${this.context}${before.map(mapNext).join("").slice(0, -1)}`);
 			currentClosing.unshift((before.length ? "]" : "") + after.map(mapNext).join("") + skipped + ")");
 
 			currentClosing.unshift(beforeClosing);
@@ -1094,6 +1094,14 @@ Transpiler.prototype.feature = function(name){
 };
 
 /**
+ * @since 0.130.0
+ */
+Transpiler.prototype.chainFeature = function(name){
+	this.features["chain." + name] = true;
+	return this.chain + "." + name;
+};
+
+/**
  * @since 0.62.0
  */
 Transpiler.prototype.nextVar = function(){
@@ -1120,6 +1128,7 @@ Transpiler.prototype.transpile = function(input){
 	this.count = hash((this.options.namespace || this.options.filename) + "") % 100000;
 	
 	this.runtime = this.nextVar();
+	this.chain = this.nextVar();
 	this.context = this.nextVar();
 	this.arguments = this.nextVar();
 	this.inheritance = this.nextVar();
@@ -1170,7 +1179,7 @@ Transpiler.prototype.transpile = function(input){
 		}
 	}
 	if(this.options.before) this.before += this.options.before;
-	this.before += `var ${this.arguments}=[];var ${this.inheritance}=[];var ${this.context}=${this.runtime}.init(${this.count});`;
+	this.before += `var ${this.chain}=${this.runtime}.chain;var ${this.arguments}=[];var ${this.inheritance}=[];var ${this.context}=${this.runtime}.init(${this.count});`;
 	if(!this.options.hasOwnProperty("versionCheck") || this.options.versionCheck) this.before += `${this.runtime}.check("${v}");`;
 	this.source = [];
 
@@ -1223,7 +1232,9 @@ Transpiler.prototype.transpile = function(input){
 		time: now() - start,
 		variables: {
 			runtime: this.runtime,
+			chain: this.chain,
 			context: this.context,
+			arguments: this.arguments,
 			inheritance: this.inheritance,
 			value: this.value,
 			className: this.className
@@ -1260,23 +1271,23 @@ Transpiler.prototype.calcDeps = function(moduleType, before, after){
 
 var dependencies = {
 	// chain
-	query: ["use"],
-	update: ["updateImpl"],
-	create: ["updateImpl"],
-	createIf: ["update", "create"],
-	mixin: ["appendTo", "html"],
-	append: ["appendTo"],
-	appendToIf: ["appendTo"],
-	appendIf: ["append"],
+	"chain.query": ["chain.use"],
+	"chain.update": ["chain.updateImpl"],
+	"chain.create": ["chain.updateImpl"],
+	"chain.createIf": ["chain.update", "chain.create"],
+	"chain.mixin": ["chain.appendTo", "chain.html"],
+	"chain.append": ["chain.appendTo"],
+	"chain.appendToIf": ["chain.appendTo"],
+	"chain.appendIf": ["chain.append"],
 	// bind
-	bind: ["anchor"],
-	bindIf: ["bind"],
-	bindEach: ["bind"],
-	// observable
-	maybeComputedObservable: ["filterObservables", "computedObservable"],
-	// cssb
-	convertStyle: ["compileStyle"],
-	compileAndBindStyle: ["convertStyle"],
+	"comment": ["anchor"],
+	"bind": ["anchor"],
+	"bindIfElse": ["anchor"],
+	"bindEach": ["anchor"],
+	"bindEachMaybe": ["bindEach", "forEachArray"],
+	// style
+	"convertStyle": ["compileStyle"],
+	"cabs": ["convertStyle"],
 };
 
 module.exports = Transpiler;

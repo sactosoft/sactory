@@ -104,12 +104,12 @@ Sactory.anchor = function({element, bind, anchor}){
  * @since 0.124.0
  */
 Sactory.comment = function(context1, context2, value){
-	var { element, bind, anchor } = SactoryContext.context(context1, context2);
-	var ret = (element && element.ownerDocument || document).createComment(value + "");
-	if(SactoryObservable.isObservable(value)) {
+	var { element, document, bind, anchor } = SactoryContext.context(context1, context2);
+	var ret = document.createComment(SactoryMisc.isBuilderObservable(value) ? (value => {
 		var subscription = value.subscribe(value => ret.textContent = value);
 		if(bind) bind.subscribe(subscription);
-	}
+		return value;
+	})(value.use(bind)) : value);
 	if(element) {
 		if(anchor) element.insertBefore(ret, anchor);
 		else element.appendChild(ret);
@@ -294,7 +294,7 @@ Sactory.bindEachMaybe = function(context1, context2, target, getter, fun){
 		Sactory.bindEach(context1, context2, target, getter, fun);
 	} else {
 		var context = SactoryContext.context(context1, context2);
-		SactoryMisc.forEach(scope, getter(), (...args) => fun(context, ...args));
+		SactoryMisc.forEachArray(scope, getter(), (...args) => fun(context, ...args));
 	}
 };
 

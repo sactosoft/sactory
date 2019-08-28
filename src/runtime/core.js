@@ -13,58 +13,31 @@ var SactoryObservable = require("./observable");
 // in the whole web page to hide elements.
 var hidden;
 
-// export for client runtime
-SactoryConfig.Builder = Builder;
-
 /**
  * @class
  */
-function Builder(element) {
-
+function Sactory(element) {
 	this.element = element;
-
 	this.hasComplexStyle = false;
 	this.styles = [];
 	this.events = {};
-
-	this.animations = {i: [], o: []};
-	this.animationTimeout = false;
-	this.animationStart = 0;
-
-	Object.defineProperty(this, "runtimeId", {
-		configurable: true,
-		get: function(){
-			var id = Math.round(Math.random() * 100000);
-			Object.defineProperty(this, "runtimeId", {
-				get: function(){
-					return id;
-				}
-			});
-			return id;
-		}
-	});
-
 }
 
-Builder.prototype.widgets = {};
+Sactory.prototype.widgets = {};
 
-Builder.prototype.widget = null;
-
-Builder.prototype.slots = {};
-
-Builder.prototype.contentSlot = null;
+Sactory.prototype.widget = null;
 
 /**
  * @since 0.42.0
  */
-Builder.prototype.subscribe = function(bind, subscription){
+Sactory.prototype.subscribe = function(bind, subscription){
 	if(bind) bind.subscriptions.push(subscription);
 };
 
 /**
  * @since 0.129.0
  */
-Builder.prototype.observeImpl = function(bind, observable, fun){
+Sactory.prototype.observeImpl = function(bind, observable, fun){
 	var ret = observable.subscribe(fun);
 	this.subscribe(bind, ret);
 	fun(observable.value);
@@ -74,11 +47,11 @@ Builder.prototype.observeImpl = function(bind, observable, fun){
 /**
  * @since 0.129.0
  */
-Builder.prototype.observe = function(bind, bo, fun){
+Sactory.prototype.observe = function(bind, bo, fun){
 	return this.observeImpl(bind, bo.use(bind), fun);
 };
 	
-Builder.prototype.attr = function(name, value, bind){
+Sactory.prototype.attr = function(name, value, bind){
 	if(SactoryMisc.isBuilderObservable(value)) {
 		this.observe(bind, value, value => this.element.setAttribute(name, value));
 	} else {
@@ -86,7 +59,7 @@ Builder.prototype.attr = function(name, value, bind){
 	}
 };
 	
-Builder.prototype.prop = function(name, value, bind, type){
+Sactory.prototype.prop = function(name, value, bind, type){
 	if(SactoryMisc.isBuilderObservable(value)) {
 		this.observe(bind, value, value => this.element[name] = value, type);
 	} else {
@@ -97,84 +70,16 @@ Builder.prototype.prop = function(name, value, bind, type){
 /**
  * @since 0.63.0
  */
-Builder.prototype.append = function(element, bind, anchor){
+Sactory.prototype.append = function(element, bind, anchor){
 	if(anchor && anchor.parentNode === this.element) this.element.insertBefore(element, anchor);
 	else this.element.appendChild(element);
 	if(bind) bind.appendChild(element);
 };
 
 /**
- * @since 0.46.0
- */
-Builder.prototype.visible = function(value, reversed, counter, bind){
-	console.warn("Property `" + (reversed ? "hidden" : "visible") + "` is deprecated. Use `*show` and `*hide` properties instead.");
-	if(!hidden) {
-		hidden = counter.nextPrefix();
-		var style = document.createElement("style");
-		style.textContent = "." + hidden + "{display:none !important;}";
-		/* debug:
-		style.setAttribute(":usage", "visible-hidden-toggle");
-		*/
-		document.head.appendChild(style);
-	}
-	var update = value => {
-		if(!!value ^ reversed) {
-			this.removeClass(hidden);
-		} else {
-			this.addClass(hidden);
-		}
-	};
-	if(SactoryMisc.isBuilderObservable(value)) {
-		this.observe(bind, value, (newValue, oldValue) => update(newValue, oldValue));
-		// add animations functionalities
-		var updateImpl = update;
-		update = (newValue, oldValue) => {
-			if(newValue != oldValue) {
-				if(this.animationTimeout) {
-					// stop current animation
-					this.element.style.animation = "";
-					clearTimeout(this.animationTimeout);
-					this.animationTimeout = false;
-				}
-				var animations = this.animations[newValue ? "i" : "o"];
-				if(animations.length) {
-					if(newValue) {
-						// when the animation is in the element must be displayed immediately
-						updateImpl(true);
-					}
-					animations = animations.slice(0); // duplicate
-					var i = 0;
-					var run = () => {
-						var animation = animations[i];
-						var duration = animation.options.duration || 1;
-						this.element.style.animation = animation.name + " " + duration + "s " + (animation.options.easing || "linear") + " forwards";
-						this.element.style.animationDirection = newValue ? "reverse" : "normal";
-						this.animationTimeout = setTimeout(() => {
-							if(++i < animations.length) {
-								run();
-							} else {
-								// the animations are over
-								updateImpl(newValue);
-								this.element.style.animation = "";
-								this.animationTimeout = false;
-							}
-						}, duration * 1000);
-					};
-					run();
-				} else {
-					updateImpl(newValue);
-				}
-			}
-		};
-	} else {
-		update(value);
-	}
-};
-
-/**
  * @since 0.79.0
  */
-Builder.prototype.complexStyle = function(name, value, counter, bind){
+Sactory.prototype.complexStyle = function(name, value, counter, bind){
 	if(this.element.style.length) {
 		// transfer inline styles
 		var values = Array.prototype.map.call(this.element.style, name => ({name, value: this.element.style[name]}));
@@ -220,7 +125,7 @@ Builder.prototype.complexStyle = function(name, value, counter, bind){
 /**
  * @since 0.121.0
  */
-Builder.prototype.style = function(name, value, counter, bind){
+Sactory.prototype.style = function(name, value, counter, bind){
 	if(this.hasComplexStyle) {
 		if(value === false) {
 			this.styleImpl([{name, value: "0"}, {name, value: "none"}], counter, bind);
@@ -250,7 +155,7 @@ Builder.prototype.style = function(name, value, counter, bind){
 /**
  * @since 0.121.0
  */
-Builder.prototype.styleImpl = function(values, counter){
+Sactory.prototype.styleImpl = function(values, counter){
 	// hyphenate and convert to string
 	values.forEach(a => {
 		var name = hyphenate(a.name);
@@ -279,7 +184,7 @@ Builder.prototype.styleImpl = function(values, counter){
 	document.head.appendChild(node);
 };
 	
-Builder.prototype.text = function(value, bind, anchor){
+Sactory.prototype.text = function(value, bind, anchor){
 	var textNode;
 	if(SactoryMisc.isBuilderObservable(value)) {
 		textNode = document.createTextNode("");
@@ -298,7 +203,7 @@ Builder.prototype.text = function(value, bind, anchor){
 /**
  * @since 0.63.0
  */
-Builder.prototype.html = function(value, bind, anchor){
+Sactory.prototype.html = function(value, bind, anchor){
 	var children, container = document.createElement("div");
 	var parse = (value, anchor) => {
 		container.innerHTML = value;
@@ -324,7 +229,7 @@ Builder.prototype.html = function(value, bind, anchor){
 /**
  * @since 0.100.0
  */
-Builder.prototype.className = function(className, bind){
+Sactory.prototype.className = function(className, bind){
 	if(SactoryMisc.isBuilderObservable(className)) {
 		var value = className.value;
 		this.subscribe(bind, className.subscribe(newValue => {
@@ -346,7 +251,7 @@ Builder.prototype.className = function(className, bind){
 /**
  * @since 0.100.0
  */
-Builder.prototype.classNameIf = function(className, condition, bind){
+Sactory.prototype.classNameIf = function(className, condition, bind){
 	if(SactoryMisc.isBuilderObservable(condition)) {
 		condition = condition.use(bind);
 		this.subscribe(bind, condition.subscribe(newValue => {
@@ -373,7 +278,7 @@ Builder.prototype.classNameIf = function(className, condition, bind){
 /**
  * @since 0.22.0
  */
-Builder.prototype.event = function(name, value, bind){
+Sactory.prototype.event = function(name, value, bind){
 	var split = name.split(':');
 	if(name.args) split = split.map(a => a.toValue());
 	var event = split.shift();
@@ -628,7 +533,7 @@ Builder.prototype.event = function(name, value, bind){
 		var prev = listener;
 		var element = this.element;
 		listener = function(event){
-			if(Builder.polyfill.contains(element.ownerDocument, element)) {
+			if(BuilderPolyfill.contains(element.ownerDocument, element)) {
 				prev.apply(element, arguments);
 			} else {
 				var parent = this.parentNode;
@@ -643,7 +548,7 @@ Builder.prototype.event = function(name, value, bind){
 /**
  * @since 0.91.0
  */
-Builder.prototype.eventImpl = function(event, listener, options, bind){
+Sactory.prototype.eventImpl = function(event, listener, options, bind){
 	this.events[event] = true;
 	this.element.addEventListener(event, listener, options);
 	if(bind) {
@@ -652,8 +557,8 @@ Builder.prototype.eventImpl = function(event, listener, options, bind){
 };
 
 if(SactoryConfig.config.ie) {
-	var impl = Builder.prototype.eventImpl;
-	Builder.prototype.eventImpl = function(event, listener, options, bind){
+	var impl = Sactory.prototype.eventImpl;
+	Sactory.prototype.eventImpl = function(event, listener, options, bind){
 		if(options.once) {
 			// polyfill
 			var prev = listener;
@@ -669,7 +574,7 @@ if(SactoryConfig.config.ie) {
 /**
  * @since 0.62.0
  */
-Builder.prototype.addClassName = function(className){
+Sactory.prototype.addClassName = function(className){
 	if(this.element.className.length && !Polyfill.endsWith.call(this.element.className, ' ')) className = ' ' + className;
 	this.element.className += className;
 };
@@ -677,7 +582,7 @@ Builder.prototype.addClassName = function(className){
 /**
  * @since 0.62.0
  */
-Builder.prototype.removeClassName = function(className){
+Sactory.prototype.removeClassName = function(className){
 	var index = this.element.className.indexOf(className);
 	if(index != -1) {
 		this.element.className = (this.element.className.substring(0, index) + this.element.className.substr(index + className.length)).replace(/\s{2,}/, " ");
@@ -687,21 +592,21 @@ Builder.prototype.removeClassName = function(className){
 /**
  * @since 0.69.0
  */
-Builder.prototype[Const.BUILDER_TYPE_NONE] = function({bind}, name, value){
+Sactory.prototype[Const.BUILDER_TYPE_NONE] = function({bind}, name, value){
 	this.attr(name.toString(), value, bind);
 };
 
 /**
  * @since 0.63.0
  */
-Builder.prototype[Const.BUILDER_TYPE_PROP] = function({counter, bind}, name, value){
+Sactory.prototype[Const.BUILDER_TYPE_PROP] = function({counter, bind}, name, value){
 	this.prop(name.toString(), value, bind);
 };
 
 /**
  * @since 0.121.0
  */
-Builder.prototype[Const.BUILDER_TYPE_STYLE] = function({counter, bind}, name, value){
+Sactory.prototype[Const.BUILDER_TYPE_STYLE] = function({counter, bind}, name, value){
 	name = name.toString();
 	if(/[!a-z-]/.test(name.charAt(0))) {
 		this.style(name, value, counter, bind);
@@ -713,7 +618,7 @@ Builder.prototype[Const.BUILDER_TYPE_STYLE] = function({counter, bind}, name, va
 /**
  * @since 0.96.0
  */
-Builder.prototype[Const.BUILDER_TYPE_CONCAT] = function({bind, anchor}, name, value){
+Sactory.prototype[Const.BUILDER_TYPE_CONCAT] = function({bind, anchor}, name, value){
 	name = name.toString();
 	switch(name) {
 		case "text": return this.text(value, bind, anchor);
@@ -731,14 +636,14 @@ Builder.prototype[Const.BUILDER_TYPE_CONCAT] = function({bind, anchor}, name, va
 /**
  * @since 0.69.0
  */
-Builder.prototype[Const.BUILDER_TYPE_ON] = function({bind}, name, value){
+Sactory.prototype[Const.BUILDER_TYPE_ON] = function({bind}, name, value){
 	this.event(name, value, bind);
 };
 
 /**
  * @since 0.122.0
  */
-Builder.prototype.visibility = function({counter, bind}, value, visible){
+Sactory.prototype.visibility = function({counter, bind}, value, visible){
 	if(!hidden) {
 		hidden = counter.nextPrefix();
 		var style = document.createElement("style");
@@ -765,7 +670,7 @@ Builder.prototype.visibility = function({counter, bind}, value, visible){
 /**
  * @since 0.46.0
  */
-Builder.prototype.form = function({counter, bind}, info, value, update){
+Sactory.prototype.form = function({counter, bind}, info, value, update){
 	var isObservable = SactoryObservable.isObservable(value);
 	if(SactoryMisc.isBuilderObservable(value)) {
 		isObservable = true;
@@ -804,7 +709,7 @@ Builder.prototype.form = function({counter, bind}, info, value, update){
 		}
 		// the get function maps the values of the selected options (obtained from the
 		// `selectedOptions` property or a polyfill)
-		get = callback => callback(Array.prototype.map.call(Builder.polyfill.selectedOptions(this.element), option => option.value));
+		get = callback => callback(Array.prototype.map.call(BuilderPolyfill.selectedOptions(this.element), option => option.value));
 	} else {
 		// classic input, values that are `null` and `undefined` are treated
 		// as empty strings
@@ -951,42 +856,27 @@ Builder.prototype.form = function({counter, bind}, info, value, update){
 	});
 };
 
-Builder.prototype.addAnimation = function(type, name, options){
-	if(typeof options == "number") options = {duration: options};
-	var animation = SactoryAnimation.getAnimation(name);
-	if(!animation) throw new Error("Animation '" + name + "' is not defined.");
-	var res = {name: SactoryAnimation.createKeyframes(animation, options), options: options};
-	if(type == "io") {
-		this.animations.i.push(res);
-		this.animations.o.push(res);
-	} else if(type == "in") {
-		this.animations.i.push(res);
-	} else if(type == "out") {
-		this.animations.o.push(res);
-	}
-};
-
 // polyfill
 
 if(Object.getOwnPropertyDescriptor(Element.prototype, "classList")) {
 
-	Builder.prototype.addClass = function(className){
+	Sactory.prototype.addClass = function(className){
 		this.element.classList.add(className);
 	};
 
-	Builder.prototype.removeClass = function(className){
+	Sactory.prototype.removeClass = function(className){
 		this.element.classList.remove(className);
 	};
 
 } else {
 
-	Builder.prototype.addClass= function(className){
+	Sactory.prototype.addClass= function(className){
 		if(!this.element.className.split(' ').indexOf(className) != -1) {
 			this.element.className = (this.element.className + ' ' + className).trim();
 		}
 	};
 
-	Builder.prototype.removeClass = function(className){
+	Sactory.prototype.removeClass = function(className){
 		this.element.className = this.element.className.split(' ').filter(function(a){
 			return a != className;
 		}).join(' ');
@@ -996,7 +886,7 @@ if(Object.getOwnPropertyDescriptor(Element.prototype, "classList")) {
 
 if(typeof Event == "function") {
 
-	Builder.prototype.dispatchEvent = function(name, {bubbles, cancelable}){
+	Sactory.prototype.dispatchEvent = function(name, {bubbles, cancelable}){
 		var event = new Event(name, {bubbles, cancelable});
 		this.element.dispatchEvent(event);
 		return event;
@@ -1004,7 +894,7 @@ if(typeof Event == "function") {
 
 } else {
 
-	Builder.prototype.dispatchEvent = function(name, {bubbles, cancelable}){
+	Sactory.prototype.dispatchEvent = function(name, {bubbles, cancelable}){
 		var event = document.createEvent("Event");
 		event.initEvent(name, bubbles, cancelable);
 		this.element.dispatchEvent(event);
@@ -1013,25 +903,20 @@ if(typeof Event == "function") {
 
 }
 
-Builder.polyfill = {};
+var BuilderPolyfill = {};
 
-Builder.polyfill.contains = function(owner, element){
+BuilderPolyfill.contains = function(owner, element){
 	if(element.parentNode) {
 		if(element.parentNode === owner) return true;
-		else return Builder.polyfill.contains(owner, element.parentNode);
+		else return BuilderPolyfill.contains(owner, element.parentNode);
 	} else {
 		return false;
 	}
 };
 
-Builder.polyfill.selectedOptions = typeof HTMLSelectElement == "function" && Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "selectedOptions") ? 
-	function(select){
-		return select.selectedOptions;
-	} :
-	function(select){
-		return Array.prototype.filter.call(select.options, function(option){
-			return option.selected;
-		});
-	};
+BuilderPolyfill.selectedOptions =
+	typeof HTMLSelectElement == "function" && Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "selectedOptions") ? 
+	select => select.selectedOptions :
+	select => Array.prototype.filter.call(select.options, option => option.selected);
 
-module.exports = Builder;
+module.exports = Sactory;

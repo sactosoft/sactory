@@ -5,10 +5,12 @@ var SactoryContext = require("./context");
 var SactoryMisc = require("./misc");
 var { widgets, Widget, Registry } = require("./widget");
 
+var Sactory = {};
+
 /**
  * @since 0.60.0
  */
-function Sactory(context1, context2, ...functions) {
+function chain(context1, context2, ...functions) {
 	var context = SactoryContext.newChainContext(context1, context2);
 	functions.forEach(([fun, ...args]) => fun.call(null, context, ...args));
 	return context.element;
@@ -17,7 +19,7 @@ function Sactory(context1, context2, ...functions) {
 /**
  * @since 0.128.0
  */
-Sactory.all = function(context1, context2, [ffun, ...fargs], ...functions){
+chain.all = function(context1, context2, [ffun, ...fargs], ...functions){
 	var context = SactoryContext.newChainContext(context1, context2);
 	context.all = true;
 	ffun.call(null, context, ...fargs);
@@ -30,14 +32,14 @@ Sactory.all = function(context1, context2, [ffun, ...fargs], ...functions){
 /**
  * @since 0.80.0
  */
-Sactory.nop = function(context){
+chain.nop = function(context){
 	context.element = context.parentElement;
 };
 
 /**
  * @since 0.128.0
  */
-Sactory.use = function(context, element){
+chain.use = function(context, element){
 	if(context.all) {
 		context.elements = element;
 	} else {
@@ -48,14 +50,14 @@ Sactory.use = function(context, element){
 /**
  * @since 0.128.0
  */
-Sactory.query = function(context, selector, on){
-	Sactory.use(context, (on || context.parentElement || context.document || document)[context.all ? "querySelectorAll" : "querySelector"](selector));
+chain.query = function(context, selector, on){
+	chain.use(context, (on || context.parentElement || context.document || document)[context.all ? "querySelectorAll" : "querySelector"](selector));
 };
 
 /**
  * @since 0.128.0
  */
-Sactory.slot = function(context, slotName, widgetName){
+chain.slot = function(context, slotName, widgetName){
 	var slot, registry = context.registry;
 	do {
 		var name = widgetName || registry.main;
@@ -70,14 +72,14 @@ Sactory.slot = function(context, slotName, widgetName){
 /**
  * @since 0.128.0
  */
-Sactory.clone = function(context, element, deep = true){
+chain.clone = function(context, element, deep = true){
 	context.element = element.cloneNode(deep);
 };
 
 /**
  * @since 0.94.0
  */
-Sactory.clear = function(context){
+chain.clear = function(context){
 	var child, element = SactoryContext.currentElement(context);
 	while(child = element.lastChild) {
 		element.removeChild(child);
@@ -87,7 +89,7 @@ Sactory.clear = function(context){
 /**
  * @since 0.60.0
  */
-Sactory.updateImpl = function(context, [attrs = [], iattrs, sattrs, transitions, visibility, widgetCheck, namespace, tagName, tagNameString]){
+chain.updateImpl = function(context, [attrs = [], iattrs, sattrs, transitions, visibility, widgetCheck, namespace, tagName, tagNameString]){
 
 	if(iattrs) {
 		iattrs.forEach(([type, before, names, after, value]) => {
@@ -309,79 +311,79 @@ Sactory.updateImpl = function(context, [attrs = [], iattrs, sattrs, transitions,
 /**
  * @since 0.128.0
  */
-Sactory.update = function(context, options){
+chain.update = function(context, options){
 	if(!context.element) {
 		// only update if not previously updated
 		context.element = context.parentElement;
 	}
-	Sactory.updateImpl(context, options);
+	chain.updateImpl(context, options);
 };
 
 /**
  * @since 0.60.0
  */
-Sactory.create = function(context, tagName, options, tagNameString){
+chain.create = function(context, tagName, options, tagNameString){
 	options[7] = tagName;
 	options[8] = tagNameString;
 	context.anchor = null; // invalidate the current anchor so the children will not use it
 	context.created = true;
-	Sactory.updateImpl(context, options);
+	chain.updateImpl(context, options);
 };
 
 /**
  * @since 0.128.0
  */
-Sactory.createIf = function(context, tagName, options, tagNameString){
+chain.createIf = function(context, tagName, options, tagNameString){
 	if(context.parentElement) {
-		Sactory.update(context, options);
+		chain.update(context, options);
 	} else {
-		Sactory.create(context, tagName, options, tagNameString)
+		chain.create(context, tagName, options, tagNameString)
 	}
 };
 
 /**
  * @since 0.128.0
  */
-Sactory.slots = function(context, slots){
+chain.slots = function(context, slots){
 	slots.forEach(name => context.registry.add(null, name, context.element));
 };
 
 /**
  * @since 0.128.0
  */
-Sactory.text = function(context, text){
+chain.text = function(context, text){
 	SactoryContext.currentElement(context)["~builder"].text(text, context.bind, context.anchor);
 };
 
 /**
  * @since 0.128.0
  */
-Sactory.html = function(context, html){
+chain.html = function(context, html){
 	SactoryContext.currentElement(context)["~builder"].html(html, context.bind, context.anchor);
 };
 
 /**
  * @since 0.90.0
  */
-Sactory.mixin = function(context, data){
+chain.mixin = function(context, data){
 	if(data instanceof Node) {
-		Sactory.appendTo({element: data, bind: context.bind, parentAnchor: context.anchor}, SactoryContext.currentElement(context), {adoption: true});
+		chain.appendTo({element: data, bind: context.bind, parentAnchor: context.anchor}, SactoryContext.currentElement(context), {adoption: true});
 	} else if(data) {
-		Sactory.html(context, data);
+		chain.html(context, data);
 	}
 };
 
 /**
  * @since 0.60.0
  */
-Sactory.body = function(context, fun){
+chain.body = function(context, fun){
 	fun(SactoryContext.newContext(context, {slot: context.element, element: context.content || context.element || context.parentElement}));
 };
 
 /**
  * @since 0.82.0
  */
-Sactory.forms = function(context, ...values){
+chain.forms = function(context, ...values){
 	var input = context.input || context.content;
 	values.forEach(([info, value, update]) => input["~builder"].form(context, info, value, update));
 };
@@ -389,7 +391,7 @@ Sactory.forms = function(context, ...values){
 /**
  * @since 0.60.0
  */
-Sactory.appendTo = function(context, parent, options = {}){
+chain.appendTo = function(context, parent, options = {}){
 	if(context.bind) {
 		if(options.adoption && context.element instanceof DocumentFragment) {
 			// special case for adopted fragments: add to the bind context its children instead of
@@ -412,28 +414,30 @@ Sactory.appendTo = function(context, parent, options = {}){
 /**
  * @since 0.128.0
  */
-Sactory.append = function(context, options){
+chain.append = function(context, options){
 	if(context.parentElement) {
-		Sactory.appendTo(context, context.parentElement, options);
+		chain.appendTo(context, context.parentElement, options);
 	}
 };
 
 /**
  * @since 0.128.0
  */
-Sactory.appendToIf = function(context, parent, options){
+chain.appendToIf = function(context, parent, options){
 	if(context.created) {
-		Sactory.appendTo(context, parent, options);
+		chain.appendTo(context, parent, options);
 	}
 };
 
 /**
  * @since 0.128.0
  */
-Sactory.appendIf = function(context, options){
+chain.appendIf = function(context, options){
 	if(context.created) {
-		Sactory.append(context, options);
+		chain.append(context, options);
 	}
 };
+
+Sactory.chain = chain;
 
 module.exports = Sactory;

@@ -1,11 +1,10 @@
 // init global variables
 require("../dom");
 
-var Builder = require("./builder");
+var Builder = require("./core");
 
-Builder.prototype.eventImpl = function(event, listener, options){
-	this.events[event] = true;
-	this.element.ownerDocument.addEventListener(this.element, event, listener, options);
+Builder.prototype.event = function(name, value){
+	this.element.ownerDocument.addEventListener(this.element, name, value);
 };
 
 Object.defineProperty(Node.prototype, "~builder", {
