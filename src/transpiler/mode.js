@@ -726,45 +726,51 @@ SourceCodeMode.prototype.next = function(match){
 			this.restoreIndex('$');
 			break;
 		case '&':
-			var args = `${this.transpiler.arguments}, ${this.transpiler.context}, `;
-			var space = this.parser.skipImpl({strings: false});
-			this.parser.parseTemplateLiteral = null;
-			if(this.parser.readIf('=')) {
-				this.parser.expect('>');
-				var parsed = this.transpiler.parseCode(this.parser.readExpression());
-				this.add(`${this.transpiler.feature("coff")}(()${space}=>${parsed.source})`);
-				if(parsed.observables.length) this.add(`.d(${args}${uniq(parsed.observables).join(", ")})`);
-				if(parsed.maybeObservables.length) this.add(`.m(${args}${uniq(parsed.maybeObservables).join(", ")})`);
-			} else if(this.parser.readIf(')')) {
-				this.add(space);
-				var popped = this.parentheses.pop();
-				if(popped) this.add(popped);
-				this.parser.lastParenthesis = this.parser.parentheses.pop();
-				this.handleParenthesis(')');
-				if(this.parser.lastParenthesis >= 0) {
-					var search = "function";
-					this.add(this.parser.skipImpl({strings: false}));
-					if(this.parser.readIf('=')) {
-						this.parser.expect('>');
-						this.add("=>");
-						search = "(";
+			if(this.parser.couldStartRegExp()) {
+				var args = `${this.transpiler.arguments}, ${this.transpiler.context}, `;
+				var space = this.parser.skipImpl({strings: false});
+				this.parser.parseTemplateLiteral = null;
+				if(this.parser.readIf('=')) {
+					this.parser.expect('>');
+					var parsed = this.transpiler.parseCode(this.parser.readExpression());
+					this.add(`${this.transpiler.feature("coff")}(()${space}=>${parsed.source})`);
+					if(parsed.observables.length) this.add(`.d(${args}${uniq(parsed.observables).join(", ")})`);
+					if(parsed.maybeObservables.length) this.add(`.m(${args}${uniq(parsed.maybeObservables).join(", ")})`);
+				} else if(this.parser.readIf(')')) {
+					this.add(space);
+					var popped = this.parentheses.pop();
+					if(popped) this.add(popped);
+					this.parser.lastParenthesis = this.parser.parentheses.pop();
+					this.handleParenthesis(')');
+					if(this.parser.lastParenthesis >= 0) {
+						var search = "function";
+						this.add(this.parser.skipImpl({strings: false}));
+						if(this.parser.readIf('=')) {
+							this.parser.expect('>');
+							this.add("=>");
+							search = "(";
+						}
+						// inject start
+						if(this.injectInSource(search, `${this.transpiler.feature("coff")}(`)) {
+							// add expression
+							var parsed = this.transpiler.parseCode(this.parser.readExpression());
+							this.add(`${parsed.source})`);
+							if(parsed.observables.length) this.add(`.d(${args}${uniq(parsed.observables).join(", ")})`);
+							if(parsed.maybeObservables.length) this.add(`.m(${args}${uniq(parsed.maybeObservables).join(", ")})`);
+						}
 					}
-					// inject start
-					if(this.injectInSource(search, `${this.transpiler.feature("coff")}(`)) {
-						// add expression
-						var parsed = this.transpiler.parseCode(this.parser.readExpression());
-						this.add(`${parsed.source})`);
-						if(parsed.observables.length) this.add(`.d(${args}${uniq(parsed.observables).join(", ")})`);
-						if(parsed.maybeObservables.length) this.add(`.m(${args}${uniq(parsed.maybeObservables).join(", ")})`);
-					}
+				} else {
+					var parsed = this.transpiler.parseCode(this.parser.readSingleExpression(true));
+					this.add(`${space}${this.transpiler.feature("cofv")}(${parsed.source})`);
 				}
+				this.transpiler.updateTemplateLiteralParser();
+				this.parser.last = ')';
+				this.parser.lastIndex = this.parser.index;
 			} else {
-				var parsed = this.transpiler.parseCode(this.parser.readSingleExpression(true));
-				this.add(`${space}${this.transpiler.feature("cofv")}(${parsed.source})`);
+				// bitwise or boolean comparator
+				this.restoreIndex('&');
+				if(this.parser.readIf('&')) this.restoreIndex('&'); // skip to avoid treating it as possible `and`
 			}
-			this.transpiler.updateTemplateLiteralParser();
-			this.parser.last = ')';
-			this.parser.lastIndex = this.parser.index;
 			break;
 		case '*':
 			if(this.parser.couldStartRegExp()) {
@@ -781,7 +787,7 @@ SourceCodeMode.prototype.next = function(match){
 			} else {
 				// just a multiplication or exponentiation
 				this.restoreIndex('*');
-				if(this.parser.peek() == '*') this.restoreIndex(this.parser.read()); // exponentiation, skip to avoid trying to treat it as observable
+				if(this.parser.readIf('*')) this.restoreIndex('*'); // exponentiation, skip to avoid trying to treat it as observable
 			}
 			break;
 		case '^':
