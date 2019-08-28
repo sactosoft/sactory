@@ -4,6 +4,8 @@ var SactoryContext = require("./context");
 
 var Sactory = {};
 
+var setUpdate = typeof setImmediate == "function" ? setImmediate : setTimeout;
+
 var subCount = 0;
 
 /**
@@ -13,7 +15,7 @@ var subCount = 0;
 function Subscription(observable, callback, type) {
 	this.observable = observable;
 	this.callback = callback;
-	this.type;
+	this.type = type;
 	Object.defineProperty(this, "id", {value: subCount++});
 }
 
@@ -205,6 +207,23 @@ if(typeof sessionStorage != "undefined") {
  */
 Observable.prototype.nowrap = function(){
 	Object.defineProperty(this, "wrapValue", {value: value => value});
+};
+
+/**
+ * @since 0.129.0
+ */
+Observable.prototype.async = function(){
+	var calc = this._calc;
+	this._calc = () => {
+		if(!this._updating) {
+			this._updating = true;
+			setUpdate(() => {
+				this._updating = false;
+				calc();
+			});
+		}
+	};
+	return this;
 };
 
 // functions used internally

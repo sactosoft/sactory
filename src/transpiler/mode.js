@@ -645,18 +645,22 @@ SourceCodeMode.prototype.lookBehind = function(){
 /**
  * @since 0.129.0
  */
-SourceCodeMode.prototype.injectInSource = function(search, str){
+SourceCodeMode.prototype.searchInSource = function(search){
 	var sourceIndex = this.transpiler.source.length - 1;
 	var source, index;
 	do {
 		source = this.transpiler.source[sourceIndex];
 		var index = source.lastIndexOf(search);
-		if(index != -1) {
-			this.transpiler.source[sourceIndex] = source.substring(0, index) + str + source.substr(index);
-			return true;
-		}
+		if(index != -1) return { source, sourceIndex, index };
 	} while(sourceIndex-- > 0);
 	return false;
+};
+
+/**
+ * @since 0.129.0
+ */
+SourceCodeMode.prototype.injectInSource = function({ source, sourceIndex, index }, str){
+	this.transpiler.source[sourceIndex] = source.substring(0, index) + str + source.substr(index);
 };
 
 SourceCodeMode.prototype.next = function(match){
@@ -726,17 +730,28 @@ SourceCodeMode.prototype.next = function(match){
 			this.restoreIndex('$');
 			break;
 		case '&':
+			var skip = () => this.parser.skipImpl({strings: false});
+			var args = (parsed, async) => {
+				var ac = `${this.transpiler.arguments}, ${this.transpiler.context}, `;
+				if(async) this.add(`.async()`);
+				if(parsed.observables.length) this.add(`.d(${ac}${uniq(parsed.observables).join(", ")})`);
+				if(parsed.maybeObservables.length) this.add(`.m(${ac}${uniq(parsed.maybeObservables).join(", ")})`);
+			};
+			var parseUnwrapped = (space, async) => {
+				this.parser.expect('=');
+				this.parser.expect('>');
+				var parsed = this.transpiler.parseCode(this.parser.readExpression());
+				this.add(`${this.transpiler.feature("coff")}(()${space}=>${parsed.source})`);
+				args(parsed, async);
+			};
 			if(this.parser.couldStartRegExp()) {
-				var args = `${this.transpiler.arguments}, ${this.transpiler.context}, `;
-				var space = this.parser.skipImpl({strings: false});
+				var space = skip();
 				this.parser.parseTemplateLiteral = null;
-				if(this.parser.readIf('=')) {
-					this.parser.expect('>');
-					var parsed = this.transpiler.parseCode(this.parser.readExpression());
-					this.add(`${this.transpiler.feature("coff")}(()${space}=>${parsed.source})`);
-					if(parsed.observables.length) this.add(`.d(${args}${uniq(parsed.observables).join(", ")})`);
-					if(parsed.maybeObservables.length) this.add(`.m(${args}${uniq(parsed.maybeObservables).join(", ")})`);
+				if(this.parser.peek() == '=') {
+					// from arrow function not wrapped
+					parseUnwrapped(space, false);
 				} else if(this.parser.readIf(')')) {
+					// from function or wrapped arrow function
 					this.add(space);
 					var popped = this.parentheses.pop();
 					if(popped) this.add(popped);
@@ -751,21 +766,52 @@ SourceCodeMode.prototype.next = function(match){
 							search = "(";
 						}
 						// inject start
-						if(this.injectInSource(search, `${this.transpiler.feature("coff")}(`)) {
+						var inject = this.searchInSource(search);
+						if(inject) {
+							// test async
+							var async = false;
+							if(inject.index == 0) {
+								if(inject.sourceIndex > 0) {
+									var sourceIndex = inject.sourceIndex - 1;
+									var source = this.transpiler.source[sourceIndex];
+									async = { source, sourceIndex, index: source.length };
+								}
+							} else {
+								async = inject;
+							}
+							if(async) {
+								// maybe async, search keyword
+								var match = async.source.substring(0, async.index).match(/async\s+$/);
+								if(match) {
+									// the function is async, remove `async` keyword and update index
+									this.transpiler.source[async.sourceIndex] = async.source = async.source.substring(0, match.index) + async.source.substr(match.index + 5);
+									async.index -= 5;
+								} else {
+									async = false;
+								}
+							}
+							this.injectInSource(inject, `${this.transpiler.feature("coff")}(`);
 							// add expression
 							var parsed = this.transpiler.parseCode(this.parser.readExpression());
 							this.add(`${parsed.source})`);
-							if(parsed.observables.length) this.add(`.d(${args}${uniq(parsed.observables).join(", ")})`);
-							if(parsed.maybeObservables.length) this.add(`.m(${args}${uniq(parsed.maybeObservables).join(", ")})`);
+							args(parsed, !!async);
 						}
 					}
-				} else {
+				}  else {
+					// from variable
 					var parsed = this.transpiler.parseCode(this.parser.readSingleExpression(true));
 					this.add(`${space}${this.transpiler.feature("cofv")}(${parsed.source})`);
 				}
 				this.transpiler.updateTemplateLiteralParser();
 				this.parser.last = ')';
 				this.parser.lastIndex = this.parser.index;
+			} else if(this.parser.lastKeywordIn("async")) {
+				// from arrow variable not wrapped, async
+				var index = this.transpiler.source.length - 1;
+				var source = this.transpiler.source[index];
+				var sub = this.parser.index - this.parser.lastIndex + 3;
+				this.transpiler.source[index] = source.slice(0, -sub) + source.slice(-sub + 5);
+				parseUnwrapped(skip(), true);
 			} else {
 				// bitwise or boolean comparator
 				this.restoreIndex('&');
