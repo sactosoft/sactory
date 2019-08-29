@@ -18,7 +18,9 @@ var debugExp = /\/\* debug:\r?\n([\s\S]*?)\*\//g;
 
 function make(filename, className, sources) {
 
-	var header = `var toString=function(){return Object.toString().replace(/Object/,'${className}').replace(/native/,'sactory');};${className}.toString=toString.toString=toString;Object.defineProperty(${className},'VERSION',{value:'${version}'});`;
+	var header = `var toString=function(){return Object.toString().replace(/Object/,'${className}').replace(/native/,'sactory');};${className}.toString=toString.toString=toString;` +
+		`Object.defineProperty(${className},'VERSION',{value:'${version}'});` +
+		`Object.defineProperty(${className},'BUILD',{value:'${new Date().toISOString()}'});`;
 	var reserved = [className, "Widget", "Builder", "Bind", "Observable", "Subscription", "Array", "Color", "RGBColor", "HSLColor", "Parser", "ParserError"];
 
 	var stream = gulp.src(sources.map(s => "src/" + s + ".js"))

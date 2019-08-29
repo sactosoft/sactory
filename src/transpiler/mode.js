@@ -510,6 +510,7 @@ LogicMode.prototype.parse = function(handle, eof){
 			}
 			break;
 		case '\n':
+			console.log(this.statements);
 			if(this.statements.length && this.statements[this.statements.length - 1].inline) {
 				var trimmed = this.trimEnd();
 				this.endChainable();
@@ -1053,7 +1054,7 @@ SSBMode.prototype.start = function(){
 };
 
 SSBMode.prototype.find = function(){
-	return this.parser.find(['$', '<', 'v', 'c', 'l', 'i', 'e', 'f', '{', '}', ';'], false, false);
+	return this.parser.find(['$', '<', 'v', 'c', 'l', 'i', 'e', 'f', '@', '{', '}', ';', '\n'], false, false);
 };
 
 SSBMode.prototype.lastValue = function(callback, parser){
@@ -1101,6 +1102,7 @@ SSBMode.prototype.lastValue = function(callback, parser){
 
 SSBMode.prototype.parseImpl = function(pre, match, handle, eof){
 	switch(match) {
+		case '@':
 		case '{':
 			this.lastValue(value => this.addScope(value));
 			this.statements.push({
@@ -1108,7 +1110,8 @@ SSBMode.prototype.parseImpl = function(pre, match, handle, eof){
 				observables: [],
 				maybeObservables: [],
 				end: "",
-				parts: [{}]
+				parts: [{}],
+				inline: match == '@'
 			});
 			this.inExpr = false;
 			break;
@@ -1125,10 +1128,10 @@ SSBMode.prototype.parseImpl = function(pre, match, handle, eof){
 						value.unshift({text: true, value: current.value.substr(column + 1)});
 						current.value = current.value.substring(0, column);
 						this.current = this.current.slice(0, i + 1);
-						this.lastValue(value => this.add(scope + ".value(" + value));
+						this.lastValue(value => this.add(`${scope}.value(${value}`));
 						this.add(",");
 						this.current = value;
-						this.lastValue(value => this.add(value + ");"), value => SSBMode.createExpr(value, transpiler));
+						this.lastValue(value => this.add(value + ");"), value => SSBMode.reparseExpr(value, transpiler));
 						break;
 					}
 				}
@@ -1189,7 +1192,7 @@ SSBMode.prototype.chainAfter = function(){
 	if(this.scoped) return [this.transpiler.feature("scope")];
 };
 
-SSBMode.createExprImpl = function(expr, info, transpiler){
+SSBMode.reparseExprImpl = function(expr, info, transpiler){
 	var parser = new Parser(expr);
 	parser.options = {comments: true, strings: true};
 	function skip() {
@@ -1217,7 +1220,7 @@ SSBMode.createExprImpl = function(expr, info, transpiler){
 		if(parser.peek() == '(') {
 			info.computed += '(';
 			var start = parser.index + 1;
-			if(!SSBMode.createExprImpl(parser.skipEnclosedContent().slice(1, -1), info, transpiler)) return false;
+			if(!SSBMode.reparseExprImpl(parser.skipEnclosedContent().slice(1, -1), info, transpiler)) return false;
 			info.computed += ')';
 		} else {
 			var v = parser.readSingleExpression(true);
@@ -1238,14 +1241,14 @@ SSBMode.createExprImpl = function(expr, info, transpiler){
 	return true;
 };
 
-SSBMode.createExpr = function(expr, transpiler){
+SSBMode.reparseExpr = function(expr, transpiler){
 	var info = {
 		runtime: transpiler.runtime,
 		computed: `${transpiler.feature("cu")}(${transpiler.options.es6 ? `${transpiler.unit} =>` : `function(${transpiler.unit}){return`} `,
 		is: false,
 		op: 0
 	};
-	return SSBMode.createExprImpl(expr, info, transpiler) && info.is && info.op && `${info.computed}${transpiler.options.es6 ? "" : "}.bind(this)"})` || (transpiler.options.es6 ? expr : `(${expr})`);
+	return SSBMode.reparseExprImpl(expr, info, transpiler) && info.is && info.op && `${info.computed}${transpiler.options.es6 ? "" : "}.bind(this)"})` || (transpiler.options.es6 ? expr : `(${expr})`);
 };
 
 /**

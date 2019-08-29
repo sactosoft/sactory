@@ -164,16 +164,16 @@ Sactory.scope = function({counter, element, bind}){
 	}
 };
 
-/**
- * @since 0.94.0
- */
-Sactory.quote = function(value){
-	return JSON.stringify(value + "");
-};
-
 // css functions
 
 Sactory.css = {};
+
+/**
+ * @since 0.94.0
+ */
+Sactory.css.quote = function(value){
+	return JSON.stringify(value + "");
+};
 
 function Color(type) {
 	this.type = type;
