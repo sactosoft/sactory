@@ -7,7 +7,7 @@ class Parent {
 		</section>
 	}
 	
-	":child"() {
+	render__child() {
 		return <button />
 	}
 

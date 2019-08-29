@@ -37,8 +37,8 @@ Sactory.prototype.subscribe = function(bind, subscription){
 /**
  * @since 0.129.0
  */
-Sactory.prototype.observeImpl = function(bind, observable, fun){
-	var ret = observable.subscribe(fun);
+Sactory.prototype.observeImpl = function(bind, observable, fun, type){
+	var ret = observable.subscribe(fun, type);
 	this.subscribe(bind, ret);
 	fun(observable.value);
 	return ret;
@@ -679,58 +679,51 @@ Sactory.prototype.form = function({counter, bind}, info, value, update){
 	var events = info.split("::");
 	var modifiers = events.shift();
 	var updateType = SactoryConst.OUT_FORM_RANGE_START + Math.floor(Math.random() * SactoryConst.OUT_FORM_RANGE_LENGTH);
-	var inputType = this.element.type;
-	var get, converters = [];
+	var select = this.element.tagName.toUpperCase() == "SELECT";
+	var get, set, converters = [];
 	// calculate property name and default converter
-	if(inputType == "checkbox") {
-		this.prop("checked", value, bind, updateType);
+	if(select) {
+	 	if(this.element.multiple) {
+			// select multiple, returns an array
+			get = callback => callback(Array.prototype.map.call(BuilderPolyfill.selectedOptions(this.element), option => option.value));
+			set = value => Array.prototype.forEach.call(this.element.options, option => option.selected = value.indexOf(option.value) != -1);
+		} else {
+			// normal select, just get and set the element's value
+			get = callback => callback(this.element.value);
+			set = value => this.element.value = value;
+		}
+	} else if(this.element.type == "checkbox") {
+		// classic boolean binding using the element's `checked` property
 		get = callback => callback(this.element.checked);
-	} else if(inputType == "radio") {
+		set = value => this.element.checked = value;
+	} else if(this.element.type == "radio") {
+		// the event is called only when radio is selected
+		get = callback => callback(this.element.value);
+		set = value => this.element.checked = value == this.element.value;
 		if(isObservable) {
 			// make sure that the radio buttons that depend on the same observable have
 			// the same name and are in the same radio group
 			if(!this.element.name) {
-				this.element.name = value.radioGroupName || (value.radioGroupName = counter.nextPrefix());
+				this.element.name = value._radioGroupName || (value._radioGroupName = counter.nextPrefix());
 			}
-			// subscription that sets `checked` to true when the value of the
-			// observable is equal to the attribute value of the element
-			this.observeImpl(bind, value, value => this.element.checked = value == this.element.value, updateType);
 		}
-		// the event is called only when radio is selected
-		get = callback => callback(this.element.value);
-	} else if(this.element.multiple) {
-		if(isObservable) {
-			// a multiple select does not bind to a property, instead it updates the options,
-			// setting the selected property, everytime the observable is updated
-			this.observeImpl(bind, value, value => {
-				// options is a live collection, no need to get the value again from the element
-				Array.prototype.forEach.call(this.element.options, option => option.selected = value.indexOf(option.value) != -1);
-			}, updateType);
-		}
-		// the get function maps the values of the selected options (obtained from the
-		// `selectedOptions` property or a polyfill)
-		get = callback => callback(Array.prototype.map.call(BuilderPolyfill.selectedOptions(this.element), option => option.value));
 	} else {
-		// classic input, values that are `null` and `undefined` are treated
-		// as empty strings
-		var convert = value => value === null || value === undefined ? "" : value;
-		if(isObservable) {
-			this.observeImpl(bind, value, value => this.element.value = convert(value), updateType);
-		} else {
-			this.prop("value", convert(value), bind, updateType);
-		}
+		// normal input, values that are `null` and `undefined` are treated as empty strings
 		get = callback => callback(this.element.value);
+		set = value => this.element.value = value === null || value === undefined ? "" : value;
+	}
+	// subscribe if needed and/or update element's value
+	if(isObservable) {
+		this.observeImpl(bind, value, set, updateType);
+	} else {
+		set(value);
 	}
 	// calculate the default event type if none was specified
 	if(!events.length) {
-		if(this.element.tagName.toUpperCase() == "SELECT") {
+		if(select || this.element.type == "checkbox" || this.element.type == "radio") {
 			events.push("change");
 		} else {
-			if(this.element.type == "checkbox" || this.element.type == "radio") {
-				events.push("change");
-			} else {
-				events.push("input");
-			}
+			events.push("input");
 		}
 	}
 	if(modifiers) {
@@ -778,7 +771,6 @@ Sactory.prototype.form = function({counter, bind}, info, value, update){
 									date.setMilliseconds(0);
 									return date;
 								};
-							case "datetime-local":
 							default:
 								return function(){
 									return new Date(this);
@@ -814,35 +806,18 @@ Sactory.prototype.form = function({counter, bind}, info, value, update){
 		});
 	}
 	if(isObservable) {
-		if(value.computed) {
-			if(value.dependencies.length == 1 && value.dependencies[0].deep) {
-				// it's the child of a deep observable
-				var deep = value.dependencies[0];
-				var path = deep.lastPath.slice(0, -1);
-				var key = deep.lastPath[deep.lastPath.length - 1];
-				converters.push(newValue => {
-					var obj = deep.value;
-					path.forEach(function(p){
-						obj = obj[p];
-					});
-					value.updateType = updateType;
-					obj[key] = newValue;
-				});
-			} else {
-				// it's the child value of an observable, use the update
-				// function to update the right value and also update the observable's
-				// value to keep it in sync with the element's value
-				converters.push(newValue => {
-					value.updateType = updateType;
-					value.value = newValue;
-					update(newValue);
-				});
-			}
+		if(value._dependencies) {
+			// it's the child value of an observable, use the update
+			// function to update the right value and also update the observable's
+			// value to keep it in sync with the element's value
+			converters.push(newValue => {
+				value._value = value.wrapValue(newValue);
+				update(newValue);
+			});
 		} else {
 			// normal observable, call the observable's update with the correct update type
 			converters.push(newValue => {
-				value.updateType = updateType;
-				value.value = newValue;
+				value.update(newValue, updateType);
 			});
 		}
 	} else {

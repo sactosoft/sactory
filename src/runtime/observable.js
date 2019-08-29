@@ -64,7 +64,7 @@ Observable.prototype.addMaybeDependencies = function(dependencies, bind){
  * @since 0.129.0
  */
 Observable.prototype.subscribe = function(callback, type){
-	var ret = new Subscription(this, callback);
+	var ret = new Subscription(this, callback, type);
 	this._subscriptions.push(ret);
 	return ret;
 };
@@ -113,6 +113,17 @@ Observable.prototype.triggerUpdate = function(type, args){
 };
 
 /**
+ * @since 0.129.0
+ */
+Observable.prototype.update = function(value, type, args){
+	if(this.shouldUpdate(this._value, value)) {
+		var oldValue = this._value;
+		this._value = this.wrapValue(value);
+		this.propagateUpdate(value, oldValue, type, args);
+	}
+};
+
+/**
  * Indicates whether the observable should update when the value is changed by
  * assigning the `value` property.
  * @since 0.129.0
@@ -146,11 +157,7 @@ Object.defineProperty(Observable.prototype, "value", {
 		return this._value;
 	},
 	set(value) {
-		if(this.shouldUpdate(this._value, value)) {
-			var oldValue = this._value;
-			this._value = this.wrapValue(value);
-			this.propagateUpdate(value, oldValue);
-		}
+		this.update(value);
 	}
 });
 

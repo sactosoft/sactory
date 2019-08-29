@@ -894,12 +894,6 @@ SourceCodeMode.prototype.next = function(match){
 							inject(`${source.length && !Polyfill.endsWith.call(source, ",") && !Polyfill.endsWith.call(source, "(") ? ", " : ""}...${this.arguments}`, info);
 						}
 					}
-					/*var hasComma = false;
-					console.log(this.searchInSource(","));
-					console.log(this.searchInSource("("));
-					var info = find(1);
-					var char = info.source.charAt(-info.left - 1);
-					inject((char != '(' && char != ',' ? ", " : "") + "..." + this.arguments, info);*/
 				} else {
 					// wrap single argument (one keyword)
 					// inject after the keyword

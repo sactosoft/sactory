@@ -210,7 +210,7 @@ chain.updateImpl = function(context, [attrs = [], iattrs, sattrs, transitions, v
 						} while(!parentWidget && (search = search.parent));
 					}
 				}
-				return parentWidget && parentWidget[":" + tagName.substr(columns + 2)]
+				return parentWidget && parentWidget["render__" + tagName.substr(columns + 2)]
 			}
 		}
 		if((widgetCheck === undefined || widgetCheck) && ((widget = typeof tagName == "function" && tagName) || (widget = getWidget()))) {
