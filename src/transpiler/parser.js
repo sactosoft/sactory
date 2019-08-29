@@ -203,7 +203,7 @@ Parser.prototype.lastKeywordIsPlusMinus = function(){
  * @since 0.50.0
  */
 Parser.prototype.couldStartRegExp = function(){
-	return this.last === undefined || !this.last.match(/^[a-zA-Z0-9_$\)\].+-]$/) ||
+	return this.last === undefined || !this.last.match(/^[a-zA-Z0-9_$'"`\)\].+-]$/) ||
 		this.lastKeywordIn("return", "throw", "typeof", "do", "in", "instanceof", "new", "delete", "else") ||
 		this.last == ')' && this.lastParenthesis !== undefined && this.lastKeywordAtIn(this.lastParenthesis, "if", "else", "for", "while") ||
 		/\n/.test(this.input.substring(this.lastIndex, this.index)) && this.lastKeywordIn("++", "--", "break", "continue") ||
@@ -232,8 +232,12 @@ Parser.prototype.skipImpl = function(options){
 			this.last = undefined;
 		} else if(options.strings !== false && (next == '"' || next == '\'' || next == '`')) {
 			ret += this.skipString();
+			prelast = this.last;
+			prelastIndex = this.index;
 		} else if(options.regexp === true && next == '/' && this.couldStartRegExp()) {
 			ret += this.skipRegExp();
+			prelast = this.last;
+			prelastIndex = this.index;
 		} else {
 			this.last = prelast;
 			this.lastIndex = prelastIndex;
@@ -279,8 +283,8 @@ Parser.prototype.skipEscapableContent = function(message){
  * @since 0.19.0
  */
 Parser.prototype.skipString = function(){
-	var ret = this.skipEscapableContent(function(){ return "string"; });
-	this.last = this.input[this.lastIndex = this.index];
+	var ret = this.skipEscapableContent(() => "string");
+	this.last = this.input[this.lastIndex = this.index - 1];
 	return ret;
 };
 
@@ -290,14 +294,15 @@ Parser.prototype.skipString = function(){
  * @since 0.50.0
  */
 Parser.prototype.skipRegExp = function(){
-	var ret = this.skipEscapableContent(function(){ return "regular expression"; });
+	var ret = this.skipEscapableContent(() => "regular expression");
 	var flags = ['g', 'i', 'm', 's', 'u', 'y'];
 	var index;
 	while((index = flags.indexOf(this.peek())) != -1) {
 		flags.splice(index, 1);
 		ret += this.read();
 	}
-	this.last = this.input[this.lastIndex = this.index];
+	this.lastIndex = this.index - 1;
+	this.last = 'a'; // behave like it was a variable name
 	return ret;
 };
 
@@ -351,7 +356,7 @@ Parser.prototype.find = function(search, force, skip){
 			this.lastIndex = this.index - 1;
 		}
 	}
-	if(force && this.eof()) this.error("Expected [" + search.join(", ") + "] but none found.");
+	if(force && this.eof()) this.error("Expected " + search.join(", ") + " but none found.");
 	return {pre: ret};
 };
 
@@ -402,7 +407,7 @@ Parser.prototype.readImpl = function(regex, force, message){
  * @since 0.36.0
  */
 Parser.prototype.readVarName = function(force){
-	return this.readImpl(/^[a-zA-Z_$][a-zA-Z0-9_$]*/, force, function(){ return "Could not find a valid variable name."; });
+	return this.readImpl(/^[a-zA-Z_$][a-zA-Z0-9_$]*/, force, () => "Could not find a valid variable name.");
 };
 
 /**
@@ -412,7 +417,7 @@ Parser.prototype.readVarName = function(force){
  * @since 0.13.0
  */
 Parser.prototype.readTagName = function(force){
-	return this.readImpl(/^(#[a-z-]+|[a-zA-Z0-9:-]+|@)/, force, function(){ return "Could not find a valid tag name."; });
+	return this.readImpl(/^(#[a-z-]+|[a-zA-Z0-9:-]+|@)/, force, () => "Could not find a valid tag name.");
 };
 
 /**
@@ -448,7 +453,7 @@ Parser.prototype.readAttributePrefix = function(){
  * @since 0.22.0
  */
 Parser.prototype.readAttributeName = function(force){
-	return this.readImpl(/^[a-zA-Z0-9_$@.:!-]+/, force, function(){ return "Could not find a valid attribute name."; });
+	return this.readImpl(/^[a-zA-Z0-9_$@.:!-]+/, force, () => "Could not find a valid attribute name.");
 };
 
 /**
