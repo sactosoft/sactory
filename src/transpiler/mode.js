@@ -510,7 +510,6 @@ LogicMode.prototype.parse = function(handle, eof){
 			}
 			break;
 		case '\n':
-			console.log(this.statements);
 			if(this.statements.length && this.statements[this.statements.length - 1].inline) {
 				var trimmed = this.trimEnd();
 				this.endChainable();
@@ -1054,7 +1053,7 @@ SSBMode.prototype.start = function(){
 };
 
 SSBMode.prototype.find = function(){
-	return this.parser.find(['$', '<', 'v', 'c', 'l', 'i', 'e', 'f', '@', '{', '}', ';', '\n'], false, false);
+	return this.parser.find(['$', '<', 'v', 'c', 'l', 'i', 'e', 'f', '{', '}', ';'], false, false);
 };
 
 SSBMode.prototype.lastValue = function(callback, parser){
@@ -1102,7 +1101,11 @@ SSBMode.prototype.lastValue = function(callback, parser){
 
 SSBMode.prototype.parseImpl = function(pre, match, handle, eof){
 	switch(match) {
-		case '@':
+		case '<':
+			if(!/\s/.test(this.parser.peek())) {
+				TextExprMode.prototype.parseImpl.call(this, pre, match, handle, eof);
+				break;
+			}
 		case '{':
 			this.lastValue(value => this.addScope(value));
 			this.statements.push({
@@ -1111,33 +1114,46 @@ SSBMode.prototype.parseImpl = function(pre, match, handle, eof){
 				maybeObservables: [],
 				end: "",
 				parts: [{}],
-				inline: match == '@'
+				single: match == '<'
 			});
 			this.inExpr = false;
 			break;
 		case ';':
 			var scope = this.scopes[this.scopes.length - 1];
-			var value;
-			for(var i=0; i<this.current.length; i++) {
-				var current = this.current[i];
-				if(current.text) {
-					var column = current.value.indexOf(':');
-					if(column != -1) {
-						var transpiler = this.transpiler;
-						var value = this.current.slice(i + 1);
-						value.unshift({text: true, value: current.value.substr(column + 1)});
-						current.value = current.value.substring(0, column);
-						this.current = this.current.slice(0, i + 1);
-						this.lastValue(value => this.add(`${scope}.value(${value}`));
-						this.add(",");
-						this.current = value;
-						this.lastValue(value => this.add(value + ");"), value => SSBMode.reparseExpr(value, transpiler));
-						break;
+			var filtered = this.current.filter(c => !c.text || c.value.trim().length);
+			if(filtered.length == 1 && !filtered[0].text && Polyfill.startsWith.call(filtered[0].value.source, "...")) {
+				this.add(`${scope}.spread(${filtered[0].value.source.substr(3)});`);
+				var curr;
+				while((curr = this.current.pop()).text) this.add(curr.value);
+				this.current = [];
+			} else {
+				var value;
+				for(var i=0; i<this.current.length; i++) {
+					var current = this.current[i];
+					if(current.text) {
+						var column = current.value.indexOf(':');
+						if(column != -1) {
+							var transpiler = this.transpiler;
+							var value = this.current.slice(i + 1);
+							value.unshift({text: true, value: current.value.substr(column + 1)});
+							current.value = current.value.substring(0, column);
+							this.current = this.current.slice(0, i + 1);
+							this.lastValue(value => this.add(`${scope}.value(${value}`));
+							this.add(",");
+							this.current = value;
+							this.lastValue(value => this.add(value + ");"), value => SSBMode.reparseExpr(value, transpiler));
+							break;
+						}
 					}
 				}
+				if(!value) {
+					this.lastValue(value => this.add(`${scope}.stat(${value});`));
+				}
 			}
-			if(!value) {
-				this.lastValue(value => this.add(scope + ".stat(" + value + ");"));
+			var statement = this.statements[this.statements.length - 1];
+			if(statement && statement.single) {
+				// inlined with @, close statement
+				this.onStatementEnd(this.statements.pop());
 			}
 			this.inExpr = false;
 			break;

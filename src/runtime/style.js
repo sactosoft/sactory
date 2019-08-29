@@ -10,11 +10,17 @@ function SelectorHolder() {
 }
 
 SelectorHolder.prototype.value = function(key, value){
-	this.content.push({key: key, value: value});
+	this.content.push({key, value});
 };
 
 SelectorHolder.prototype.stat = function(stat){
 	this.content.push({key: stat});
+};
+
+SelectorHolder.prototype.spread = function(props){
+	for(var key in props) {
+		this.value(key, props[key]);
+	}
 };
 
 /**
