@@ -1,15 +1,9 @@
 var rowId = 1;
 var data = &[];
 
-/*var benchmark = (fun, ...args) => {
+var benchmark = (fun, ...args) => {
 	var start = performance.now();
 	fun.apply(null, args);
-	console.log(`${fun.name}: ${performance.now() - start}ms`);
-};*/
-
-var benchmark = (fun, args) => {
-	var start = performance.now();
-	fun.apply(null, [args]);
 	console.log(`${fun.name}: ${performance.now() - start}ms`);
 };
 

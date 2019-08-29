@@ -883,11 +883,23 @@ SourceCodeMode.prototype.next = function(match){
 				if(this.parser.last == ')') {
 					// can inject using the current arguments
 					// recover pointer through the source
-					//TODO keep going back if spaces are found
-					//TODO do not inject when there is already a rest parameter
+					var start = this.searchInSource('(');
+					if(start) {
+						// if the condition fails there's probably a syntax error
+						var dot = this.searchInSource('.');
+						if(!dot || dot.sourceIndex < start.sourceIndex || dot.index < start.index) {
+							// the rest parameter was not declared
+							var info = find(1);
+							var source = Polyfill.trimEnd.call(info.source);
+							inject(`${source.length && !Polyfill.endsWith.call(source, ",") && !Polyfill.endsWith.call(source, "(") ? ", " : ""}...${this.arguments}`, info);
+						}
+					}
+					/*var hasComma = false;
+					console.log(this.searchInSource(","));
+					console.log(this.searchInSource("("));
 					var info = find(1);
 					var char = info.source.charAt(-info.left - 1);
-					inject((char != '(' && char != ',' ? ", " : "") + "..." + this.arguments, info);
+					inject((char != '(' && char != ',' ? ", " : "") + "..." + this.arguments, info);*/
 				} else {
 					// wrap single argument (one keyword)
 					// inject after the keyword
