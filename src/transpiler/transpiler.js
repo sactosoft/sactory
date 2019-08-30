@@ -658,7 +658,7 @@ Transpiler.prototype.open = function(){
 							create = append = false;
 							break;
 						case "super":
-							element = `super.render(${this.context})`;
+							element = "super.render(...arguments)";
 							create = append = false;
 							break;
 						case "fragment":
