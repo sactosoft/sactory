@@ -504,10 +504,9 @@ Sactory.prototype.event = function(name, value, bind){
 								var timeout;
 								listener = function(event){
 									if(timeout) clearTimeout(timeout);
-									var args = arguments;
 									timeout = setTimeout(() => {
 										timeout = 0;
-										prev.call(this, args);
+										prev.apply(this, arguments);
 									}, delay);
 								};
 							} else {
@@ -521,12 +520,6 @@ Sactory.prototype.event = function(name, value, bind){
 			}
 		}
 	});
-	if(value) {
-		var prev = listener;
-		listener = function(event){
-			prev.call(this, event, this);
-		};
-	}
 	if(event == "documentappend") {
 		// special event
 		event = "append";
@@ -534,12 +527,17 @@ Sactory.prototype.event = function(name, value, bind){
 		var element = this.element;
 		listener = function(event){
 			if(BuilderPolyfill.contains(element.ownerDocument, element)) {
-				prev.apply(element, arguments);
+				prev.call(element, event, element);
 			} else {
 				var parent = this.parentNode;
 				while(parent.parentNode) parent = parent.parentNode;
 				parent["~builder"].eventImpl("append", listener, options, bind);
 			}
+		};
+	} else if(value) {
+		var prev = listener;
+		listener = function(event){
+			prev.call(this, event, this);
 		};
 	}
 	this.eventImpl(event, listener, options, bind);
