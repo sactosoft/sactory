@@ -3,7 +3,8 @@ var Const = require("../const");
 var SactoryConst = require("./const");
 var SactoryContext = require("./context");
 var SactoryMisc = require("./misc");
-var { widgets, Widget, Registry } = require("./widget");
+var SactoryWidget = require("./widget").Sactory;
+var { Widget, Registry } = require("./widget");
 
 var Sactory = {};
 
@@ -189,42 +190,18 @@ chain.updateImpl = function(context, [attrs = [], iattrs, sattrs, transitions, v
 	var registry = new Registry(context.registry);
 	
 	if(!updatedElement) {
-		var parentWidget, widget;
-		function getWidget() {
-			var columns = tagName.indexOf("::");
-			if(columns == -1) {
-				return widgets[tagName];
-			} else {
-				var parentName = tagName.substring(0, columns);
-				if(context.registry) {
-					var search = context.registry;
-					if(parentName) {
-						// search in named widgets
-						do {
-							parentWidget = search.widgets.named[parentName];
-						} while(!parentWidget && (search = search.parent));
-					} else {
-						// search in main widgets
-						do {
-							parentWidget = search.widgets.main;
-						} while(!parentWidget && (search = search.parent));
-					}
-				}
-				return parentWidget && parentWidget["render__" + tagName.substr(columns + 2)]
-			}
-		}
-		if((widgetCheck === undefined || widgetCheck) && ((widget = typeof tagName == "function" && tagName) || (widget = getWidget()))) {
-			var widgetName = tagNameString || tagName;
-			var slotRegistry = registry.sub(widgetName, true);
+		var widget, ref = { name: tagNameString || tagName };
+		if((widgetCheck === undefined || widgetCheck) && ((widget = typeof tagName == "function" && tagName) || (widget = SactoryWidget.getWidget(tagName, context.registry, ref)))) {
+			var slotRegistry = registry.sub(ref.name, true);
 			var newContext = SactoryContext.newContext(context, {element: null, anchor: null, registry: slotRegistry});
 			if(widget.prototype && widget.prototype.render) {
 				var instance = Widget.newInstance(widget, newContext, widgetArgs);
-				registry.widgets.main = registry.widgets.named[widgetName] = instance; // register here so the widget can access its children when rendering
+				registry.widgets.main = registry.widgets.named[ref.name] = instance; // register here so the widget can access its children when rendering
 				var element = Widget.render(widget, instance, newContext, widgetArgs);
-				element["~builder"].widget = element["~builder"].widgets[widgetName] = instance;
+				element["~builder"].widget = element["~builder"].widgets[ref.name] = instance;
 				context.element = element;
 			} else {
-				context.element = widget.call(parentWidget, widgetArgs, newContext);
+				context.element = widget.call(ref.parentWidget, widgetArgs, newContext);
 				if(!(context.element instanceof Node)) throw new Error("The widget did not return an instance of 'Node', returned '" + context.element + "' instead.");
 			}
 			if(slotRegistry.targetSlots[SactoryConst.SL_CONTENT]) {
@@ -237,15 +214,6 @@ chain.updateImpl = function(context, [attrs = [], iattrs, sattrs, transitions, v
 			updatedElement = context.element;
 			if(slotRegistry.targetSlots[SactoryConst.SL_CONTAINER]) updatedElement = context.container = slotRegistry.targetSlots[SactoryConst.SL_CONTAINER].element;
 			if(slotRegistry.targetSlots[SactoryConst.SL_INPUT]) context.input = slotRegistry.targetSlots[SactoryConst.SL_INPUT].element;
-			/* debug:
-			if(context.element.setAttribute) {
-				if(typeof tagName == "function") {
-					context.element.setAttribute(":widget.anonymous", tagName.name);
-				} else {
-					context.element.setAttribute(":widget", tagName);
-				}
-			}
-			*/
 		} else {
 			var update = element => updatedElement = context.element = context.content = element;
 			if(namespace) {
@@ -277,24 +245,22 @@ chain.updateImpl = function(context, [attrs = [], iattrs, sattrs, transitions, v
 	}
 
 	widgetExt.forEach(({widget, name, args}) => {
-		if(name) {
-			if(!Object.prototype.hasOwnProperty.call(widgets, name)) throw new Error("Widget '" + name + "' could not be found.");
-			widget = widgets[name];
+		var ref = { name };
+		if(!widget) {
+			widget = SactoryWidget.getWidget(name, context.registry, ref);
+			if(!widget) throw new Error("Widget '" + name + "' could not be found.");
 		}
-		var slotRegistry = registry.sub(name || "", false);
+		var slotRegistry = registry.sub(ref.name || "", false);
 		var newContext = SactoryContext.newContext(context, {anchor: null, registry: slotRegistry});
 		if(widget.prototype && widget.prototype.render) {
 			var {instance, element} = Widget.newInstanceRender(widget, newContext, args);
 			if(element !== updatedElement) throw new Error("The widget did not return the given element, hence does not support extension.");
-			if(name) registry.widgets.named[name] = updatedElement["~builder"].widgets[name] = instance;
+			if(ref.name) registry.widgets.named[ref.name] = updatedElement["~builder"].widgets[ref.name] = instance;
+		} else if(ref.parentWidget) {
+			widget.call(ref.parentWidget, args, args, newContext);
 		} else {
-			widget(args, newContext);
+			widget(args, args, newContext);
 		}
-		/* debug:
-		if(context.element.setAttribute) {
-			context.element.setAttribute(":extend:" + (name || "anonymous"), !name && widget.name || "");
-		}
-		*/
 	});
 
 	// update context's widget registry

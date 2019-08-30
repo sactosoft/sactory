@@ -1,3 +1,4 @@
+var { hyphenate, dehyphenate } = require("../util");
 var SactoryConst = require("./const");
 
 var Sactory = {};
@@ -41,8 +42,32 @@ Sactory.hasWidget = function(name){
  * Gets the instance of the widget with the given name.
  * @since 0.112.0
  */
-Sactory.getWidget = function(name){
-	return widgets[name];
+Sactory.getWidget = function(name, registry, ref = {}){
+	var sep = name.indexOf("$");
+	if(sep == -1) {
+		return widgets[name];
+	} else {
+		var parentWidget, parentName = name.substring(0, sep);
+		if(registry) {
+			var search = registry;
+			if(parentName) {
+				// search in named widgets
+				do {
+					parentWidget = search.widgets.named[parentName];
+				} while(!parentWidget && (search = search.parent));
+			} else {
+				// search in main widgets
+				do {
+					parentWidget = search.widgets.main;
+				} while(!parentWidget && (search = search.parent));
+			}
+		}
+		ref.parentWidget = parentWidget;
+		ref.parentName = parentName;
+		ref.name = name.substr(sep + 1);
+		console.log(ref.name, dehyphenate(ref.name));
+		return parentWidget && (parentWidget["render$" + ref.name] || parentWidget["render$" + dehyphenate(ref.name)]);
+	}
 };
 
 /**
@@ -175,8 +200,8 @@ Registry.prototype.add = function(anchor, name, element){
 // default widgets
 
 Sactory.widgets = {
-	fragment: (_, {document}) => document.createDocumentFragment(),
-	shadow: ({mode = "open"}, {parentElement}) => parentElement.attachShadow({mode})
+	fragment: (_0, _1, {document}) => document.createDocumentFragment(),
+	shadow: ({mode = "open"}, _1, {parentElement}) => parentElement.attachShadow({mode})
 };
 
-module.exports = { widgets, Widget, Registry };
+module.exports = { Sactory, Widget, Registry };
