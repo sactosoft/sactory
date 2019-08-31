@@ -201,7 +201,7 @@ chain.updateImpl = function(context, [attrs = [], iattrs, sattrs, transitions, v
 				element["~builder"].widget = element["~builder"].widgets[ref.name] = instance;
 				context.element = element;
 			} else {
-				context.element = widget.call(ref.parentWidget, widgetArgs, newContext);
+				context.element = widget.call(ref.parentWidget, widgetArgs, widgetArgs, newContext);
 				if(!(context.element instanceof Node)) throw new Error("The widget did not return an instance of 'Node', returned '" + context.element + "' instead.");
 			}
 			if(slotRegistry.targetSlots[SactoryConst.SL_CONTENT]) {

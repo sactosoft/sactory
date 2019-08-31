@@ -658,8 +658,14 @@ Transpiler.prototype.open = function(){
 							create = append = false;
 							break;
 						case "super":
-							element = "super.render(...arguments)";
-							create = append = false;
+							computed = true;
+							tagName = "super.render";
+							if(arg) tagName += "$" + arg;
+							rattributes.unshift({
+								type: "$",
+								name: "",
+								value: "arguments[0]"
+							});
 							break;
 						case "fragment":
 							widget = "fragment";
@@ -674,11 +680,6 @@ Transpiler.prototype.open = function(){
 								});
 							}
 							append = false;
-							break;
-						case "anchor":
-							tagName = ":bind";
-							dattributes.to = "[]";
-							create = update = append = false;
 							break;
 						case "use":
 							element = arg;
@@ -788,39 +789,15 @@ Transpiler.prototype.open = function(){
 		if(tagName.charAt(0) != '#') {
 
 			if(!computed && tagName == ":debug" || dattributes["debug"]) {
-				this.source.push("if(" + this.runtime + ".isDebug){");
+				this.source.push("if(" + this.runtime + ".isDebug) {");
 				currentClosing.unshift("}");
 			}
 
-			if(dattributes["ref-widget"]) {
-				var ref = dattributes["ref-widget"];
-				var temp = this.context + ".r";
-				if(dattributes.ref instanceof Array) dattributes.ref.push(temp);
-				else if(dattributes.ref) dattributes.ref = [dattributes.ref, temp];
-				else dattributes.ref = temp;
-				this.source.push("(");
-				currentClosing.unshift(`,${ref instanceof Array ? ref.join(" = ") : ref} = ${this.runtime}.widget(${temp}), ${temp})`);
-			}
+			if(tagName == ":bind" || tagName == ":unbind") {
 
-			if(dattributes.ref) {
-				if(dattributes.ref instanceof Array) this.source.push(dattributes.ref.join(" = "));
-				else this.source.push(dattributes.ref);
-				this.source.push(" = ");
-			}
-
-			/*if(dattributes.unique) {
-				this.source.push(`${this.feature("unique")}(this, ${this.context}, ${this.nextId()}, function(){return `);
-				currentClosing.unshift("})");
-			}*/
-
-			var before = [], after = [];
-			var beforeClosing = "";
-			var inline = false;
-			var hasBody = false;
-
-			if(tagName == ":bind") {
-				var to = dattributes.to;
-				this.source.push(`${this.feature("bind")}(${this.arguments}, ${this.context}, [${Array.isArray(to) ? to : to.join(", ")}], `);
+				var str = value => Array.isArray(value) ? value.join(", ") : (value || "");
+				
+				this.source.push(`${this.feature(tagName.substr(1))}(${this.arguments}, ${this.context}, [${str(dattributes.to)}], [${str(dattributes["maybe-to"])}], `);
 				if(this.options.es6) {
 					this.source.push(`${this.context} => {`);
 					currentClosing.unshift("})");
@@ -828,138 +805,167 @@ Transpiler.prototype.open = function(){
 					this.source.push(`function(${this.context}){`);
 					currentClosing.unshift("}.bind(this))");
 				}
-			}
 
-			if(tagName == ":xml") {
-				this.source.push(`(${this.context}.x=${this.feature("xml")}(${dattributes.namespace || "null"}, ${dattributes.root || dattributes.name || "\"xml\""}),`);
-				currentClosing.unshift(`,${this.context}.x)`);
-				element = `${this.context}.x.firstElementChild`;
-				create = false;
-			}
+			} else {
 
-			// before
-
-			if(query) {
-				// querying element(s)
-				var data = [this.chainFeature("query"), element];
-				if(parent) data.push(parent);
-				before.push(data);
-			} else if(clone) {
-				// cloning an element
-				var data = [this.chainFeature("clone"), element];
-				if(Object.prototype.hasOwnProperty.call(dattributes, "deep")) data.push(+dattributes.deep);
-				before.push(data);
-			} else if(slotName) {
-				// using a slot
-				var data = [this.chainFeature("slot"), `"${slotName}"`];
-				if(tagName) data.push(`"${tagName}"`);
-				before.push(data);
-				append = false;
-			} else if(element) {
-				// using specific element(s)
-				before.push([this.chainFeature("use"), element]);
-			}
-
-			if(create) {
-				// tagName must be called before options, so it is calculated before attributes
-				var data = [this.chainFeature(optional ? "createIf" : "create"), false, options()];
-				if(widget) {
-					data[1] = this.runtime + ".widgets." + widget;
-				} else if(computed || this.options.widgets && this.options.widgets.indexOf(tagName) != -1) {
-					data[1] = tagName;
-					data.push(JSON.stringify(tagName));
-				} else {
-					data[1] = `"${tagName}"`;
+				if(dattributes["ref-widget"]) {
+					var ref = dattributes["ref-widget"];
+					var temp = this.context + ".r";
+					if(dattributes.ref instanceof Array) dattributes.ref.push(temp);
+					else if(dattributes.ref) dattributes.ref = [dattributes.ref, temp];
+					else dattributes.ref = temp;
+					this.source.push("(");
+					currentClosing.unshift(`,${ref instanceof Array ? ref.join(" = ") : ref} = ${this.runtime}.widget(${temp}), ${temp})`);
 				}
-				before.push(data);
-			} else if(update) {
-				if(dattributes.clear) {
-					before.push([this.chainFeature("clear")]);
-				}
-				var optString = options().toString();
-				if(optString.length > 2) {
-					// only trigger update if needed
-					before.push([this.chainFeature("update"), optString]);
-				}
-			}
 
-			// after
+				if(dattributes.ref) {
+					if(dattributes.ref instanceof Array) this.source.push(dattributes.ref.join(" = "));
+					else this.source.push(dattributes.ref);
+					this.source.push(" = ");
+				}
 
-			if(forms.length) {
-				var v = this.value;
-				after.push([this.chainFeature("forms"), forms.map(value => {
-					if(this.options.es6) {
-						value.push(`${this.value} => {${value.pop()}=${this.value}}`);
+				/*if(dattributes.unique) {
+					this.source.push(`${this.feature("unique")}(this, ${this.context}, ${this.nextId()}, function(){return `);
+					currentClosing.unshift("})");
+				}*/
+
+				if(tagName == ":xml") {
+					this.source.push(`(${this.context}.x=${this.feature("xml")}(${dattributes.namespace || "null"}, ${dattributes.root || dattributes.name || "\"xml\""}),`);
+					currentClosing.unshift(`,${this.context}.x)`);
+					element = `${this.context}.x.firstElementChild`;
+					create = false;
+				}
+
+				var before = [], after = [];
+				var beforeClosing = "";
+				var inline = false;
+				var hasBody = false;
+
+				// before
+
+				if(query) {
+					// querying element(s)
+					var data = [this.chainFeature("query"), element];
+					if(parent) data.push(parent);
+					before.push(data);
+				} else if(clone) {
+					// cloning an element
+					var data = [this.chainFeature("clone"), element];
+					if(Object.prototype.hasOwnProperty.call(dattributes, "deep")) data.push(+dattributes.deep);
+					before.push(data);
+				} else if(slotName) {
+					// using a slot
+					var data = [this.chainFeature("slot"), `"${slotName}"`];
+					if(tagName) data.push(`"${tagName}"`);
+					before.push(data);
+					append = false;
+				} else if(element) {
+					// using specific element(s)
+					before.push([this.chainFeature("use"), element]);
+				}
+
+				if(create) {
+					// tagName must be called before options, so it is calculated before attributes
+					var data = [this.chainFeature(optional ? "createIf" : "create"), false, options()];
+					if(widget) {
+						data[1] = this.runtime + ".widgets." + widget;
+					} else if(computed || this.options.widgets && this.options.widgets.indexOf(tagName) != -1) {
+						data[1] = tagName;
+						data.push(JSON.stringify(tagName));
 					} else {
-						value.push(`function(${this.value}){${value.pop()}=${this.value}}.bind(this)`);
+						data[1] = `"${tagName}"`;
 					}
-					return `[${value.join(", ")}]`;
-				}).join(", ")]);
-			}
-
-			var appendRef = dattributes.early ? before : after;
-			if(adopt) {
-				var data = [this.chainFeature("adopt")];
-				if(parent) data.append(parent);
-				appendRef.push(data);
-			} else if(append) {
-				var feature = "append";
-				if(parent) feature += "To";
-				if(optional) feature += "If";
-				var data = [this.chainFeature(feature)];
-				if(parent) data.push(parent || 0);
-				appendRef.push(data);
-			}
-
-			var chainAfter = this.currentMode.parser.chainAfter();
-			if(chainAfter) {
-				after.push(chainAfter);
-			}
-
-			// new slots
-			if(!Array.isArray(dattributes.slot)) dattributes.slot = dattributes.slot ? [dattributes.slot] : [];
-			if(dattributes["slot-content"]) dattributes.slot.push(this.runtime + ".SL_CONTENT");
-			if(dattributes["slot-container"]) dattributes.slot.push(this.runtime + ".SL_CONTAINER");
-			if(dattributes["slot-input"]) dattributes.slot.push(this.runtime + ".SL_INPUT");
-			if(dattributes.slot.length) {
-				before.push([this.chainFeature("slots"), `[${dattributes.slot.map(a => a === true ? 0 : a).join(", ")}]`]);
-			}
-
-			if(next == '/') {
-				this.parser.expect('>');
-				inline = true;
-			}
-			if(before && !inline) {
-				// create body
-				hasBody = true;
-				if(this.options.es6) {
-					before.push([this.chainFeature("body"), `${this.context} => {`]);
-					beforeClosing += "}";
-				} else {
-					before.push([this.chainFeature("body"), `function(${this.context}){`]);
-					beforeClosing += "}.bind(this)";
+					before.push(data);
+				} else if(update) {
+					if(dattributes.clear) {
+						before.push([this.chainFeature("clear")]);
+					}
+					var optString = options().toString();
+					if(optString.length > 2) {
+						// only trigger update if needed
+						before.push([this.chainFeature("update"), optString]);
+					}
 				}
-			}
 
-			// if nothing is used just make sure the right element is returned
-			if(!before.length && !after.length) {
-				before.push([this.chainFeature("nop")]);
-			}
+				// after
 
-			var mapNext = a => `, [${a.join(", ")}]`;
-			this.source.push(`${this.chain}${all ? ".all" : ""}(${this.arguments}, ${this.context}${before.map(mapNext).join("").slice(0, -1)}`);
-			currentClosing.unshift((before.length ? "]" : "") + after.map(mapNext).join("") + skipped + ")");
+				if(forms.length) {
+					var v = this.value;
+					after.push([this.chainFeature("forms"), forms.map(value => {
+						if(this.options.es6) {
+							value.push(`${this.value} => {${value.pop()}=${this.value}}`);
+						} else {
+							value.push(`function(${this.value}){${value.pop()}=${this.value}}.bind(this)`);
+						}
+						return `[${value.join(", ")}]`;
+					}).join(", ")]);
+				}
 
-			currentClosing.unshift(beforeClosing);
+				var appendRef = dattributes.early ? before : after;
+				if(adopt) {
+					var data = [this.chainFeature("adopt")];
+					if(parent) data.append(parent);
+					appendRef.push(data);
+				} else if(append) {
+					var feature = "append";
+					if(parent) feature += "To";
+					if(optional) feature += "If";
+					var data = [this.chainFeature(feature)];
+					if(parent) data.push(parent || 0);
+					appendRef.push(data);
+				}
 
-			if(!inline) {
+				var chainAfter = this.currentMode.parser.chainAfter();
+				if(chainAfter) {
+					after.push(chainAfter);
+				}
 
-				if(currentInheritance) {
-					currentInheritance.index = this.inheritCount++;
-					this.source.push(`${this.inheritance}.push(${options(true)});`);
-				} else if(currentNamespace) {
-					currentInheritance = {index: this.inheritCount++};
-					this.source.push(`${this.inheritance}.push([,,,,,${currentNamespace}]);`);
+				// new slots
+				if(!Array.isArray(dattributes.slot)) dattributes.slot = dattributes.slot ? [dattributes.slot] : [];
+				if(dattributes["slot-content"]) dattributes.slot.push(this.runtime + ".SL_CONTENT");
+				if(dattributes["slot-container"]) dattributes.slot.push(this.runtime + ".SL_CONTAINER");
+				if(dattributes["slot-input"]) dattributes.slot.push(this.runtime + ".SL_INPUT");
+				if(dattributes.slot.length) {
+					before.push([this.chainFeature("slots"), `[${dattributes.slot.map(a => a === true ? 0 : a).join(", ")}]`]);
+				}
+
+				if(next == '/') {
+					this.parser.expect('>');
+					inline = true;
+				}
+				if(before && !inline) {
+					// create body
+					hasBody = true;
+					if(this.options.es6) {
+						before.push([this.chainFeature("body"), `${this.context} => {`]);
+						beforeClosing += "}";
+					} else {
+						before.push([this.chainFeature("body"), `function(${this.context}){`]);
+						beforeClosing += "}.bind(this)";
+					}
+				}
+
+				// if nothing is used just make sure the right element is returned
+				if(!before.length && !after.length) {
+					before.push([this.chainFeature("nop")]);
+				}
+
+				var mapNext = a => `, [${a.join(", ")}]`;
+				this.source.push(`${this.chain}${all ? ".all" : ""}(${this.arguments}, ${this.context}${before.map(mapNext).join("").slice(0, -1)}`);
+				currentClosing.unshift((before.length ? "]" : "") + after.map(mapNext).join("") + skipped + ")");
+
+				currentClosing.unshift(beforeClosing);
+
+				if(!inline) {
+
+					if(currentInheritance) {
+						currentInheritance.index = this.inheritCount++;
+						this.source.push(`${this.inheritance}.push(${options(true)});`);
+					} else if(currentNamespace) {
+						currentInheritance = {index: this.inheritCount++};
+						this.source.push(`${this.inheritance}.push([,,,,,${currentNamespace}]);`);
+					}
+
 				}
 
 			}

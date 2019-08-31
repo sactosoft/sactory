@@ -144,6 +144,37 @@ Sactory.bind = function(context1, context2, dependencies, maybeDependencies, fun
 };
 
 /**
+ * @since 0.131.0
+ */
+Sactory.unbind = function(context1, context2, dependencies, maybeDependencies, fun){
+	fun(SactoryContext.newContext(Sactory.context(context1, context2), {bind: undefined}));
+};
+
+var bindImpl = fun => {
+	return (context1, context2, a, b, c) => {
+		if(typeof a == "function") {
+			c = a;
+			a = b = [];
+		} else if(typeof b == "function") {
+			c = b;
+			b = Array.isArray(a) ? a : [a];
+			a = [];
+		}
+		fun(context1, context2, a, b, c);
+	};
+};
+
+/**
+ * @since 0.131.0
+ */
+Sactory.$$bind = bindImpl(Sactory.bind);
+
+/**
+ * @since 0.131.0
+ */
+Sactory.$$unbind = bindImpl(Sactory.unbind);
+
+/**
  * @since 0.102.0
  */
 Sactory.bindIfElse = function(context1, context2, conditions, ...functions){

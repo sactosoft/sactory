@@ -65,7 +65,6 @@ Sactory.getWidget = function(name, registry, ref = {}){
 		ref.parentWidget = parentWidget;
 		ref.parentName = parentName;
 		ref.name = name.substr(sep + 1);
-		console.log(ref.name, dehyphenate(ref.name));
 		return parentWidget && (parentWidget["render$" + ref.name] || parentWidget["render$" + dehyphenate(ref.name)]);
 	}
 };
@@ -115,7 +114,8 @@ Widget.prototype.element = null;
 Widget.prototype.render = function(){
 	var error = document.createElement("p");
 	error.style.color = "red";
-	error.innerHTML = "The widget's <code>render</code> function is not implemented.";
+	error.style.fontFamily = "monospace";
+	error.innerHTML = "The widget's <b>render</b> function is not implemented.";
 	return error;
 };
 
@@ -179,7 +179,7 @@ function Registry(parent) {
 		main: null,
 		named: {}
 	};
-	this.slots = [];
+	this.slots = {};
 	if(parent) this.targetSlots = parent.targetSlots;
 	this.main = null;
 }

@@ -735,7 +735,13 @@ SourceCodeMode.prototype.next = function(match){
 		case '$':
 			if(this.parser.readIf('$')) {
 				var input = this.parser.input.substr(this.parser.index);
-				var functions = ["on", "subscribe", "rollback"];
+				if(Polyfill.startsWith.call(input, "context")) {
+					this.parser.index += 7;
+					this.add(`${this.runtime}.context(${this.arguments}, ${this.transpiler.context})`);
+					this.parser.last = ')';
+					return;
+				}
+				var functions = ["on", "subscribe", "rollback", "bind", "unbind"];
 				for(var i in functions) {
 					var fname = functions[i];
 					if(Polyfill.startsWith.call(input, fname + "(")) {
@@ -745,6 +751,7 @@ SourceCodeMode.prototype.next = function(match){
 						return;
 					}
 				}
+				this.restoreIndex('$');
 			}
 			this.restoreIndex('$');
 			break;
