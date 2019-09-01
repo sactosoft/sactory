@@ -3,14 +3,22 @@ var Polyfill = require("../polyfill");
 var Sactory = {};
 
 /**
- * Creates a new context to be used in the whole script.
- * @since 0.122.0
+ * @since 0.132.0
  */
-Sactory.init = function(count){
-	return {
-		__priority: -1,
-		counter: new SactoryConfig.Counter(count)
-	};
+Sactory.getContextFromArguments = Sactory.cfa = function(args){
+	for(var i=args.length; i>0; i--) {
+		var arg = args[i - 1];
+		if(arg && arg.__context) {
+			return arg;
+		}
+	}
+};
+
+/**
+ * @since 0.132.0
+ */
+Sactory.getContextFromArgumentsAndContext = Sactory.cfac = function(context, args){
+	return Sactory.cfa(args) || context;
 };
 
 /**
@@ -36,9 +44,7 @@ Sactory.context = function(context1, context2){
  * @since 0.128.0
  */
 Sactory.newContext = function(context, newContext){
-	var ret = Polyfill.assign({}, context, newContext);
-	ret.__priority = context.__priority + 1;
-	return ret;
+	return Polyfill.assign({}, context, newContext);
 };
 
 /**
@@ -46,14 +52,14 @@ Sactory.newContext = function(context, newContext){
  * right context, suitable to be used in chaining.
  * @since 0.128.0
  */
-Sactory.newChainContext = function(context1, context2){
+Sactory.newChainContext = function(context = {}){
 	return (({__priority, counter, element, bind, anchor, registry, selector}) => ({
-		__priority: __priority + 1,
+		__context: true,
 		counter, bind, anchor, registry, selector,
 		parentElement: element,
 		parentAnchor: anchor,
 		document: element ? element.ownerDocument : document
-	}))(SactoryContext.context(context1, context2));
+	}))(context);
 };
 
 /**

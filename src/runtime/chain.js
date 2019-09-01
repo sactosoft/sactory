@@ -11,23 +11,23 @@ var Sactory = {};
 /**
  * @since 0.60.0
  */
-function chain(context1, context2, ...functions) {
-	var context = SactoryContext.newChainContext(context1, context2);
-	functions.forEach(([fun, ...args]) => fun.call(null, context, ...args));
-	return context.element;
+function chain(context, ...functions) {
+	var newContext = SactoryContext.newChainContext(context);
+	functions.forEach(([fun, ...args]) => fun.call(null, newContext, ...args));
+	return newContext.element;
 }
 
 /**
  * @since 0.128.0
  */
-chain.all = function(context1, context2, [ffun, ...fargs], ...functions){
-	var context = SactoryContext.newChainContext(context1, context2);
-	context.all = true;
-	ffun.call(null, context, ...fargs);
-	Array.prototype.forEach.call(context.elements, element => {
-		functions.forEach(([fun, ...args]) => fun.call(null, Polyfill.assign({}, context, {element}), ...args));
+chain.all = function(context, [ffun, ...fargs], ...functions){
+	var newContext = SactoryContext.newChainContext(context);
+	newContext.all = true;
+	ffun.call(null, newContext, ...fargs);
+	Array.prototype.forEach.call(newContext.elements, element => {
+		functions.forEach(([fun, ...args]) => fun.call(null, Polyfill.assign({}, newContext, {element}), ...args));
 	});
-	return context.elements;
+	return newContext.elements;
 };
 
 /**

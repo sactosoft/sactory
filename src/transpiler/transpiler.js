@@ -6,6 +6,7 @@ var Const = require("../const");
 var Polyfill = require("../polyfill");
 var { hash, now, uniq } = require("./util");
 var Parser = require("./parser");
+var Generated = require("./generated");
 var { modeRegistry, modeNames, defaultMode, startMode } = require("./mode");
 
 function mapAttributeType(type) {
@@ -796,7 +797,7 @@ Transpiler.prototype.open = function(){
 			if(tagName == ":bind" || tagName == ":unbind") {
 
 				var str = value => Array.isArray(value) ? value.join(", ") : (value || "");
-				
+
 				this.source.push(`${this.feature(tagName.substr(1))}(${this.arguments}, ${this.context}, [${str(dattributes.to)}], [${str(dattributes["maybe-to"])}], `);
 				if(this.options.es6) {
 					this.source.push(`${this.context} => {`);
@@ -933,17 +934,6 @@ Transpiler.prototype.open = function(){
 					this.parser.expect('>');
 					inline = true;
 				}
-				if(before && !inline) {
-					// create body
-					hasBody = true;
-					if(this.options.es6) {
-						before.push([this.chainFeature("body"), `${this.context} => {`]);
-						beforeClosing += "}";
-					} else {
-						before.push([this.chainFeature("body"), `function(${this.context}){`]);
-						beforeClosing += "}.bind(this)";
-					}
-				}
 
 				// if nothing is used just make sure the right element is returned
 				if(!before.length && !after.length) {
@@ -951,8 +941,24 @@ Transpiler.prototype.open = function(){
 				}
 
 				var mapNext = a => `, [${a.join(", ")}]`;
-				this.source.push(`${this.chain}${all ? ".all" : ""}(${this.arguments}, ${this.context}${before.map(mapNext).join("").slice(0, -1)}`);
-				currentClosing.unshift((before.length ? "]" : "") + after.map(mapNext).join("") + skipped + ")");
+				this.source.addSource(`${this.chain}${all ? ".all" : ""}(`);
+				this.source.addContext();
+				this.source.addSource(before.map(mapNext).join(""));
+				if(!inline) {
+					// create body
+					this.source.addSource(`, [${this.chainFeature("body")}, `);
+					if(this.options.es6) {
+						this.source.addContextArg();
+						this.source.addSource(" => {");
+						beforeClosing += "}";
+					} else {
+						this.source.addSource("function(");
+						this.source.addContextArg();
+						this.source.addSource("){");
+						beforeClosing += "}.bind(this)";
+					}
+				}
+				currentClosing.unshift((!inline ? "]" : "") + after.map(mapNext).join("") + skipped + ")");
 
 				currentClosing.unshift(beforeClosing);
 
@@ -1130,6 +1136,7 @@ Transpiler.prototype.transpile = function(input){
 	var start = now();
 	
 	this.parser = new Parser(input);
+	this.source = new Generated(this);
 
 	this.count = hash((this.options.namespace || this.options.filename) + "") % 100000;
 	
@@ -1141,6 +1148,18 @@ Transpiler.prototype.transpile = function(input){
 	this.value = this.nextVar();
 	this.className = this.nextVar();
 	this.unit = this.nextVar();
+
+	// new
+	this.defaultContext = this.nextVar();
+	this.context0 = this.nextVar();
+	this.context1 = this.nextVar();
+
+	/*this.runtime = "__runtime";
+	this.chain = "__chain";
+	this.defaultContext = "__defaultContext";
+	this.context0 = "__context0";
+	this.context1 = "__context1";
+	this.arguments = "__args";*/
 
 	this.tagNames = {};
 	var features = this.features = {};
@@ -1186,9 +1205,8 @@ Transpiler.prototype.transpile = function(input){
 		}
 	}
 	if(this.options.before) this.before += this.options.before;
-	this.before += `var ${this.chain}=${this.runtime}.chain;var ${this.arguments}=[];var ${this.inheritance}=[];var ${this.context}=${this.runtime}.init(${this.count});`;
+	this.before += `var ${this.chain}=${this.runtime}.chain;var ${this.arguments}=[];var ${this.inheritance}=[];var ${this.defaultContext};`;
 	if(!this.options.hasOwnProperty("versionCheck") || this.options.versionCheck) this.before += `${this.runtime}.check("${v}");`;
-	this.source = [];
 
 	if(this.options.scope) this.before += `${this.context}.element=${this.options.scope};`;
 	if(this.options.anchor) this.before += `${this.context}.anchor=${this.options.anchor};`;
@@ -1218,7 +1236,7 @@ Transpiler.prototype.transpile = function(input){
 	if(this.options.after) this.after += this.options.after;
 	if(!noenv) this.after += "}.bind(this));";
 
-	var source = this.source.join("");
+	var source = this.source.toString();
 
 	function addDependencies(feature) {
 		if(Object.prototype.hasOwnProperty.call(dependencies, feature)) {

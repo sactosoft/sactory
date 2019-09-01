@@ -55,7 +55,7 @@ function Mode(transpiler, parser, source, attributes) {
 }
 
 Mode.prototype.add = function(text){
-	this.source.push(text);
+	return this.source.push(text);
 };
 
 /**
@@ -200,9 +200,11 @@ TextExprMode.prototype.endChain = function(){
 		}
 	});
 	if(!empty) {
-		this.add(`${this.transpiler.chain}(${this.arguments}, ${this.context}${source});`);
+		this.source.addSource(`${this.transpiler.chain}(`);
+		this.source.addContext();
+		this.source.addSource(`${source});`);
 	} else {
-		this.add(source);
+		this.source.addSource(source);
 	}
 	this.chain = [];
 };
@@ -344,7 +346,7 @@ LogicMode.prototype.parseLogic = function(expected, type, closing){
 		this.add(trimmed);
 		if(type === 0) {
 			// variable
-			this.endChainable(); // variable declaration cannot be chained
+			this.endChainable(); // variable declarations cannot be chained
 			var end = this.parser.find(closing || ['=', ';'], true, {comments: true, strings: false});
 			this.add(expected + end.pre + end.match); // add declaration (e.g. `var a =` or `var a;`)
 			if(end.match == '=') {
@@ -360,7 +362,8 @@ LogicMode.prototype.parseLogic = function(expected, type, closing){
 				maybeObservables: [],
 				inlineable: true,
 				end: "",
-				parts: []
+				parts: [],
+				ref: {}
 			};
 			var part = {
 				type: expected,
@@ -373,10 +376,10 @@ LogicMode.prototype.parseLogic = function(expected, type, closing){
 				// with condition (e.g. `statement(condition)`)
 				var reparse = (source, parser) => {
 					var parsed = this.transpiler.parseCode(source, parser);
-					Array.prototype.push.apply(statement.observables, parsed.observables);
-					Array.prototype.push.apply(statement.maybeObservables, parsed.maybeObservables);
-					Array.prototype.push.apply(part.observables, parsed.observables);
-					Array.prototype.push.apply(part.maybeObservables, parsed.maybeObservables);
+					statement.observables.push(...parsed.observables);
+					statement.maybeObservables(...parsed.maybeObservables);
+					part.observables(...parsed.observables);
+					part.maybeObservables(...parsed.maybeObservables);
 					return parsed.source;
 				};
 				var skipped = this.parser.skipImpl({});
@@ -411,13 +414,13 @@ LogicMode.prototype.parseLogic = function(expected, type, closing){
 						var column = rest.indexOf(":");
 						if(column == -1) {
 							// divided in 4 parts so it can be modified later
-							this.add(this.transpiler.feature("forEachArray") + "(")
-							this.add(expr);
+							statement.ref.a = this.add(this.transpiler.feature("forEachArray") + "(")
+							statement.ref.b = this.add(expr);
 							if(this.es6) {
-								this.add(", (");
+								statement.ref.c = this.add(", (");
 								this.add(rest + ") =>");
 							} else {
-								this.add(", function(");
+								statement.ref.c = this.add(", function(");
 								this.add(rest + ")");
 							}
 						} else {
@@ -558,15 +561,15 @@ LogicMode.prototype.end = function(){
 					}
 				});
 				this.source[popped.startIndex] = `${this.transpiler.feature("bindIfElse")}(${this.arguments}, ${this.context}, [${conditions.join(", ")}]` + this.source[popped.startIndex];
-				this.source[popped.endIndex] = (this.es6 ? "" : ".bind(this)") + ");" + this.source[popped.endIndex];
+				this.source[popped.endIndex] = `${this.es6 ? "" : ".bind(this)"});${this.source[popped.endIndex]}`;
 			} else if(popped.type == "foreach") {
 				// the source is divided in 4 parts
-				var expr = this.source[popped.startIndex + 1];
+				var expr = popped.ref.b.value;
 				var getter = this.es6 ? `() => ${expr}` : `function(){return ${expr}}.bind(this)`;
 				var maybe = !!popped.maybeObservables.length;
-				this.source[popped.startIndex] = "";
-				this.source[popped.startIndex + 1] = "";
-				this.source[popped.startIndex + 2] = `${this.transpiler.feature("bindEach" + (maybe ? "Maybe" : ""))}(${this.arguments}, ${this.context}, ${(maybe ? popped.maybeObservables : popped.observables)[0]}, ${getter}, ${!this.es6 ? "function" : ""}(${this.context}, `;
+				popped.ref.a.value = "";
+				popped.ref.b.value = "";
+				popped.ref.c.value = `${this.transpiler.feature("bindEach" + (maybe ? "Maybe" : ""))}(${this.arguments}, ${this.context}, ${(maybe ? popped.maybeObservables : popped.observables)[0]}, ${getter}, ${!this.es6 ? "function" : ""}(${this.context}, `;
 				// no need to close as the end is the same as the Sactory.forEach function call
 			} else {
 				// normal bind
@@ -607,7 +610,7 @@ OptionalLogicMode.prototype = Object.create(LogicMode.prototype);
  * @since 0.15.0
  */
 function SourceCodeMode(transpiler, parser, source, attributes) {
-	BreakpointMode.call(this, transpiler, parser, source, attributes, ['(', ')', '@', '$', '&', '*', '^', '=', '{']);
+	BreakpointMode.call(this, transpiler, parser, source, attributes, ['(', ')', '{', '}', '@', '$', '&', '*', '^', '=']);
 	this.observables = [];
 	this.maybeObservables = [];
 	this.parentheses = [];
@@ -703,6 +706,25 @@ SourceCodeMode.prototype.next = function(match){
 			if(popped) this.add(popped);
 			this.parser.lastParenthesis = this.parser.parentheses.pop();
 			this.handleParenthesis(match);
+			break;
+		case '{':
+			var last = this.parser.last;
+			var lastIndex = this.parser.lastIndex;
+			this.restoreIndex('{');
+			if(!this.attributes.inAttr && last == ')' && !this.parser.lastKeywordAtIn(this.parser.lastParenthesis, "if", "else", "for", "while", "do", "switch", "catch", "with")) {
+				// new function declaration
+				this.source.startFunction();
+			} else if(!this.attributes.inAttr && last == '>' && this.parser.input.charAt(lastIndex - 1) == '=') {
+				// new arrow function
+				this.source.startArrowFunction();
+			} else {
+				// loop/conditional statement
+				this.source.startScope();
+			}
+			break;
+		case '}':
+			this.source.endScope();
+			this.restoreIndex('}');
 			break;
 		case '@':
 			var skip = this.parser.skipImpl({strings: false});
@@ -874,19 +896,20 @@ SourceCodeMode.prototype.next = function(match){
 			break;
 		case '=':
 			if(!this.attributes.inAttr && this.parser.peek() == ">") {
+				this.lastArrowFunction = this.parser.index + 1;
 				// arrow function, inject arguments
 				// find the source and index where the last non-whitespace character is located
-				var find = sub => {
+				/*var find = sub => {
 					var left = this.parser.index - this.parser.lastIndex - sub;
-					var index = this.transpiler.source.length;
+					var index = this.transpiler.source.source.length;
 					var source;
 					do {
-						source = this.transpiler.source[--index];
-						left -= source.length;
+						source = this.transpiler.source.source[--index];
+						left -= source.value.length;
 					} while(left >= 0);
 					return { source, index, left };
 				};
-				var inject = (data, {source, index, left}) => this.transpiler.source[index] = source.slice(0, -left) + data + source.substr(-left);
+				var inject = (data, {source, index, left}) => source.value = source.value.slice(0, -left) + data + source.value.substr(-left);
 				if(this.parser.last == ')') {
 					// can inject using the current arguments
 					// recover pointer through the source
@@ -918,17 +941,9 @@ SourceCodeMode.prototype.next = function(match){
 					}
 					left--;
 					inject("(", { source, index, left });
-				}
+				}*/
 			}
 			this.restoreIndex('=');
-			break;
-		case '{':
-			var fun = this.parser.last == ')';
-			this.restoreIndex('{');
-			if(!this.attributes.inAttr && fun && !this.parser.lastKeywordAtIn(this.parser.lastParenthesis, "if", "else", "for", "while", "do", "switch", "catch")) {
-				// new function declaration, inject arguments declaration
-				this.add(`var ${this.arguments}=arguments;`);
-			}
 			break;
 	}
 };

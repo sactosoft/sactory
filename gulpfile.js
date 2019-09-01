@@ -104,6 +104,7 @@ gulp.task("dist:transpiler", function(){
 		"const",
 		"transpiler/util",
 		"transpiler/parser",
+		"transpiler/generated",
 		"transpiler/mode",
 		"transpiler/transpiler",
 		"transpiler/eval"
