@@ -460,7 +460,7 @@ LogicMode.prototype.parseLogic = function(expected, type, closing){
 };
 
 LogicMode.prototype.find = function(){
-	return this.parser.find(['$', '#', '<', 'c', 'l', 'v', 'b', 'd', 'i', 'e', 'f', 's', '}', '\n'], false, false);
+	return this.parser.find(['$', '#', '<', 'c', 'l', 'v', 'b', 'd', 'i', 'e', 'f', 'w', 's', '}', '\n'], false, false);
 };
 
 LogicMode.prototype.parse = function(handle, eof){
@@ -490,6 +490,9 @@ LogicMode.prototype.parse = function(handle, eof){
 			break;
 		case 'f':
 			if(!this.parseLogic("foreach", 1) && !this.parseLogic("for", 1)) this.pushText('f');
+			break;
+		case 'w':
+			if(!this.parseLogic("while", 1)) this.pushText('w');
 			break;
 		case 's':
 			if(!this.parseLogic("switch", 1)) this.pushText('s');
@@ -610,7 +613,7 @@ OptionalLogicMode.prototype = Object.create(LogicMode.prototype);
  * @since 0.15.0
  */
 function SourceCodeMode(transpiler, parser, source, attributes) {
-	BreakpointMode.call(this, transpiler, parser, source, attributes, ['(', ')', '{', '}', '@', '$', '&', '*', '^', '=']);
+	BreakpointMode.call(this, transpiler, parser, source, attributes, ['(', ')', '{', '}', '$', '&', '*', '^', '=']);
 	this.observables = [];
 	this.maybeObservables = [];
 	this.parentheses = [];
@@ -723,43 +726,15 @@ SourceCodeMode.prototype.next = function(match){
 			}
 			break;
 		case '}':
-			this.source.endScope();
 			this.restoreIndex('}');
-			break;
-		case '@':
-			var skip = this.parser.skipImpl({strings: false});
-			var peek = this.parser.peek();
-			var match = this.parser.input.substr(this.parser.index).match(/^(?:((?:\.?[a-zA-Z0-9_$]+)*)(\s*)\()/);
-			if(match) {
-				switch(match[1]) {
-					case "subscribe":
-						this.transpiler.warn("The `@subscribe` function does not exist anymore. Use `Observable.prototype.$$subscribe` instead.");
-						break;
-					case "rollback":
-						this.transpiler.warn("The `@rollback` function does not exist anymore. Use `Sactory.$$rollback` instead.");
-						break;
-					case "watch":
-					case "watch.deep":
-					case "watch.deps":
-					case "watch.always":
-						this.transpiler.warn("The `@" + match[1] + "` function does not exist anymore. Use The `& => value` syntax instead.");
-						break;
-					case "on":
-						this.transpiler.warn("The `@on` function does not exist anymore. Use `Sactory.$$on(element, event, listener)` or `EventTarget.prototype.$$on(event, listener)` instead");
-						break;
-					case "slot":
-						this.transpiler.warn("The `@slot` function does not exist anymore. Use the `<:anchor />` tag name with the slot attribute instead.");
-						break;
-				}
-			}
-			this.add('@' + skip);
+			this.source.endScope();
 			break;
 		case '$':
 			if(this.parser.readIf('$')) {
 				var input = this.parser.input.substr(this.parser.index);
 				if(Polyfill.startsWith.call(input, "context")) {
 					this.parser.index += 7;
-					this.add(`${this.runtime}.context(${this.arguments}, ${this.transpiler.context})`);
+					this.source.addContext();
 					this.parser.last = ')';
 					return;
 				}
@@ -768,7 +743,9 @@ SourceCodeMode.prototype.next = function(match){
 					var fname = functions[i];
 					if(Polyfill.startsWith.call(input, fname + "(")) {
 						this.parser.index += fname.length + 1;
-						this.add(`$$${fname}(${this.arguments}, ${this.transpiler.context}, `);
+						this.source.addSource(`$$${name}(`);
+						this.source.addContext();
+						this.source.addSource(", ");
 						this.parser.last = ',';
 						return;
 					}
@@ -782,8 +759,16 @@ SourceCodeMode.prototype.next = function(match){
 			var args = (parsed, async) => {
 				var ac = `${this.arguments}, ${this.transpiler.context}, `;
 				if(async) this.add(`.async()`);
-				if(parsed.observables.length) this.add(`.d(${ac}${uniq(parsed.observables).join(", ")})`);
-				if(parsed.maybeObservables.length) this.add(`.m(${ac}${uniq(parsed.maybeObservables).join(", ")})`);
+				if(parsed.observables.length) {
+					this.source.addSource(".d(");
+					this.source.addContext();
+					this.source.addSource(`, ${uniq(parsed.observables).join(", ")})`);
+				}
+				if(parsed.maybeObservables.length) {
+					this.source.addSource(".m(");
+					this.source.addContext();
+					this.source.addSource(`, ${uniq(parsed.maybeObservables).join(", ")})`);
+				}
 			};
 			var parseUnwrapped = (space, async) => {
 				this.parser.expect('=');

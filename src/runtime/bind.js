@@ -151,7 +151,7 @@ Sactory.unbind = function(context1, context2, dependencies, maybeDependencies, f
 };
 
 var bindImpl = fun => {
-	return (context1, context2, a, b, c) => {
+	return (context, a, b, c) => {
 		if(typeof a == "function") {
 			c = a;
 			a = b = [];
@@ -160,7 +160,7 @@ var bindImpl = fun => {
 			b = Array.isArray(a) ? a : [a];
 			a = [];
 		}
-		fun(context1, context2, a, b, c);
+		fun(context, a, b, c);
 	};
 };
 

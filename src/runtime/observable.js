@@ -86,12 +86,18 @@ Observable.prototype.unsubscribe = function({id}){
 /**
  * @since 0.130.0
  */
-Observable.prototype.$$subscribe = function(context1, context2, callback, type){
+Observable.prototype.$$subscribe = function(context, callback, type){
 	var subscription = this.subscribe(callback, type);
-	var { bind } = SactoryContext.context(context1, context2);
-	if(bind) {
-		bind.subscribe(subscription);
+	if(context && context.bind) {
+		context.bind.subscribe(subscription);
 	}
+};
+
+/**
+ * @since 0.132.0
+ */
+Observable.prototype.$$depend = function(context, dependencies){
+	this.addMaybeDependencies(dependencies, context && context.bind);
 };
 
 /**
@@ -243,16 +249,16 @@ Observable.prototype.async = function(){
 /**
  * @since 0.129.0
  */
-Observable.prototype.d = function(context1, context2, ...dependencies){
-	this.addDependencies(dependencies, SactoryContext.context(context1, context2).bind);
+Observable.prototype.d = function(context, ...dependencies){
+	this.addDependencies(dependencies, context && context.bind);
 	return this;
 };
 
 /**
  * @since 0.129.0
  */
-Observable.prototype.m = function(context1, context2, ...dependencies){
-	this.addMaybeDependencies(dependencies, SactoryContext.context(context1, context2).bind);
+Observable.prototype.m = function(context, ...dependencies){
+	this.addMaybeDependencies(dependencies, context && context.bind);
 	return this;
 };
 

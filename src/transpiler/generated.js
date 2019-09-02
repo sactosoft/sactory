@@ -13,6 +13,15 @@ function Generated(transpiler) {
 }
 
 /**
+ * @since 0.132.0
+ */
+Generated.prototype.fork = function(){
+	var ret = new Generated(this.transpiler);
+	ret.scope.context = this.scope.context;
+	return ret;
+};
+
+/**
  * Adds data to the source.
  * @returns The added data.
  * @since 0.132.0
@@ -32,6 +41,13 @@ Generated.prototype.addSource = Generated.prototype.push = function(value){
 	return this.add(SOURCE, value);
 };
 
+Generated.prototype.injectFunctionContext = function(scope){
+	if(!scope.injected) {
+		scope.data.value = `var ${this.transpiler["context" + scope.context]}=${this.transpiler.runtime}.cfa` + (scope.prevContext == -1 ? "(" : `c(${this.transpiler["context" + scope.prevContext]}, `) + `${scope.args});`;
+		scope.injected = true;
+	}
+};
+
 /**
  * @since 0.132.0
  */
@@ -39,10 +55,12 @@ Generated.prototype.addContext = function(){
 	if(this.fun) {
 		var context = "context" + this.fun.context;
 		// check whether the current function is already injected
-		if(!this.fun.injected) {
-			this.fun.data.value = `var ${this.transpiler[context]}=${this.transpiler.runtime}.cfa` + (this.fun.prevContext == -1 ? "(" : `c(${this.transpiler["context" + this.fun.prevContext]}, `) + `${this.fun.args});`;
-			this.fun.injected = true;
-		}
+		var scope = this.fun;
+		do {
+			if(scope.fun) {
+				this.injectFunctionContext(scope);
+			}
+		} while(scope = scope.parent);
 		// add actual variable to source
 		this.addSource(this.transpiler[context]);
 	} else {
@@ -57,8 +75,14 @@ Generated.prototype.addContextArg = function(){
 	this.addSource(this.fun ? this.transpiler["context" + this.fun.context] : this.transpiler.defaultContext);
 };
 
-Generated.prototype.startScope = function(){
-	var scope = {parent: this.scope, context: this.scope.context, prevContext: this.scope.prevContext, children: []};
+Generated.prototype.startScope = function(after){
+	var scope = {
+		parent: this.scope,
+		context: this.scope.context,
+		prevContext: this.scope.prevContext,
+		children: [],
+		after
+	};
 	this.scope.children.push(scope);
 	this.scope = scope;
 };
@@ -94,6 +118,7 @@ Generated.prototype.endScope = function(){
 		}
 		this.fun = parent;
 	}
+	if(this.scope.after) this.addSource(this.scope.after);
 	this.scope = this.scope.parent;
 };
 

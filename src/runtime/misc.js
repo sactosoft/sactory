@@ -128,8 +128,8 @@ Sactory.inherit = function(target, ...args){
 /**
  * @since 0.130.0
  */
-Sactory.$$on = function(context1, context2, element, name, value){
-	element["~builder"].event(name, value, SactoryContext.context(context1, context2).bind);
+Sactory.$$on = function(context, element, name, value){
+	element["~builder"].event(name, value, context && context.bind);
 };
 
 /**

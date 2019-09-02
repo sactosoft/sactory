@@ -137,7 +137,7 @@ Transpiler.prototype.endMode = function(){
  */
 Transpiler.prototype.parseImpl = function(modeId, input, parentParser){
 	var parser = new Parser(input, (parentParser || this.parser).position);
-	var source = [];
+	var source = this.source.fork();
 	var mode = startMode(modeId, this, parser, source, {inAttr: true});
 	if(mode.observables) {
 		parser.parseTemplateLiteral = expr => {
@@ -149,7 +149,7 @@ Transpiler.prototype.parseImpl = function(modeId, input, parentParser){
 	}
 	mode.start();
 	while(parser.index < input.length) {
-		mode.parse(function(){ source.push('<'); }, function(){});
+		mode.parse(() => source.addSource('<'), () => {});
 	}
 	mode.end();
 	return {mode, source};
@@ -160,7 +160,7 @@ Transpiler.prototype.parseImpl = function(modeId, input, parentParser){
  */
 Transpiler.prototype.parseCode = function(input, parentParser){
 	var {mode, source} = this.parseImpl(defaultMode, input, parentParser);
-	source = source.join("");
+	source = source.toString();
 	var observables = mode.observables ? uniq(mode.observables) : [];
 	var maybeObservables = mode.maybeObservables ? uniq(mode.maybeObservables) : [];
 	var ret = {
@@ -1154,12 +1154,12 @@ Transpiler.prototype.transpile = function(input){
 	this.context0 = this.nextVar();
 	this.context1 = this.nextVar();
 
-	/*this.runtime = "__runtime";
+	this.runtime = "__runtime";
 	this.chain = "__chain";
 	this.defaultContext = "__defaultContext";
 	this.context0 = "__context0";
 	this.context1 = "__context1";
-	this.arguments = "__args";*/
+	this.arguments = "__args";
 
 	this.tagNames = {};
 	var features = this.features = {};
