@@ -158,7 +158,7 @@ TextExprMode.prototype.addCurrent = function(){
 		if(expr.length) {
 			// create joined
 			var joined = this.es6 ?
-				`\`${expr.map(({text, value}) => text ? this.replaceText(value).replace(/(`|\\)/gm, "\\$1") : "${" + value.source + "}").join("")}\`` :
+				`\`${expr.map(({text, value}) => text ? this.replaceText(value).replace(/(`|\$|\\)/gm, "\\$1") : "${" + value.source + "}").join("")}\`` :
 				`"" + ${expr.map(({text, value}) => text ? stringify(this.replaceText(value)) : `(${value.source})`).join(" + ")}`;
 			// collect observables
 			var observables = [];
@@ -377,9 +377,9 @@ LogicMode.prototype.parseLogic = function(expected, type, closing){
 				var reparse = (source, parser) => {
 					var parsed = this.transpiler.parseCode(source, parser);
 					statement.observables.push(...parsed.observables);
-					statement.maybeObservables(...parsed.maybeObservables);
-					part.observables(...parsed.observables);
-					part.maybeObservables(...parsed.maybeObservables);
+					statement.maybeObservables.push(...parsed.maybeObservables);
+					part.observables.push(...parsed.observables);
+					part.maybeObservables.push(...parsed.maybeObservables);
 					return parsed.source;
 				};
 				var skipped = this.parser.skipImpl({});
@@ -1101,7 +1101,7 @@ SSBMode.prototype.lastValue = function(callback, parser){
 		filtered.push({text: true, value: ""});
 	}
 	if(this.es6) {
-		callback("`" + filtered.map(part => part.text ? part.value.replace(/(`|\\)/gm, "\\$1") : `\${${parser ? parser(part.value.source) : part.value.source}}`).join("") + "`");
+		callback("`" + filtered.map(part => part.text ? part.value.replace(/(`|\$|\\)/gm, "\\$1") : `\${${parser ? parser(part.value.source) : part.value.source}}`).join("") + "`");
 	} else {
 		if(!filtered[0].text) {
 			filtered.unshift({text: true, value: ""});
