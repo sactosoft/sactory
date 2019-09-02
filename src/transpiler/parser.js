@@ -205,7 +205,7 @@ Parser.prototype.lastKeywordIsPlusMinus = function(){
 Parser.prototype.couldStartRegExp = function(){
 	return this.last === undefined || !this.last.match(/^[a-zA-Z0-9_$'"`\)\].+-]$/) ||
 		this.lastKeywordIn("return", "throw", "typeof", "do", "in", "instanceof", "new", "delete", "else") ||
-		this.last == ')' && this.lastParenthesis !== undefined && this.lastKeywordAtIn(this.lastParenthesis, "if", "else", "for", "while", "with") ||
+		this.last == ')' && this.lastParenthesis && this.lastKeywordAtIn(this.lastParenthesis.lastIndex, "if", "else", "for", "while", "with") ||
 		/\n/.test(this.input.substring(this.lastIndex, this.index)) && this.lastKeywordIn("++", "--", "break", "continue") ||
 		this.lastKeywordIsPlusMinus();
 };

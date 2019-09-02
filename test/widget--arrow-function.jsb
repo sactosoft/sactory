@@ -1,6 +1,4 @@
-var button = function(){
-	return <button &background="silver" />;
-};
+var button = () => <button &background="silver" />;
 
 <:this>
 	<button>Normal Button</button>

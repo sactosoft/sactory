@@ -103,9 +103,9 @@ Sactory.anchor = function({element, bind, anchor}){
 /**
  * @since 0.124.0
  */
-Sactory.comment = function(context1, context2, value){
-	var { element, document, bind, anchor } = SactoryContext.context(context1, context2);
-	var ret = document.createComment(SactoryMisc.isBuilderObservable(value) ? (value => {
+Sactory.comment = function(context, value){
+	var { element, bind, anchor } = context;
+	var ret = (context.document || document).createComment(SactoryMisc.isBuilderObservable(value) ? (value => {
 		var subscription = value.subscribe(value => ret.textContent = value);
 		if(bind) bind.subscribe(subscription);
 		return value;
@@ -121,12 +121,11 @@ Sactory.comment = function(context1, context2, value){
 /**
  * @since 0.11.0
  */
-Sactory.bind = function(context1, context2, dependencies, maybeDependencies, fun){
-	var context = SactoryContext.context(context1, context2);
+Sactory.bind = function(context, dependencies, maybeDependencies, fun){
 	var currentBind = (context.bind || Sactory.bindFactory).fork();
 	var currentAnchor = null;
 	var subscribe = !context.bind ? () => {} : subscriptions => context.bind.subscribe(subscriptions);
-	var reload = () => fun(Polyfill.assign({}, context, {bind: currentBind, anchor: currentAnchor}));
+	var reload = () => fun(SactoryContext.newContext(context, {bind: currentBind, anchor: currentAnchor}));
 	if(context.element) {
 		currentAnchor = Sactory.anchor(context);
 		/* debug:
@@ -146,8 +145,8 @@ Sactory.bind = function(context1, context2, dependencies, maybeDependencies, fun
 /**
  * @since 0.131.0
  */
-Sactory.unbind = function(context1, context2, dependencies, maybeDependencies, fun){
-	fun(SactoryContext.newContext(Sactory.context(context1, context2), {bind: undefined}));
+Sactory.unbind = function(context, dependencies, maybeDependencies, fun){
+	fun(SactoryContext.newContext(context, {bind: undefined}));
 };
 
 var bindImpl = fun => {
@@ -177,8 +176,7 @@ Sactory.$$unbind = bindImpl(Sactory.unbind);
 /**
  * @since 0.102.0
  */
-Sactory.bindIfElse = function(context1, context2, conditions, ...functions){
-	var context = SactoryContext.context(context1, context2);
+Sactory.bindIfElse = function(context, conditions, ...functions){
 	var currentBindDependencies = (context.bind || Sactory.bindFactory).fork();
 	var currentBindContent = (context.bind || Sactory.bindFactory).fork();
 	var currentAnchor;
@@ -201,7 +199,7 @@ Sactory.bindIfElse = function(context1, context2, conditions, ...functions){
 			var [getter] = conditions[i];
 			if(!getter || (results[i] = !!getter())) {
 				active = i;
-				functions[i](Polyfill.assign({}, context, {bind: currentBindContent, anchor: currentAnchor}));
+				functions[i](SactoryContext.newContext(context, {bind: currentBindContent, anchor: currentAnchor}));
 				return;
 			}
 		}
@@ -235,8 +233,7 @@ Sactory.bindIfElse = function(context1, context2, conditions, ...functions){
 /**
  * @since 0.102.0
  */
-Sactory.bindEach = function(context1, context2, target, getter, fun){
-	var context = SactoryContext.context(context1, context2);
+Sactory.bindEach = function(context, target, getter, fun){
 	var currentBind = (context.bind || Sactory.bindFactory).fork();
 	var firstAnchor, lastAnchor;
 	if(context.element) {
@@ -249,7 +246,7 @@ Sactory.bindEach = function(context1, context2, target, getter, fun){
 	}
 	var binds = [];
 	function add(action, bind, anchor, value, index, array) {
-		fun(Polyfill.assign({}, context, {bind, anchor}), value, index, array);
+		fun(SactoryContext.newContext(context, {bind, anchor}), value, index, array);
 		binds[action]({bind, anchor});
 	}
 	function remove(bind) {
@@ -269,7 +266,7 @@ Sactory.bindEach = function(context1, context2, target, getter, fun){
 				if(ptr) {
 					// replace
 					ptr.bind.rollback();
-					fun(Polyfill.assign({}, context, ptr), value, index, array);
+					fun(SactoryContext.newContext(context, ptr), value, index, array);
 				} else {
 					//TODO
 				}
@@ -305,7 +302,7 @@ Sactory.bindEach = function(context1, context2, target, getter, fun){
 				args.forEach((info, i) => {
 					info.bind = currentBind.fork();
 					info.anchor = anchorTo ? Sactory.anchor({element: context.element, bind: currentBind, anchor: anchorTo}) : null;
-					fun(Polyfill.assign({}, context, {bind: info.bind, anchor: info.anchor}), info.value, i + index, array);
+					fun(SactoryContext.newContext(context, {bind: info.bind, anchor: info.anchor}), info.value, i + index, array);
 				});
 				break;
 			default:
@@ -320,11 +317,10 @@ Sactory.bindEach = function(context1, context2, target, getter, fun){
 /**
  * @since 0.102.0
  */
-Sactory.bindEachMaybe = function(context1, context2, target, getter, fun){
+Sactory.bindEachMaybe = function(context, target, getter, fun){
 	if(SactoryObservable.isObservable(target)) {
-		Sactory.bindEach(context1, context2, target, getter, fun);
+		Sactory.bindEach(context, target, getter, fun);
 	} else {
-		var context = SactoryContext.context(context1, context2);
 		SactoryMisc.forEachArray(scope, getter(), (...args) => fun(context, ...args));
 	}
 };
@@ -332,9 +328,8 @@ Sactory.bindEachMaybe = function(context1, context2, target, getter, fun){
 /**
  * @since 0.130.0
  */
-Sactory.$$rollback = function(context1, context2, callback){
-	var { bind } = SactoryContext.context(context1, context2);
-	if(bind) bind.addRollback(callback);
+Sactory.$$rollback = function(context, callback){
+	if(context.bind) context.bind.addRollback(callback);
 };
 
 module.exports = Sactory;

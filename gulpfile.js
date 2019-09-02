@@ -87,6 +87,7 @@ gulp.task("dist:sactory", function(){
 		"runtime/animation",
 		"runtime/bind",
 		"runtime/core",
+		"runtime/counter",
 		"runtime/chain",
 		"runtime/const",
 		"runtime/context",

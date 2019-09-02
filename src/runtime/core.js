@@ -9,6 +9,8 @@ var SactoryConst = require("./const");
 var SactoryMisc = require("./misc");
 var SactoryObservable = require("./observable");
 
+var counter = require("./counter");
+
 // global variable for hidden elements. A single class is used
 // in the whole web page to hide elements.
 var hidden;
@@ -79,17 +81,17 @@ Sactory.prototype.append = function(element, bind, anchor){
 /**
  * @since 0.79.0
  */
-Sactory.prototype.complexStyle = function(name, value, counter, bind){
+Sactory.prototype.complexStyle = function(name, value, bind){
 	if(this.element.style.length) {
 		// transfer inline styles
 		var values = Array.prototype.map.call(this.element.style, name => ({name, value: this.element.style[name]}));
-		if(values.length) this.styleImpl(values, counter, bind);
+		if(values.length) this.styleImpl(values, bind);
 		// remove inline styles
 		this.element.removeAttribute("style");
 		// transfer inline styles that are observables
 		this.styles.forEach(({name, value, subscription, bind}) => {
 			subscription.dispose();
-			this.styleImpl([{name, value}], counter, bind);
+			this.styleImpl([{name, value}], bind);
 		});
 	}
 	this.hasComplexStyle = true;
@@ -125,12 +127,12 @@ Sactory.prototype.complexStyle = function(name, value, counter, bind){
 /**
  * @since 0.121.0
  */
-Sactory.prototype.style = function(name, value, counter, bind){
+Sactory.prototype.style = function(name, value, bind){
 	if(this.hasComplexStyle) {
 		if(value === false) {
-			this.styleImpl([{name, value: "0"}, {name, value: "none"}], counter, bind);
+			this.styleImpl([{name, value: "0"}, {name, value: "none"}], bind);
 		} else {
-			this.styleImpl([{name, value}], counter, bind);
+			this.styleImpl([{name, value}], bind);
 		}
 	} else {
 		var prop = name;
@@ -155,7 +157,7 @@ Sactory.prototype.style = function(name, value, counter, bind){
 /**
  * @since 0.121.0
  */
-Sactory.prototype.styleImpl = function(values, counter){
+Sactory.prototype.styleImpl = function(values){
 	// hyphenate and convert to string
 	values.forEach(a => {
 		var name = hyphenate(a.name);
@@ -597,19 +599,19 @@ Sactory.prototype[Const.BUILDER_TYPE_NONE] = function({bind}, name, value){
 /**
  * @since 0.63.0
  */
-Sactory.prototype[Const.BUILDER_TYPE_PROP] = function({counter, bind}, name, value){
+Sactory.prototype[Const.BUILDER_TYPE_PROP] = function({bind}, name, value){
 	this.prop(name.toString(), value, bind);
 };
 
 /**
  * @since 0.121.0
  */
-Sactory.prototype[Const.BUILDER_TYPE_STYLE] = function({counter, bind}, name, value){
+Sactory.prototype[Const.BUILDER_TYPE_STYLE] = function({bind}, name, value){
 	name = name.toString();
 	if(/[!a-z-]/.test(name.charAt(0))) {
-		this.style(name, value, counter, bind);
+		this.style(name, value, bind);
 	} else {
-		this.complexStyle(name, value, counter, bind);
+		this.complexStyle(name, value, bind);
 	}
 };
 
@@ -641,7 +643,7 @@ Sactory.prototype[Const.BUILDER_TYPE_ON] = function({bind}, name, value){
 /**
  * @since 0.122.0
  */
-Sactory.prototype.visibility = function({counter, bind}, value, visible){
+Sactory.prototype.visibility = function({bind}, value, visible){
 	if(!hidden) {
 		hidden = counter.nextPrefix();
 		var style = document.createElement("style");
@@ -668,7 +670,7 @@ Sactory.prototype.visibility = function({counter, bind}, value, visible){
 /**
  * @since 0.46.0
  */
-Sactory.prototype.form = function({counter, bind}, info, value, update){
+Sactory.prototype.form = function({bind}, info, value, update){
 	var isObservable = SactoryObservable.isObservable(value);
 	if(SactoryMisc.isBuilderObservable(value)) {
 		isObservable = true;

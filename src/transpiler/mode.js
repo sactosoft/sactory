@@ -357,7 +357,8 @@ LogicMode.prototype.parseLogic = function(expected, type, closing){
 			// statement
 			var statement = Polyfill.startsWith.call(expected, "else") ? this.popped.pop() : {
 				type: expected,
-				startIndex: this.source.length,
+				startRef: this.source.addIsolatedSource(""),
+				context: this.source.getContextArg(),
 				observables: [],
 				maybeObservables: [],
 				inlineable: true,
@@ -369,7 +370,7 @@ LogicMode.prototype.parseLogic = function(expected, type, closing){
 				type: expected,
 				observables: [],
 				maybeObservables: [],
-				declStart: this.source.length
+				declStart: this.source.addIsolatedSource("")
 			};
 			statement.parts.push(part);
 			if(type === 1) {
@@ -414,38 +415,38 @@ LogicMode.prototype.parseLogic = function(expected, type, closing){
 						var column = rest.indexOf(":");
 						if(column == -1) {
 							// divided in 4 parts so it can be modified later
-							statement.ref.a = this.add(this.transpiler.feature("forEachArray") + "(")
-							statement.ref.b = this.add(expr);
+							statement.ref.a = this.source.addIsolatedSource(this.transpiler.feature("forEachArray") + "(")
+							statement.ref.b = this.source.addIsolatedSource(expr);
 							if(this.es6) {
-								statement.ref.c = this.add(", (");
-								this.add(rest + ") =>");
+								statement.ref.c = this.source.addIsolatedSource(", (");
+								this.source.addIsolatedSource(rest + ") =>");
 							} else {
-								statement.ref.c = this.add(", function(");
-								this.add(rest + ")");
+								statement.ref.c = this.source.addIsolatedSource(", function(");
+								this.source.addIsolatedSource(rest + ")");
 							}
 						} else {
 							// object
 							statement.type = part.type = "object-foreach";
 							rest = rest.substring(0, column) + "," + rest.substr(column + 1);
-							this.add(`${this.transpiler.feature("forEachObject")}(${expr}, ${this.es6 ? `(${rest}) =>` : `function(${rest})`}`);
+							this.source.addSource(`${this.transpiler.feature("forEachObject")}(${expr}, ${this.es6 ? `(${rest}) =>` : `function(${rest})`}`);
 						}
 					} else {
 						statement.type = part.type = "range";
-						this.add(`${this.transpiler.feature("range")}(${from}, ${to}, ${this.es6 ? `(${rest}) =>` : `function(${rest})`}`);
+						this.source.addSource(`${this.transpiler.feature("range")}(${from}, ${to}, ${this.es6 ? `(${rest}) =>` : `function(${rest})`}`);
 					}
 					if(!this.es6) statement.end += ".bind(this)";
 					statement.end += ");";
 					statement.inlineable = false;
 				} else {
-					this.add(expected + skipped + source);
+					part.decl = this.source.addIsolatedSource(expected + skipped + source);
 				}
 			} else {
 				// without condition
-				this.add(expected);
+				this.source.addSource(expected);
 			}
-			this.add(this.parser.skipImpl({}));
-			if(!(statement.inline = part.inline = !this.parser.readIf('{')) || !statement.inlineable) this.add('{');
-			part.declEnd = this.source.length;
+			this.source.addSource(this.parser.skipImpl({}));
+			if(!(statement.inline = part.inline = !this.parser.readIf('{')) || !statement.inlineable) this.source.addSource('{');
+			part.declEnd = this.source.addIsolatedSource("");
 			this.statements.push(statement);
 			this.onStatementStart(statement);
 		}
@@ -504,11 +505,9 @@ LogicMode.prototype.parse = function(handle, eof){
 			} else if(this.statements.length) {
 				var trimmed = this.trimEnd();
 				this.endChainable();
-				this.add(trimmed);
-				this.add('}');
+				this.source.addSource(trimmed);
 				var statement = this.statements.pop();
-				statement.endIndex = this.source.length;
-				statement.parts[statement.parts.length - 1].close = this.source.length - 1;
+				statement.endRef = statement.parts[statement.parts.length - 1].close = this.source.addIsolatedSource("}");
 				this.popped.push(statement);
 				this.onStatementEnd(statement);
 			} else {
@@ -522,9 +521,8 @@ LogicMode.prototype.parse = function(handle, eof){
 				this.add(trimmed);
 				this.add('\n');
 				var statement = this.statements.pop();
-				if(!statement.inlineable) this.source[this.source.length - 1] += '}';
-				statement.endIndex = this.source.length;
-				statement.parts[statement.parts.length - 1].close = this.source.length - 1;
+				if(!statement.inlineable) this.source.addSource("}");
+				statement.endRef = statement.parts[statement.parts.length - 1].close = this.source.addIsolatedSource("");
 				this.popped.push(statement);
 				this.onStatementEnd(statement);
 			} else {
@@ -541,30 +539,34 @@ LogicMode.prototype.onStatementStart = function(statement){};
 LogicMode.prototype.onStatementEnd = function(statement){};
 
 LogicMode.prototype.end = function(){
-	for(var i=0; i<this.popped.length; i++) {
-		var popped = this.popped[i];
+	this.popped.forEach(popped => {
 		var bind = !!popped.observables.length || !!popped.maybeObservables.length;
+		if(popped.end.length) {
+			// prepend end if needed
+			popped.endRef.value += popped.end;
+		}
 		if(bind) {
 			if(popped.type == "if") {
 				// calculate conditions and remove them from source
 				var conditions = [];
-				var replacement = this.es6 ? `, ${this.context} =>` : `, function(${this.context})`;
+				var replacement = this.es6 ? `, ${popped.context} =>` : `, function(${popped.context})`;
 				popped.parts.forEach(part => {
-					var source = this.source[part.declStart].substr(part.type.length);
+					var source = part.decl.value.substr(part.type.length);
 					if(part.type == "else") {
 						conditions.push("[]");
 					} else {
 						var condition = this.es6 ? `() => ${source}` : `function(){return ${source}}.bind(this)`;
 						conditions.push(`[${condition}, [${uniq(part.observables)}]${part.maybeObservables.length ? `, [${uniq(part.maybeObservables)}]` : ""}]`);
 					}
-					this.source[part.declStart] = replacement;
+					part.declStart.value = replacement;
 					if(part.inline) {
-						this.source[part.declStart] += "{";
-						this.source[part.close] += "}";
+						part.declStart.value += "{";
+						part.close.value += "}";
 					}
+					part.decl.value = "";
 				});
-				this.source[popped.startIndex] = `${this.transpiler.feature("bindIfElse")}(${this.arguments}, ${this.context}, [${conditions.join(", ")}]` + this.source[popped.startIndex];
-				this.source[popped.endIndex] = `${this.es6 ? "" : ".bind(this)"});${this.source[popped.endIndex]}`;
+				popped.startRef.value = `${this.transpiler.feature("bindIfElse")}(${popped.context}, [${conditions.join(", ")}]${popped.startRef.value}`;
+				popped.endRef.value += `${this.es6 ? "" : ".bind(this)"});`;
 			} else if(popped.type == "foreach") {
 				// the source is divided in 4 parts
 				var expr = popped.ref.b.value;
@@ -572,27 +574,23 @@ LogicMode.prototype.end = function(){
 				var maybe = !!popped.maybeObservables.length;
 				popped.ref.a.value = "";
 				popped.ref.b.value = "";
-				popped.ref.c.value = `${this.transpiler.feature("bindEach" + (maybe ? "Maybe" : ""))}(${this.arguments}, ${this.context}, ${(maybe ? popped.maybeObservables : popped.observables)[0]}, ${getter}, ${!this.es6 ? "function" : ""}(${this.context}, `;
+				popped.ref.c.value = `${this.transpiler.feature("bindEach" + (maybe ? "Maybe" : ""))}(${popped.context}, ${(maybe ? popped.maybeObservables : popped.observables)[0]}, ${getter}, ${!this.es6 ? "function" : ""}(${popped.context}, `;
 				// no need to close as the end is the same as the Sactory.forEach function call
 			} else {
 				// normal bind
-				var start = `${this.transpiler.feature("bind")}(${this.arguments}, ${this.transpiler.context}, [${uniq(popped.observables).join(", ")}], [${popped.maybeObservables.join(", ")}], `;
+				var start = `${this.transpiler.feature("bind")}(${popped.context}, [${uniq(popped.observables).join(", ")}], [${popped.maybeObservables.join(", ")}], `;
 				var end = "}";
 				if(this.es6) {
-					start += `${this.context} => `;
+					start += `${popped.context} => `;
 				} else {
-					start += `function(${this.context})`;
+					start += `function(${popped.context})`;
 					end += ".bind(this)";
 				}
-				this.source[popped.startIndex] = `${start}{${this.source[popped.startIndex]}`;
-				this.source[popped.endIndex] = `${end});${this.source[popped.endIndex]}`;
+				popped.startRef.value = `${start}{${popped.startRef.value}`;
+				popped.endRef.value += `${end});`;
 			}
 		}
-		if(popped.end.length) {
-			// prepend end if needed
-			this.source[popped.endIndex] = popped.end + this.source[popped.endIndex];
-		}
-	}
+	});
 };
 
 /**
@@ -700,21 +698,23 @@ SourceCodeMode.prototype.next = function(match){
 	}
 	switch(match) {
 		case '(':
-			this.parentheses.push(false);
-			this.parser.parentheses.push(this.parser.lastIndex);
+			this.parser.parentheses.push({
+				lastIndex: this.parser.lastIndex,
+				start: this.parser.index
+			});
 			this.handleParenthesis(match);
 			break;
 		case ')':
-			var popped = this.parentheses.pop();
-			if(popped) this.add(popped);
-			this.parser.lastParenthesis = this.parser.parentheses.pop();
+			var popped = this.parser.parentheses.pop();
+			if(popped) popped.end = this.parser.index;
+			this.parser.lastParenthesis = popped;
 			this.handleParenthesis(match);
 			break;
 		case '{':
 			var last = this.parser.last;
 			var lastIndex = this.parser.lastIndex;
 			this.restoreIndex('{');
-			if(!this.attributes.inAttr && last == ')' && !this.parser.lastKeywordAtIn(this.parser.lastParenthesis, "if", "else", "for", "while", "do", "switch", "catch", "with")) {
+			if(!this.attributes.inAttr && last == ')' && !this.parser.lastKeywordAtIn(this.parser.lastParenthesis.lastIndex, "if", "else", "for", "while", "do", "switch", "catch", "with")) {
 				// new function declaration
 				this.source.startFunction();
 			} else if(!this.attributes.inAttr && last == '>' && this.parser.input.charAt(lastIndex - 1) == '=') {
@@ -743,7 +743,7 @@ SourceCodeMode.prototype.next = function(match){
 					var fname = functions[i];
 					if(Polyfill.startsWith.call(input, fname + "(")) {
 						this.parser.index += fname.length + 1;
-						this.source.addSource(`$$${name}(`);
+						this.source.addSource(`$$${fname}(`);
 						this.source.addContext();
 						this.source.addSource(", ");
 						this.parser.last = ',';
@@ -757,7 +757,6 @@ SourceCodeMode.prototype.next = function(match){
 		case '&':
 			var skip = () => this.parser.skipImpl({strings: false});
 			var args = (parsed, async) => {
-				var ac = `${this.arguments}, ${this.transpiler.context}, `;
 				if(async) this.add(`.async()`);
 				if(parsed.observables.length) {
 					this.source.addSource(".d(");
@@ -786,21 +785,35 @@ SourceCodeMode.prototype.next = function(match){
 				} else if(this.parser.readIf(')')) {
 					// from function or wrapped arrow function
 					this.add(space);
-					var popped = this.parentheses.pop();
-					if(popped) this.add(popped);
-					this.parser.lastParenthesis = this.parser.parentheses.pop();
+					var popped = this.parser.parentheses.pop();
+					if(popped) popped.end = this.parser.index;
+					this.parser.lastParenthesis = popped;
 					this.handleParenthesis(')');
-					if(this.parser.lastParenthesis >= 0) {
-						var search = "function";
+					if(popped) {
+						// parentheses do match
+						var tail = this.source.tail();
+						var index;
+						var start = popped.start;
 						this.add(this.parser.skipImpl({strings: false}));
 						if(this.parser.readIf('=')) {
+							// arrow function, start is before the open parenthesis
 							this.parser.expect('>');
 							this.add("=>");
-							search = "(";
+							index = this.parser.index - start;
+						} else {
+							if(this.parser.lastKeywordAt(popped.lastIndex, "function")) {
+								index = this.parser.index - popped.lastIndex + 6;
+							} else {
+								//TODO skip function name and force previous keyword to be `function`
+							}
 						}
+						tail.value = `${tail.value.slice(0, -index)}${this.transpiler.feature("coff")}(${tail.value.substr(-index)}`;
+						// add expression
+						var parsed = this.transpiler.parseCode(this.parser.readExpression());
+						this.source.addSource(`${parsed.source})`);
+						args(parsed, false);
 						// inject start
-						var inject = this.searchInSource(search);
-						if(inject) {
+						/*if(inject) {
 							// test async
 							var async = false;
 							if(inject.index == 0) {
@@ -828,7 +841,7 @@ SourceCodeMode.prototype.next = function(match){
 							var parsed = this.transpiler.parseCode(this.parser.readExpression());
 							this.add(`${parsed.source})`);
 							args(parsed, !!async);
-						}
+						}*/
 					}
 				}  else {
 					// from variable
@@ -840,6 +853,8 @@ SourceCodeMode.prototype.next = function(match){
 				this.parser.lastIndex = this.parser.index;
 			} else if(this.parser.lastKeywordIn("async")) {
 				// from arrow variable not wrapped, async
+				var data = this.source.tail();
+
 				var index = this.transpiler.source.length - 1;
 				var source = this.transpiler.source[index];
 				var sub = this.parser.index - this.parser.lastIndex + 3;
@@ -880,55 +895,49 @@ SourceCodeMode.prototype.next = function(match){
 			}
 			break;
 		case '=':
-			if(!this.attributes.inAttr && this.parser.peek() == ">") {
-				this.lastArrowFunction = this.parser.index + 1;
-				// arrow function, inject arguments
-				// find the source and index where the last non-whitespace character is located
-				/*var find = sub => {
-					var left = this.parser.index - this.parser.lastIndex - sub;
-					var index = this.transpiler.source.source.length;
-					var source;
-					do {
-						source = this.transpiler.source.source[--index];
-						left -= source.value.length;
-					} while(left >= 0);
-					return { source, index, left };
-				};
-				var inject = (data, {source, index, left}) => source.value = source.value.slice(0, -left) + data + source.value.substr(-left);
-				if(this.parser.last == ')') {
-					// can inject using the current arguments
-					// recover pointer through the source
-					var start = this.searchInSource('(');
-					if(start) {
-						// if the condition fails there's probably a syntax error
-						var dot = this.searchInSource('.');
-						if(!dot || dot.sourceIndex < start.sourceIndex || dot.index < start.index) {
-							// the rest parameter was not declared
-							var info = find(1);
-							var source = Polyfill.trimEnd.call(info.source);
-							inject(`${source.length && !Polyfill.endsWith.call(source, ",") && !Polyfill.endsWith.call(source, "(") ? ", " : ""}...${this.arguments}`, info);
-						}
+			if(!this.attributes.inAttr && this.parser.readIf(">")) {
+				// it's an arrow function, collect arguments to check what to inject
+				this.source.addSource("=>");
+				// check whether arguments are wrapped
+				var info = {};
+				if(this.parser.last == ")") {
+					// arguments are wrapped, check whether it's injectable
+					info.wrapped = true;
+					var tail = this.source.data.pop();
+					var open = tail.value.length - (this.parser.index - this.parser.lastParenthesis.start);
+					var close = tail.value.length - (this.parser.index - this.parser.lastParenthesis.end) - 1;
+					if(open >= 0) {
+						this.source.addSource(tail.value.substring(0, open));
+						info.data = this.source.addIsolatedSource(tail.value.substring(open, close));
+						this.source.addSource(tail.value.substr(close));
+					} else {
+						// probably a syntax error
+						this.source.data.push(tail);
 					}
 				} else {
-					// wrap single argument (one keyword)
-					// inject after the keyword
-					var info = find(2);
-					inject(`, ...${this.arguments})`, info);
-					// add open parenthesis
-					var index = info.index;
-					var source = this.transpiler.source[index]; // getting it again as it may be changed
-					var left = info.left + 1;
-					while(/[a-zA-Z0-9_$]/.test(source.charAt(-left))) {
-						if(++left > 0) {
-							source = this.transpiler.source[--index];
-							left = -source.length + 1;
-						}
-					}
-					left--;
-					inject("(", { source, index, left });
-				}*/
+					// single argument, not wrapped
+					info.wrapped = false;
+					var tail = this.source.data.pop();
+					var close = tail.value.length - (this.parser.index - this.parser.lastIndex);
+					var start = close - 1;
+					while(start >= 0 && /[a-zA-Z0-9_$]/.test(tail.value.charAt(start))) start--;
+					this.source.addSource(tail.value.substring(0, start + 1));
+					info.data = this.source.addIsolatedSource(tail.value.substring(start + 1, close + 1));
+					this.source.addSource(tail.value.substr(close + 1));
+				}
+				this.source.addSource(this.parser.skipImpl({strings: false}));
+				if(this.parser.readIf("{")) {
+					this.restoreIndex("{");
+					this.source.startArrowFunction(info);
+				} else {
+					// inline arrow function
+					//TODO
+					this.parser.last = ">";
+					this.parser.lastIndex = this.parser.index - 1;
+				}
+			} else {
+				this.restoreIndex('=');
 			}
-			this.restoreIndex('=');
 			break;
 	}
 };
@@ -1059,7 +1068,9 @@ SSBMode.prototype.skip = function(){
 SSBMode.prototype.start = function(){
 	var args = this.transpiler.className;
 	if(this.attributes.dollar != false) args += ", $";
-	this.add(`${this.transpiler.feature("cabs")}(${this.context}, ${this.es6 ? `(${args}) => ` : `function(${args})`}{`);
+	this.add(`${this.transpiler.feature("cabs")}(`);
+	this.source.addContext();
+	this.source.addSource(`, ${this.es6 ? `(${args}) => ` : `function(${args})`}{`);
 	this.add(`var ${this.scopes[0]}=${this.transpiler.feature("root")}();`);
 	if(this.scoped) this.addScope(this.es6 ? `\`.\${${this.transpiler.className}}\`` : `'.' + ${this.transpiler.className}`);
 	else if(this.scope) this.addScope(JSON.stringify('.' + this.scope));
@@ -1190,9 +1201,10 @@ SSBMode.prototype.onStatementStart = function(statement){
 SSBMode.prototype.onStatementEnd = function(statement){
 	if(statement.selector) {
 		this.removeScope();
+		statement.endRef.value = ""; // remove closing brace
 	} else {
-		Array.prototype.push.apply(this.observables, statement.observables);
-		Array.prototype.push.apply(this.maybeObservables, statement.maybeObservables);
+		this.observables.push(...statement.observables);
+		this.maybeObservables.push(...statement.maybeObservables);
 	}
 	this.inExpr = false;
 };

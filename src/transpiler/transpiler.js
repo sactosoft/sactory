@@ -1205,12 +1205,12 @@ Transpiler.prototype.transpile = function(input){
 		}
 	}
 	if(this.options.before) this.before += this.options.before;
-	this.before += `var ${this.chain}=${this.runtime}.chain;var ${this.arguments}=[];var ${this.inheritance}=[];var ${this.defaultContext};`;
+	this.before += `var ${this.chain}=${this.runtime}.chain;var ${this.arguments}=[];var ${this.inheritance}=[];var ${this.context0}={};`;
 	if(!this.options.hasOwnProperty("versionCheck") || this.options.versionCheck) this.before += `${this.runtime}.check("${v}");`;
 
-	if(this.options.scope) this.before += `${this.context}.element=${this.options.scope};`;
-	if(this.options.anchor) this.before += `${this.context}.anchor=${this.options.anchor};`;
-	if(this.options.bind) this.before += `${this.context}.bind=${this.options.bind};`;
+	if(this.options.scope) this.before += `${this.context0}.element=${this.options.scope};`;
+	if(this.options.anchor) this.before += `${this.context0}.anchor=${this.options.anchor};`;
+	if(this.options.bind) this.before += `${this.context0}.bind=${this.options.bind};`;
 	
 	this.tags = [];
 	this.inherit = [];

@@ -28,35 +28,10 @@ Sactory.config = {
 			"space": " ",
 			"ctrl": "control",
 			"column": ":",
-			"dot": "."
+			"dot": ".",
+			"esc": "escape"
 		}
 	}
-};
-
-Sactory.newPrefix = function(){
-	return Sactory.config.prefix + Math.floor(Math.random() * 100000);
-}
-
-/**
- * @class
- * @since 0.122.0
- */
-Sactory.Counter = function(count){
-	this.count = count;
-};
-
-/**
- * @since 0.122.0
- */
-Sactory.Counter.prototype.nextId = function(){
-	return ++this.count;
-};
-
-/**
- * @since 0.122.0
- */
-Sactory.Counter.prototype.nextPrefix = function(){
-	return Sactory.config.prefix + this.nextId();
 };
 
 module.exports = Sactory;

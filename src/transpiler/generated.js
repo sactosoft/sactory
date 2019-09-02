@@ -1,3 +1,5 @@
+var Polyfill = require("../polyfill");
+
 var SOURCE = 0;
 var CONTEXT = 1;
 
@@ -7,7 +9,7 @@ var CONTEXT = 1;
  */
 function Generated(transpiler) {
 	this.transpiler = transpiler;
-	this.scope = {context: -1, children: []};
+	this.scope = {context: 0, children: []};
 	this.fun;
 	this.data = [];
 }
@@ -22,13 +24,26 @@ Generated.prototype.fork = function(){
 };
 
 /**
+ * Gets the last element in the array of generated source.
+ * @since 0.132.0
+ */
+Generated.prototype.tail = function(){
+	return this.data[this.data.length - 1];
+};
+
+/**
  * Adds data to the source.
  * @returns The added data.
  * @since 0.132.0
  */
-Generated.prototype.add = function(type, value){
-	var data = {type, value};
-	this.data.push(data);
+Generated.prototype.add = function(type, value, isolate){
+	var data;
+	if(!isolate && this.data.length && !(data = this.data[this.data.length - 1]).type) {
+		data.value += value;
+	} else {
+		data = {type: isolate ? "isolated" : "", value};
+		this.data.push(data);
+	}
 	return data;
 };
 
@@ -37,13 +52,38 @@ Generated.prototype.add = function(type, value){
  * @returns The added object reference, which value field can later be modified without altering the array.
  * @since 0.132.0
  */
-Generated.prototype.addSource = Generated.prototype.push = function(value){
-	return this.add(SOURCE, value);
+Generated.prototype.addSource = Generated.prototype.push = function(value, isolate){
+	return this.add(SOURCE, value, isolate);
+};
+
+Generated.prototype.addIsolatedSource = function(value){
+	return this.addSource(value, true);
 };
 
 Generated.prototype.injectFunctionContext = function(scope){
 	if(!scope.injected) {
-		scope.data.value = `var ${this.transpiler["context" + scope.context]}=${this.transpiler.runtime}.cfa` + (scope.prevContext == -1 ? "(" : `c(${this.transpiler["context" + scope.prevContext]}, `) + `${scope.args});`;
+		if(scope.args.data) {
+			// it's an arrow function, need to inject the arguments too
+			if(scope.args.wrapped) {
+				var value = scope.args.data.value.trim();
+				var comma = value.lastIndexOf(",");
+				var arg = value.substr(comma + 1).trim();
+				if(Polyfill.startsWith.call(arg, "...") && !Polyfill.endsWith.call(arg, "]")) {
+					// do not inject, use arguments from already existing spread syntax
+					scope.args = arg.substr(3);
+				} else if(comma == -1 ? value.length : arg.length) {
+					// inject comma and arguments
+					scope.args.data.value += ", ..." + (scope.args = this.transpiler.arguments);
+				} else  {
+					// there's already a comma or it's not needed
+					scope.args.data.value += "..." + (scope.args = this.transpiler.arguments);
+				}
+			} else {
+				scope.args.data.value = `(${scope.args.data.value}, ...${scope.args = this.transpiler.arguments})`;
+			}
+		}
+		//scope.data.value = `var ${this.transpiler["context" + scope.context]}=${this.transpiler.runtime}.cfa` + (scope.prevContext == -1 ? "(" : `c(${this.transpiler["context" + scope.prevContext]}, `) + `${scope.args});`;
+		scope.data.value = `var ${this.transpiler["context" + scope.context]}=${this.transpiler.runtime}.cfac(${this.transpiler["context" + scope.prevContext]}, ${scope.args});`;
 		scope.injected = true;
 	}
 };
@@ -64,7 +104,7 @@ Generated.prototype.addContext = function(){
 		// add actual variable to source
 		this.addSource(this.transpiler[context]);
 	} else {
-		this.addSource(this.transpiler.defaultContext);
+		this.addSource(this.transpiler.context0);
 	}
 };
 
@@ -72,7 +112,14 @@ Generated.prototype.addContext = function(){
  * @since 0.132.0
  */
 Generated.prototype.addContextArg = function(){
-	this.addSource(this.fun ? this.transpiler["context" + this.fun.context] : this.transpiler.defaultContext);
+	this.addSource(this.getContextArg());
+};
+
+/**
+ * @since 0.132.0
+ */
+Generated.prototype.getContextArg = function(){
+	return this.fun ? this.transpiler["context" + this.fun.context] : this.transpiler.context0;
 };
 
 Generated.prototype.startScope = function(after){
@@ -93,7 +140,7 @@ Generated.prototype.startFunctionImpl = function(args){
 		prevContext: this.scope.context,
 		context: (this.scope.context + 1) % 2,
 		children: [],
-		data: this.addSource(""),
+		data: this.addIsolatedSource(""),
 		fun: true,
 		args
 	};
@@ -105,8 +152,8 @@ Generated.prototype.startFunction = function(){
 	this.startFunctionImpl("arguments");
 };
 
-Generated.prototype.startArrowFunction = function(){
-	this.startFunctionImpl(this.transpiler.arguments);
+Generated.prototype.startArrowFunction = function(info){
+	this.startFunctionImpl(info);
 };
 
 Generated.prototype.endScope = function(){

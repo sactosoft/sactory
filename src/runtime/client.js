@@ -15,8 +15,8 @@ defineBuilder(Element);
 defineBuilder(DocumentFragment);
 if(typeof ShadowRoot == "function") defineBuilder(ShadowRoot);
 
-EventTarget.prototype.$$on = function(context1, context2, name, value){
-	Sactory.$$on(context1, context2, this, name, value);
+EventTarget.prototype.$$on = function(context, name, value){
+	Sactory.$$on(context, this, name, value);
 };
 
 /**

@@ -1,4 +1,5 @@
 var Polyfill = require("../polyfill");
+var counter = require("./counter");
 var SactoryObservable = require("./observable");
 
 var colors = require("../json/colors.json");
@@ -144,7 +145,7 @@ Sactory.convertStyle = function(root){
  * if present.
  * @since 0.49.0
  */
-Sactory.compileAndBindStyle = Sactory.cabs = function({counter, element, bind, selector}, fun, observables, maybe){
+Sactory.compileAndBindStyle = Sactory.cabs = function({element, bind, selector}, fun, observables, maybe){
 	var className = element["~builder"].scopedClassName = counter.nextPrefix();
 	var conv = selector ? value => ([{selector, value}]) : value => value;
 	var observable = Sactory.coff(() => element.textContent = Sactory.convertStyle(conv(fun(className, Sactory.css))));
@@ -155,7 +156,7 @@ Sactory.compileAndBindStyle = Sactory.cabs = function({counter, element, bind, s
 /**
  * @since 0.129.0
  */
-Sactory.scope = function({counter, element, bind}){
+Sactory.scope = function({element, bind}){
 	var builder = element["~builder"];
 	var className = builder.scopedClassName;
 	var add = () => {

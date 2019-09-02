@@ -1,5 +1,7 @@
 var { hyphenate, dehyphenate } = require("../util");
 var SactoryConst = require("./const");
+var SactoryContext = require("./context");
+var counter = require("./counter");
 
 var Sactory = {};
 
@@ -141,7 +143,7 @@ Widget.render = function(Class, instance, context, args){
 	var element = instance.__element = instance.render(args, args, context);
 	if(instance instanceof Widget) instance.element = element;
 	if(!(element instanceof Node)) throw new Error("The widget's render function did not return an instance of 'Node', returned '" + element + "' instead.");
-	if(Class.style) Widget.createStyle({__priority: context.__priority, counter: context.counter, document: context.document}, Class, element);
+	if(Class.style) Widget.createStyle({document: context.document}, Class, element);
 	if(Class.prototype.style) Widget.createStyle(context, instance, element);
 	return element;
 };
@@ -152,8 +154,8 @@ Widget.render = function(Class, instance, context, args){
 Widget.createStyle = function(context, styler, element){
 	var className = styler.__styled;
 	if(!className) {
-		styler.__styled = className = context.counter.nextPrefix();
-		styler.style(Polyfill.assign({}, context, {selector: "." + className, element: context.document.head}));
+		styler.__styled = className = counter.nextPrefix();
+		styler.style(SactoryContext.newContext(context, {selector: "." + className, element: context.document.head}));
 	}
 	element["~builder"].addClass(className);
 };
