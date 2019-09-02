@@ -192,7 +192,7 @@ Parser.prototype.lastKeywordIn = function(){
  */
 Parser.prototype.lastKeywordIsPlusMinus = function(){
 	if(this.last == "+" || this.last == "-") {
-		return this.input.charAt(this.lastIndex - 1) != this.last;
+		return this.input.charAt(this.lastIndex - 1) != this.last || !/[a-zA-Z0-9_$]\s*$/.test(this.input.substring(0, this.lastIndex - 1));
 	} else {
 		return false;
 	}
@@ -205,7 +205,7 @@ Parser.prototype.lastKeywordIsPlusMinus = function(){
 Parser.prototype.couldStartRegExp = function(){
 	return this.last === undefined || !this.last.match(/^[a-zA-Z0-9_$'"`\)\].+-]$/) ||
 		this.lastKeywordIn("return", "throw", "typeof", "do", "in", "instanceof", "new", "delete", "else") ||
-		this.last == ')' && this.lastParenthesis !== undefined && this.lastKeywordAtIn(this.lastParenthesis, "if", "else", "for", "while") ||
+		this.last == ')' && this.lastParenthesis !== undefined && this.lastKeywordAtIn(this.lastParenthesis, "if", "else", "for", "while", "with") ||
 		/\n/.test(this.input.substring(this.lastIndex, this.index)) && this.lastKeywordIn("++", "--", "break", "continue") ||
 		this.lastKeywordIsPlusMinus();
 };
