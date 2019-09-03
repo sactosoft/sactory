@@ -39,8 +39,8 @@ function evalScripts() {
 		script.textContent =
 			result.source.before +
 			`var ${currentScript}=document.querySelector("[data-sactory-from='${id}']");` +
-			`${result.variables.context}.element=${currentScript}&&${currentScript}.parentNode;` +
-			`${result.variables.context}.anchor=${currentScript}&&${currentScript}.nextSibling;` +
+			`${result.variables.context0}.element=${currentScript}&&${currentScript}.parentNode;` +
+			`${result.variables.context0}.anchor=${currentScript}&&${currentScript}.nextSibling;` +
 			result.source.contentOnly + 
 			result.source.after;
 		document.head.appendChild(script);

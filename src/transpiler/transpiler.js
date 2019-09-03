@@ -288,7 +288,6 @@ Transpiler.prototype.open = function(){
 		var create = true; // whether a new element is being created
 		var update = true; // whether the element is being updated, only considered if create is false
 		var append = true; // whether the element should be appended to the current element after its creation
-		var adopt = false; // whether the element should be adopted by the current element
 		var query = false; // whether the element should be from a query
 		var clone = false; // whether the element should be cloned
 		var unique = false; // whether the new element should be appended always or only when its not already on the DOM
@@ -594,7 +593,8 @@ Transpiler.prototype.open = function(){
 			}
 		};
 
-		if(dattributes.root) parent = parent + ".getRootNode({composed: " + (dattributes.composed || "false") + "})";
+		if(dattributes.this) parent = "this";
+		else if(dattributes.root) parent = parent + ".getRootNode({composed: " + (dattributes.composed || "false") + "})";
 		else if(dattributes.head) parent = "document.head";
 		else if(dattributes.body) parent = "document.body";
 		else if(dattributes.document) parent = "document";
@@ -703,7 +703,6 @@ Transpiler.prototype.open = function(){
 						case "adopt":
 							element = arg;
 							create = false;
-							dattributes.adopt = true;
 							break;
 						case "slot":
 							var column = arg.indexOf(',');
@@ -903,11 +902,7 @@ Transpiler.prototype.open = function(){
 				}
 
 				var appendRef = dattributes.early ? before : after;
-				if(adopt) {
-					var data = [this.chainFeature("adopt")];
-					if(parent) data.append(parent);
-					appendRef.push(data);
-				} else if(append) {
+				if(append) {
 					var feature = "append";
 					if(parent) feature += "To";
 					if(optional) feature += "If";
@@ -1150,12 +1145,6 @@ Transpiler.prototype.transpile = function(input){
 	this.className = this.nextVar();
 	this.unit = this.nextVar();
 
-	/*this.runtime = "__runtime";
-	this.chain = "__chain";
-	this.context0 = "__context0";
-	this.context1 = "__context1";
-	this.arguments = "__args";*/
-
 	this.tagNames = {};
 	var features = this.features = {};
 
@@ -1253,7 +1242,8 @@ Transpiler.prototype.transpile = function(input){
 		variables: {
 			runtime: this.runtime,
 			chain: this.chain,
-			context: this.context,
+			context0: this.context0,
+			context1: this.context1,
 			arguments: this.arguments,
 			inheritance: this.inheritance
 		},

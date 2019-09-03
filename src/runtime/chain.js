@@ -357,41 +357,37 @@ chain.forms = function(context, ...values){
 /**
  * @since 0.60.0
  */
-chain.appendTo = function(context, parent, options = {}){
+chain.appendTo = function(context, parent){
 	if(context.bind) {
-		if(options.adoption && context.element instanceof DocumentFragment) {
+		if(context.element instanceof DocumentFragment) {
 			// special case for adopted fragments: add to the bind context its children instead of
 			// the document fragment itself because the children are removed when the fragment is appended,
 			// and removing the fragment from the DOM does not remove the children too.
-			Array.prototype.forEach.call(context.element.childNodes, function(child){
-				context.bind.appendChild(child);
-			});
+			Array.prototype.forEach.call(context.element.childNodes, child => context.bind.appendChild(child));
 		} else {
 			context.bind.appendChild(context.element);
 		}
 	}
 	if(context.parentAnchor && context.parentAnchor.parentNode === parent) parent.insertBefore(context.element, context.parentAnchor);
 	else parent.appendChild(context.element);
-	if(options.aa) options.aa.call(context.element);
 	if(context.element["~builder"] && context.element["~builder"].events.append) context.element["~builder"].dispatchEvent("append", {bubbles: false});
-	if(options.br) context.element["~builder"].event(context.scope, "remove", options.br, context.bind);
 };
 
 /**
  * @since 0.128.0
  */
-chain.append = function(context, options){
+chain.append = function(context){
 	if(context.parentElement) {
-		chain.appendTo(context, context.parentElement, options);
+		chain.appendTo(context, context.parentElement);
 	}
 };
 
 /**
  * @since 0.128.0
  */
-chain.appendToIf = function(context, parent, options){
+chain.appendToIf = function(context, parent){
 	if(context.created) {
-		chain.appendTo(context, parent, options);
+		chain.appendTo(context, parent);
 	}
 };
 
