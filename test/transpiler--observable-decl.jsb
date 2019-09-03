@@ -9,7 +9,7 @@ var h = (&) => *a + 1;
 var i = (&) => { return *a + 1 };
 var j = function(&){ return *a + 1 };
 var k = function name(&){ return *a + 1 };
-//var l = function functionName(&){ return *a + 1 };
+var l = function functionName(&){ return *a + 1 };
 
 // async
 var m = async & => *a + 1;

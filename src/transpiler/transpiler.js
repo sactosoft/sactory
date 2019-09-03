@@ -1142,24 +1142,19 @@ Transpiler.prototype.transpile = function(input){
 	
 	this.runtime = this.nextVar();
 	this.chain = this.nextVar();
-	this.context = this.nextVar();
+	this.context0 = this.nextVar();
+	this.context1 = this.nextVar();
 	this.arguments = this.nextVar();
 	this.inheritance = this.nextVar();
 	this.value = this.nextVar();
 	this.className = this.nextVar();
 	this.unit = this.nextVar();
 
-	// new
-	this.defaultContext = this.nextVar();
-	this.context0 = this.nextVar();
-	this.context1 = this.nextVar();
-
-	this.runtime = "__runtime";
+	/*this.runtime = "__runtime";
 	this.chain = "__chain";
-	this.defaultContext = "__defaultContext";
 	this.context0 = "__context0";
 	this.context1 = "__context1";
-	this.arguments = "__args";
+	this.arguments = "__args";*/
 
 	this.tagNames = {};
 	var features = this.features = {};

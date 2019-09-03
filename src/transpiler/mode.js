@@ -634,26 +634,20 @@ SourceCodeMode.prototype.handleParenthesis = function(match){
 
 SourceCodeMode.prototype.addObservable = function(observables, maybeObservables, name){
 	if(name.length) {
-		var source = this.source[this.source.length - 1];
-		this.source[this.source.length - 1] = source.substring(0, source.length - name.length);
+		var tail = this.source.tail();
+		tail.value = tail.value.slice(0, -name.length);
 	}
 	var maybe = !!this.parser.readIf('?');
-	var skipped = this.parser.skip();
-	if(skipped) this.add(skipped);
-	if(this.parser.peek() == '(') {
-		name += this.parseCodeToSource("skipEnclosedContent");
-	} else {
-		name += this.parseCodeToSource("readVarName", true);
-	}
+	name += this.parseCodeToSource("readVarName", true);
 	if(maybe) {
-		this.add(this.transpiler.feature("value") + "(" + name + ")");
+		this.source.addSource(`${this.transpiler.feature("value")}(${name})`);
 		if(maybeObservables) maybeObservables.push(name);
 	} else {
-		this.add(name + ".value");
+		this.add(`${name}.value`);
 		if(observables) observables.push(name);
 	}
 	this.parser.last = ')';
-	this.parser.lastIndex = this.parser.index;
+	this.parser.lastIndex = this.parser.index - 1;
 };
 
 SourceCodeMode.prototype.lookBehind = function(){
@@ -687,15 +681,6 @@ SourceCodeMode.prototype.injectInSource = function({ source, sourceIndex, index 
 };
 
 SourceCodeMode.prototype.next = function(match){
-	function getName() {
-		var skipped = this.parser.skip();
-		if(skipped) this.add(skipped);
-		if(this.parser.peek() == '(') {
-			return this.parseCodeToSource("skipEnclosedContent");
-		} else {
-			return this.parseCodeToSource("readVarName", true);
-		}
-	}
 	switch(match) {
 		case '(':
 			this.parser.parentheses.push({
@@ -712,14 +697,10 @@ SourceCodeMode.prototype.next = function(match){
 			break;
 		case '{':
 			var last = this.parser.last;
-			var lastIndex = this.parser.lastIndex;
 			this.restoreIndex('{');
 			if(!this.attributes.inAttr && last == ')' && !this.parser.lastKeywordAtIn(this.parser.lastParenthesis.lastIndex, "if", "else", "for", "while", "do", "switch", "catch", "with")) {
 				// new function declaration
 				this.source.startFunction();
-			} else if(!this.attributes.inAttr && last == '>' && this.parser.input.charAt(lastIndex - 1) == '=') {
-				// new arrow function
-				this.source.startArrowFunction();
 			} else {
 				// loop/conditional statement
 				this.source.startScope();
@@ -738,7 +719,7 @@ SourceCodeMode.prototype.next = function(match){
 					this.parser.last = ')';
 					return;
 				}
-				var functions = ["on", "subscribe", "rollback", "bind", "unbind"];
+				var functions = ["on", "subscribe", "depend", "rollback", "bind", "unbind"];
 				for(var i in functions) {
 					var fname = functions[i];
 					if(Polyfill.startsWith.call(input, fname + "(")) {
@@ -755,34 +736,29 @@ SourceCodeMode.prototype.next = function(match){
 			this.restoreIndex('$');
 			break;
 		case '&':
-			var skip = () => this.parser.skipImpl({strings: false});
-			var args = (parsed, async) => {
-				if(async) this.add(`.async()`);
-				if(parsed.observables.length) {
-					this.source.addSource(".d(");
-					this.source.addContext();
-					this.source.addSource(`, ${uniq(parsed.observables).join(", ")})`);
-				}
-				if(parsed.maybeObservables.length) {
-					this.source.addSource(".m(");
-					this.source.addContext();
-					this.source.addSource(`, ${uniq(parsed.maybeObservables).join(", ")})`);
-				}
-			};
-			var parseUnwrapped = (space, async) => {
-				this.parser.expect('=');
-				this.parser.expect('>');
-				var parsed = this.transpiler.parseCode(this.parser.readExpression());
-				this.add(`${this.transpiler.feature("coff")}(()${space}=>${parsed.source})`);
-				args(parsed, async);
-			};
-			if(this.parser.couldStartRegExp()) {
-				var space = skip();
+			if(this.parser.couldStartRegExp() || this.parser.lastKeywordIn("async")) {
+				var space = this.parser.skipImpl({strings: false});
+				var coff = true;
+				var tail = this.source.tail();
+				var index, start;
+				var previous = () => {
+					var beforeSpace = index;
+					while(index < tail.value.length && /\s/.test(tail.value.charAt(tail.value.length - index - 1))) {
+						index++;
+					}
+					var prevStart = index;
+					while(index < tail.value.length && /[a-zA-Z0-9_$]/.test(tail.value.charAt(tail.value.length - index - 1))) {
+						index++;
+					}
+					if(prevStart == index) {
+						index = beforeSpace;
+						return false;
+					} else {
+						return tail.value.substr(tail.value.length - index, index - prevStart);
+					}
+				};
 				this.parser.parseTemplateLiteral = null;
-				if(this.parser.peek() == '=') {
-					// from arrow function not wrapped
-					parseUnwrapped(space, false);
-				} else if(this.parser.readIf(')')) {
+				if(this.parser.readIf(')')) {
 					// from function or wrapped arrow function
 					this.add(space);
 					var popped = this.parser.parentheses.pop();
@@ -791,8 +767,6 @@ SourceCodeMode.prototype.next = function(match){
 					this.handleParenthesis(')');
 					if(popped) {
 						// parentheses do match
-						var tail = this.source.tail();
-						var index;
 						var start = popped.start;
 						this.add(this.parser.skipImpl({strings: false}));
 						if(this.parser.readIf('=')) {
@@ -804,62 +778,50 @@ SourceCodeMode.prototype.next = function(match){
 							if(this.parser.lastKeywordAt(popped.lastIndex, "function")) {
 								index = this.parser.index - popped.lastIndex + 6;
 							} else {
-								//TODO skip function name and force previous keyword to be `function`
+								index = this.parser.index - popped.lastIndex - 2;
+								previous(); // function name
+								previous(); // `function` keyword
 							}
 						}
-						tail.value = `${tail.value.slice(0, -index)}${this.transpiler.feature("coff")}(${tail.value.substr(-index)}`;
-						// add expression
-						var parsed = this.transpiler.parseCode(this.parser.readExpression());
-						this.source.addSource(`${parsed.source})`);
-						args(parsed, false);
-						// inject start
-						/*if(inject) {
-							// test async
-							var async = false;
-							if(inject.index == 0) {
-								if(inject.sourceIndex > 0) {
-									var sourceIndex = inject.sourceIndex - 1;
-									var source = this.transpiler.source[sourceIndex];
-									async = { source, sourceIndex, index: source.length };
-								}
-							} else {
-								async = inject;
-							}
-							if(async) {
-								// maybe async, search keyword
-								var match = async.source.substring(0, async.index).match(/async\s+$/);
-								if(match) {
-									// the function is async, remove `async` keyword and update index
-									this.transpiler.source[async.sourceIndex] = async.source = async.source.substring(0, match.index) + async.source.substr(match.index + 5);
-									async.index -= 5;
-								} else {
-									async = false;
-								}
-							}
-							this.injectInSource(inject, `${this.transpiler.feature("coff")}(`);
-							// add expression
-							var parsed = this.transpiler.parseCode(this.parser.readExpression());
-							this.add(`${parsed.source})`);
-							args(parsed, !!async);
-						}*/
 					}
+				} else if(this.parser.peek() == '=') {
+					// from arrow function not wrapped
+					index = space.length + 4;
+					this.parser.read(); // =
+					this.parser.expect('>');
+					this.source.addSource(`()${space}=>`);
 				}  else {
 					// from variable
 					var parsed = this.transpiler.parseCode(this.parser.readSingleExpression(true));
 					this.add(`${space}${this.transpiler.feature("cofv")}(${parsed.source})`);
+					coff = false;
+				}
+				if(coff) {
+					var modsIndex = index;
+					var mod, mods = {};
+					while(mod = previous()) {
+						if(["async"].indexOf(mod) == -1) this.parser.error(`Unknown computed observable modifier "${mod}".`);
+						mods[mod] = true;
+					}
+					tail.value = `${tail.value.slice(0, -index)}${this.transpiler.feature("coff")}(${tail.value.substr(-modsIndex)}`;
+					// add expression
+					var parsed = this.transpiler.parseCode(this.parser.readExpression());
+					this.source.addSource(`${parsed.source})`);
+					if(mods.async) this.source.addSource(".async()");
+					if(parsed.observables.length) {
+						this.source.addSource(".d(");
+						this.source.addContext();
+						this.source.addSource(`, ${uniq(parsed.observables).join(", ")})`);
+					}
+					if(parsed.maybeObservables.length) {
+						this.source.addSource(".m(");
+						this.source.addContext();
+						this.source.addSource(`, ${uniq(parsed.maybeObservables).join(", ")})`);
+					}
 				}
 				this.transpiler.updateTemplateLiteralParser();
 				this.parser.last = ')';
 				this.parser.lastIndex = this.parser.index;
-			} else if(this.parser.lastKeywordIn("async")) {
-				// from arrow variable not wrapped, async
-				var data = this.source.tail();
-
-				var index = this.transpiler.source.length - 1;
-				var source = this.transpiler.source[index];
-				var sub = this.parser.index - this.parser.lastIndex + 3;
-				this.transpiler.source[index] = source.slice(0, -sub) + source.slice(-sub + 5);
-				parseUnwrapped(skip(), true);
 			} else {
 				// bitwise or boolean comparator
 				this.restoreIndex('&');
@@ -868,14 +830,7 @@ SourceCodeMode.prototype.next = function(match){
 			break;
 		case '*':
 			if(this.parser.couldStartRegExp()) {
-				if(this.parser.readIf('*')) {
-					this.transpiler.warn("The `**value` syntax used to create a new observable does not work anymore. Use `&value` instead.");
-					this.add('*');
-					this.restoreIndex('*');
-				} else {
-					// get/set observable
-					this.addObservable(this.observables, this.maybeObservables, "");
-				}
+				this.addObservable(this.observables, this.maybeObservables, "");
 			} else if(this.parser.last == '.') {
 				this.addObservable(this.observables, this.maybeObservables, this.lookBehind());
 			} else {
