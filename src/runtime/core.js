@@ -11,10 +11,6 @@ var SactoryObservable = require("./observable");
 
 var counter = require("./counter");
 
-// global variable for hidden elements. A single class is used
-// in the whole web page to hide elements.
-var hidden;
-
 /**
  * @class
  */
@@ -644,8 +640,9 @@ Sactory.prototype[Const.BUILDER_TYPE_ON] = function({bind}, name, value){
  * @since 0.122.0
  */
 Sactory.prototype.visibility = function({bind}, value, visible){
-	if(!hidden) {
-		hidden = counter.nextPrefix();
+	var document = this.element.ownerDocument;
+	if(!document["~hidden"]) {
+		var hidden = document["~hidden"] = counter.nextPrefix();
 		var style = document.createElement("style");
 		style.textContent = `.${hidden}{display:none !important;}`;
 		/* debug:

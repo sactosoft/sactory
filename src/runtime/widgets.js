@@ -83,10 +83,28 @@ function className(value, arg1, {element, bind}) {
 	element["~builder"].className(value, bind);
 }
 
+/**
+ * @since 0.134.0
+ */
+function hide(value, arg1, {element, bind}) {
+	element["~builder"].visibility({bind}, value, 0);
+}
+
+/**
+ * @since 0.134.0
+ */
+function show(value, arg1, {element, bind}) {
+	element["~builder"].visibility({bind}, value, 1);
+}
+
 add("document", Document, false);
 add("document-fragment", documentFragment, false);
-add("shadow-root", shadowRoot, false);
+add("shadow-root", shadowRoot, true);
 add("xml", xml, false);
 add("text", text, true);
 add("html", html, true);
 add("class", className, true);
+add("hide", hide, true);
+add("show", show, true);
+
+module.exports = Sactory;
