@@ -7,20 +7,50 @@ var Sactory = {};
 
 var widgets = {};
 
+function addWidgetImpl(name, widget, callback) {
+	if(widget) {
+		callback(name, widget);	
+	} else if(name && name.name) {
+		callback(hyphenate(name.name), name);
+	} else {
+		throw new Error("Invalid or missing name widget.");
+	}
+}
+
+/**
+ * Defines a widget.
+ * @param {string} name - The case-sensitive name of the widget.
+ * @param {class} widget - The widget function or class.
+ * @throws {Error} When a widget with the same name already exists.
+ * @since 0.73.0
+ */
+Sactory.addWidget = function(name, widget, replaceable = true){
+	addWidgetImpl(name, widget, (name, widget) => {
+		if(Object.prototype.hasOwnProperty.call(widgets, name)) {
+			throw new Error(`Widget "${name}" already registered. Either specify a different name or use "replaceWidget" instead.`);
+		} else if(replaceable) {
+			widgets[name] = widget;
+		} else {
+			Object.defineProperty(widgets, name, {value: widget});
+		}
+	});
+};
+
 /**
  * Defines or replaces a widget.
  * @param {string} name - The case-sensitive name of the widget.
- * @param {class} widget - The widget class.
- * @since 0.73.0
+ * @param {class} widget - The widget function or class.
+ * @since 0.134.0
  */
-Sactory.addWidget = function(name, widget){
-	if(widget) {
-		widgets[name] = widget;	
-	} else if(name && name.name) {
-		widgets[hyphenate(name.name)] = name;
-	} else {
-		throw new Error("Cannot add widget: invalid or missing name.");
-	}
+Sactory.replaceWidget = function(name, widget){
+	addWidgetImpl(name, widget, (name, widget) => {
+		var descriptor = Object.getOwnPropertyDescriptor(widgets, name);
+		if(descriptor && !descriptor.configurable) {
+			throw new Error(`Widget "${name}" cannot be replaced.`);
+		} else {
+			widgets[name] = widget;
+		}
+	});
 };
 
 /**
@@ -47,7 +77,7 @@ Sactory.hasWidget = function(name){
 Sactory.getWidget = function(name, registry, ref = {}){
 	var sep = name.indexOf("$");
 	if(sep == -1) {
-		return widgets[name];
+		return Object.prototype.hasOwnProperty.call(widgets, name) && widgets[name];
 	} else {
 		var parentWidget, parentName = name.substring(0, sep);
 		if(registry) {
@@ -197,13 +227,6 @@ Registry.prototype.sub = function(name, main){
 
 Registry.prototype.add = function(anchor, name, element){
 	this.targetSlots[name || SactoryConst.SL_CONTENT] = {anchor, element};
-};
-
-// default widgets
-
-Sactory.widgets = {
-	fragment: (_0, _1, {document}) => document.createDocumentFragment(),
-	shadow: ({mode = "open"}, _1, {parentElement}) => parentElement.attachShadow({mode})
 };
 
 module.exports = { Sactory, Widget, Registry };

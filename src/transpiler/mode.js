@@ -442,7 +442,7 @@ LogicMode.prototype.parseLogic = function(expected, type, closing){
 				}
 			} else {
 				// without condition
-				this.source.addSource(expected);
+				part.decl = this.source.addIsolatedSource(expected);
 			}
 			this.source.addSource(this.parser.skipImpl({}));
 			if(!(statement.inline = part.inline = !this.parser.readIf('{')) || !statement.inlineable) this.source.addSource('{');
@@ -1131,7 +1131,7 @@ SSBMode.prototype.parseImpl = function(pre, match, handle, eof){
 			}
 			var statement = this.statements[this.statements.length - 1];
 			if(statement && statement.single) {
-				// inlined with @, close statement
+				// inlined with `<`, close statement
 				this.onStatementEnd(this.statements.pop());
 			}
 			this.inExpr = false;
@@ -1156,7 +1156,10 @@ SSBMode.prototype.onStatementStart = function(statement){
 SSBMode.prototype.onStatementEnd = function(statement){
 	if(statement.selector) {
 		this.removeScope();
-		statement.endRef.value = ""; // remove closing brace
+		if(statement.endRef) {
+			// remove closing brace
+			statement.endRef.value = "";
+		}
 	} else {
 		this.observables.push(...statement.observables);
 		this.maybeObservables.push(...statement.maybeObservables);

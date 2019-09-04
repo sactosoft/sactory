@@ -1,6 +1,7 @@
 var SactoryConfig = require("./config");
 var SactoryContext = require("./context");
 var SactoryObservable = require("./observable");
+var counter = require("./counter");
 
 var Sactory = {};
 
@@ -165,7 +166,7 @@ var currentId;
 /**
  * @since 0.70.0
  */
-Sactory.nextId = function({counter}){
+Sactory.nextId = function(){
 	return currentId = counter.nextPrefix();
 };
 

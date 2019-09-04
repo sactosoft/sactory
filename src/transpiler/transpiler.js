@@ -220,7 +220,7 @@ Transpiler.prototype.close = function(tagName){
 		// closing a tag, not called as EOF
 		var closeInfo = this.tags.pop();
 		if(closeInfo.tagName && closeInfo.tagName != tagName) {
-			this.warn("Tag `" + closeInfo.tagName + "` is not closed properly (used `</" + tagName + ">` instead of `</" + closeInfo.tagName + ">`).", closeInfo.position);
+			this.parser.errorAt(closeInfo.position, "Tag `" + closeInfo.tagName + "` is not closed properly (used `</" + tagName + ">` instead of `</" + closeInfo.tagName + ">`).");
 		}
 		if(closeInfo.mode) {
 			var mode = this.endMode();
@@ -310,26 +310,18 @@ Transpiler.prototype.open = function(){
 		var visibility;
 		var forms = [];
 		var computed = false;
-		var optional = false;
-		var selector, originalTagName, tagName = "";
-		var selectorAll = false;
+		var originalTagName, tagName = "", tagNameString;
 		var slotName;
+		var optional = !!this.parser.readIf('?');
 		this.updateTemplateLiteralParser();
-		if(selector = this.parser.readQueryExpr()) {
-			this.warn("Query tag names are deprecated. Use the `<:query />` and `<:query-all />` tags instead.`");
-			selector = this.parseCode(selector).source;
-			selectorAll = !!this.parser.readIf('+');
-			if(this.parser.readIf('*')) {
-				if(!selectorAll) selectorAll = !!this.parser.readIf('+');
-			}
-			create = append = false;
+		if(tagName = this.parser.readComputedExpr()) {
+			tagName = tagNameString = this.parseCode(tagName).source;
+			computed = true;
 		} else {
-			optional = !!this.parser.readIf('?');
-			if(tagName = this.parser.readComputedExpr()) {
-				tagName = this.parseCode(tagName).source;
+			originalTagName = tagName = this.parser.readTagName(true);
+			if(this.options.capitalIsWidget && tagName.charCodeAt(0) >= 65 && tagName.charCodeAt(0) <= 90) {
 				computed = true;
-			} else {
-				originalTagName = tagName = this.parser.readTagName(true);
+				tagNameString = tagName;
 			}
 		}
 		skip(true);
@@ -409,10 +401,6 @@ Transpiler.prototype.open = function(){
 				} else {
 					this.compileAttributeParts(attr);
 					switch(attr.type) {
-						case '#':
-							if(attr.computed) this.parser.error("Mode attributes cannot be computed.");
-							newMode = modeNames[attr.name];
-							break;
 						case ':':
 							if(attr.computed) this.parser.error("Compile-time attributes cannot be computed.");
 							if(!attr.hasOwnProperty("value")) attr.value = !attr.negated;
@@ -608,21 +596,9 @@ Transpiler.prototype.open = function(){
 		}
 
 		if(!computed) {
-			if(tagName.charAt(0) == ':' && tagName.charAt(1) != ':') {
+			if(tagName.charAt(0) == ':') {
 				var name = tagName.substr(1);
-				if(Polyfill.startsWith.call(name, "slot:")) {
-					this.warn("Tag name `<:slot[:widget]:name />` is deprecated. Use `<:slot ([widget,] name) />` instead.");
-					name = name.substr(5);
-					var column = name.indexOf(':');
-					if(column == -1) {
-						slotName = name;
-						tagName = "";
-					} else {
-						slotName = name.substr(column + 1);
-						tagName = name.substring(0, column);
-					}
-					create = append = false;
-				} else if(this.options.aliases && Object.prototype.hasOwnProperty.call(this.options.aliases, name)) {
+				if(this.options.aliases && Object.prototype.hasOwnProperty.call(this.options.aliases, name)) {
 					var alias = this.options.aliases[name];
 					tagName = alias.tagName;
 					if(Object.prototype.hasOwnProperty.call(alias, "parent")) parent = alias.parent;
@@ -633,6 +609,9 @@ Transpiler.prototype.open = function(){
 					if(Object.prototype.hasOwnProperty.call(alias, "mode")) newMode = alias.mode;
 				} else {
 					switch(name) {
+						case "mode":
+							newMode = arg;
+							break;
 						case "window":
 						case "document":
 							element = name;
@@ -669,18 +648,14 @@ Transpiler.prototype.open = function(){
 							});
 							break;
 						case "fragment":
-							widget = "fragment";
+							this.warn("Tag `<:fragment />` is deprecated. Use `<#document-fragment />` instead.");
+							computed = true;
+							tagName = `${this.runtime}.widgets["document-fragment"]`;
 							break;
 						case "shadow":
-							widget = "shadow";
-							if(Object.prototype.hasOwnProperty.call(dattributes, "mode")) {
-								rattributes.push({
-									type: "$",
-									name: "mode",
-									value: dattributes.mode
-								});
-							}
-							append = false;
+							this.warn("Tag `<:shadow />` is deprecated. Use `<#shadow-root />` instead.");
+							computed = true;
+							tagName = `${this.runtime}.widgets["shadow-root"]`;
 							break;
 						case "use":
 							element = arg;
@@ -745,24 +720,33 @@ Transpiler.prototype.open = function(){
 							create = update = append = false;
 							break;
 						case "scope":
+						case "debug":
 						case "bind":
-						default:
 							create = update = append = false;
+							break;
+						default:
+							this.parser.error("No special meaning associated to `<:" + name + " />` tag.");
 					}
 				}
 			} else if(tagName.charAt(0) == '#') {
-				newMode = modeNames[tagName.substr(1)];
-				if(newMode !== undefined) create = update = append = false; // behave as a scope
-			} else if(tagName == '@') {
-				this.warn("Tag name `<@ />` is deprecated. Use `<:element />` instead.", position);
-				create = append = false;
+				// default widget
+				tagName = `${this.runtime}.widgets["${tagName.substr(1)}"]`;
+				computed = true;
 			} else if(tagName) {
 				if(Object.prototype.hasOwnProperty.call(this.tagNames, tagName)) this.tagNames[tagName]++;
 				else this.tagNames[tagName] = 1;
 			}
 		}
 
-		if(newMode === undefined) {
+		if(dattributes.mode) newMode = dattributes.mode.slice(1, -1); // remove quotes from string
+
+		if(newMode) {
+			// mode declared, search it and validate it
+			var name = newMode; //TODO parse attributes
+			newMode = modeNames[newMode];
+			if(newMode === undefined) this.parser.error(`Unknown mode "${name}".`);
+		} else {
+			// search for an auto-opening mode
 			for(var i=0; i<modeRegistry.length; i++) {
 				var info = modeRegistry[i];
 				if(info.parser.matchesTag && info.parser.matchesTag(tagName, this.currentMode.parser)) {
@@ -773,6 +757,7 @@ Transpiler.prototype.open = function(){
 		}
 
 		if(newMode !== undefined) {
+
 			// every attribute is parsed as JSON, expect an empty string (default value) which is converter to true
 			var attributes = {};
 			for(var key in dattributes) {
@@ -784,9 +769,10 @@ Transpiler.prototype.open = function(){
 				}
 			}
 			this.startMode(newMode, attributes);
+
 		}
 
-		if(tagName.charAt(0) != '#') {
+		if(computed || tagName != ":mode") {
 
 			if(!computed && tagName == ":debug" || dattributes["debug"]) {
 				this.source.push("if(" + this.runtime + ".isDebug) {");
@@ -866,12 +852,10 @@ Transpiler.prototype.open = function(){
 
 				if(create) {
 					// tagName must be called before options, so it is calculated before attributes
-					var data = [this.chainFeature(optional ? "createIf" : "create"), false, options()];
-					if(widget) {
-						data[1] = this.runtime + ".widgets." + widget;
-					} else if(computed || this.options.widgets && this.options.widgets.indexOf(tagName) != -1) {
+					var data = [this.chainFeature(optional ? "createIf" : "create"), 0, options()];
+					if(computed/* || this.options.widgets && this.options.widgets.indexOf(tagName) != -1*/) {
 						data[1] = tagName;
-						data.push(JSON.stringify(tagName));
+						if(tagNameString) data.push(JSON.stringify(tagNameString));
 					} else {
 						data[1] = `"${tagName}"`;
 					}

@@ -95,7 +95,8 @@ gulp.task("dist:sactory", function(){
 		"runtime/misc",
 		"runtime/observable",
 		"runtime/style",
-		"runtime/widget"
+		"runtime/widget",
+		"runtime/widgets"
 	]);
 });
 
