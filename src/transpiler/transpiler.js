@@ -783,12 +783,17 @@ Transpiler.prototype.open = function(){
 
 				var str = value => Array.isArray(value) ? value.join(", ") : (value || "");
 
-				this.source.push(`${this.feature(tagName.substr(1))}(${this.arguments}, ${this.context}, [${str(dattributes.to)}], [${str(dattributes["maybe-to"])}], `);
+				this.source.addSource(`${this.feature(tagName.substr(1))}(`);
+				this.source.addContext();
+				this.source.addSource(`, [${str(dattributes.to)}], [${str(dattributes["maybe-to"])}], `);
 				if(this.options.es6) {
-					this.source.push(`${this.context} => {`);
+					this.source.addContextArg();
+					this.source.push(" => {");
 					currentClosing.unshift("})");
 				} else {
-					this.source.push(`function(${this.context}){`);
+					this.source.addSource("function(");
+					this.source.addContextArg();
+					this.source.addSource("){");
 					currentClosing.unshift("}.bind(this))");
 				}
 
@@ -796,7 +801,7 @@ Transpiler.prototype.open = function(){
 
 				if(dattributes["ref-widget"]) {
 					var ref = dattributes["ref-widget"];
-					var temp = this.context + ".r";
+					var temp = this.context0 + ".r";
 					if(dattributes.ref instanceof Array) dattributes.ref.push(temp);
 					else if(dattributes.ref) dattributes.ref = [dattributes.ref, temp];
 					else dattributes.ref = temp;
@@ -816,9 +821,9 @@ Transpiler.prototype.open = function(){
 				}*/
 
 				if(tagName == ":xml") {
-					this.source.push(`(${this.context}.x=${this.feature("xml")}(${dattributes.namespace || "null"}, ${dattributes.root || dattributes.name || "\"xml\""}),`);
-					currentClosing.unshift(`,${this.context}.x)`);
-					element = `${this.context}.x.firstElementChild`;
+					this.source.push(`(${this.context0}.x=${this.feature("xml")}(${dattributes.namespace || "null"}, ${dattributes.root || dattributes.name || "\"xml\""}),`);
+					currentClosing.unshift(`,${this.context0}.x)`);
+					element = `${this.context0}.x.firstElementChild`;
 					create = false;
 				}
 
