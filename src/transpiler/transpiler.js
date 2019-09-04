@@ -257,7 +257,9 @@ Transpiler.prototype.open = function(){
 			if(next == "--") {
 				// xml comment
 				this.parser.index += 2;
-				this.source.push(`${this.feature("comment")}(${this.arguments}, ${this.context}, ${this.parseText(this.parser.findSequence("-->", true).slice(0, -3))})`);
+				this.source.addSource(`${this.feature("comment")}(`);
+				this.source.addContext();
+				this.source.addSource(`, ${this.parseText(this.parser.findSequence("-->", true).slice(0, -3))})`);
 				this.addSemicolon();
 			} else if(next == "/*") {
 				// code comment
@@ -464,7 +466,7 @@ Transpiler.prototype.open = function(){
 								case "range":
 								case "text":
 								case "time":
-									rattributes.push({type: "", name: "type", value: '"' + name + '"'});
+									temp = name;
 								case "form":
 								case "value":
 									if(!attr.hasOwnProperty("value")) this.parser.error("Value for form attribute is required.");
@@ -472,7 +474,12 @@ Transpiler.prototype.open = function(){
 									else start.name = start.name.substr(column + 1);
 									if(start.name.charAt(0) == ":") start.name = ":" + start.name;
 									this.compileAttributeParts(attr);
-									forms.push([this.stringifyAttribute(attr), attr.value, attr.sourceValue || attr.value]);
+									forms.push({
+										info: this.stringifyAttribute(attr),
+										value: attr.value,
+										type: temp,
+										ref: attr.sourceValue || attr.value
+									});
 									break;
 								default:
 									this.parser.error("Unknown semi compile-time attribute '" + name + "'.");
@@ -730,7 +737,12 @@ Transpiler.prototype.open = function(){
 				}
 			} else if(tagName.charAt(0) == '#') {
 				// default widget
-				tagName = `${this.runtime}.widgets["${tagName.substr(1)}"]`;
+				var name = tagName.substr(1);
+				if(/^[a-zA-Z]+$/.test(name)) {
+					tagName = `${this.runtime}.widgets.${name}`;
+				} else {
+					tagName = `${this.runtime}.widgets["${name}"]`;
+				}
 				computed = true;
 			} else if(tagName) {
 				if(Object.prototype.hasOwnProperty.call(this.tagNames, tagName)) this.tagNames[tagName]++;
@@ -799,32 +811,17 @@ Transpiler.prototype.open = function(){
 
 			} else {
 
-				if(dattributes["ref-widget"]) {
-					var ref = dattributes["ref-widget"];
-					var temp = this.context0 + ".r";
-					if(dattributes.ref instanceof Array) dattributes.ref.push(temp);
-					else if(dattributes.ref) dattributes.ref = [dattributes.ref, temp];
-					else dattributes.ref = temp;
-					this.source.push("(");
-					currentClosing.unshift(`,${ref instanceof Array ? ref.join(" = ") : ref} = ${this.runtime}.widget(${temp}), ${temp})`);
-				}
-
-				if(dattributes.ref) {
-					if(dattributes.ref instanceof Array) this.source.push(dattributes.ref.join(" = "));
-					else this.source.push(dattributes.ref);
-					this.source.push(" = ");
-				}
-
-				/*if(dattributes.unique) {
-					this.source.push(`${this.feature("unique")}(this, ${this.context}, ${this.nextId()}, function(){return `);
-					currentClosing.unshift("})");
-				}*/
-
-				if(tagName == ":xml") {
-					this.source.push(`(${this.context0}.x=${this.feature("xml")}(${dattributes.namespace || "null"}, ${dattributes.root || dattributes.name || "\"xml\""}),`);
-					currentClosing.unshift(`,${this.context0}.x)`);
-					element = `${this.context0}.x.firstElementChild`;
-					create = false;
+				if(dattributes.unique) {
+					this.source.addSource(`${this.feature("unique")}(`);
+					this.source.addContext();
+					this.source.addSource(`, ${this.nextId()}, `);
+					if(this.options.es6) {
+						this.source.addSource("() => ");
+						currentClosing.unshift(")");
+					} else {
+						this.source.addSource("function(){return ");
+						currentClosing.unshift("}.bind(this))");
+					}
 				}
 
 				var before = [], after = [];
@@ -832,8 +829,7 @@ Transpiler.prototype.open = function(){
 				var inline = false;
 				var hasBody = false;
 
-				// before
-
+				// select right element to use
 				if(query) {
 					// querying element(s)
 					var data = [this.chainFeature("query"), element];
@@ -855,6 +851,7 @@ Transpiler.prototype.open = function(){
 					before.push([this.chainFeature("use"), element]);
 				}
 
+				// create or update
 				if(create) {
 					// tagName must be called before options, so it is calculated before attributes
 					var data = [this.chainFeature(optional ? "createIf" : "create"), 0, options()];
@@ -876,20 +873,33 @@ Transpiler.prototype.open = function(){
 					}
 				}
 
-				// after
+				// assign references
+				if(dattributes.ref) {
+					before.push([this.chainFeature("ref"), ...[].concat(dattributes.ref).map(ref => this.options.es6 ? `${this.value} => ${ref}=${this.value}` : `function(${this.value}){${ref}=${this.value}}.bind(this)`)])
+				}
 
+				// assign widget references
+				if(dattributes["ref-widget"]) {
+					before.push([this.chainFeature("refWidget"), ...[].concat(dattributes["ref-widget"]).map(ref => this.options.es6 ? `${this.value} => ${ref}=${this.value}` : `function(${this.value}){${ref}=${this.value}}.bind(this)`)])
+				}
+
+				// apply forms
 				if(forms.length) {
-					var v = this.value;
-					after.push([this.chainFeature("forms"), forms.map(value => {
+					after.push([this.chainFeature("forms"), forms.map(({info, value, type, ref}) => {
+						var data = [info, value];
 						if(this.options.es6) {
-							value.push(`${this.value} => {${value.pop()}=${this.value}}`);
+							data.push(`${this.value} => {${ref}=${this.value}}`);
 						} else {
-							value.push(`function(${this.value}){${value.pop()}=${this.value}}.bind(this)`);
+							data.push(`function(${this.value}){${ref}=${this.value}}.bind(this)`);
 						}
-						return `[${value.join(", ")}]`;
+						if(type) {
+							data.push(`"${type}"`);
+						}
+						return `[${data.join(", ")}]`;
 					}).join(", ")]);
 				}
 
+				// append
 				var appendRef = dattributes.early ? before : after;
 				if(append) {
 					var feature = "append";

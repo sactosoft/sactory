@@ -18,10 +18,3 @@ if(typeof ShadowRoot == "function") defineBuilder(ShadowRoot);
 EventTarget.prototype.$$on = function(context, name, value){
 	Sactory.$$on(context, this, name, value);
 };
-
-/**
- * @since 0.123.0
- */
-Sactory.xml = function(namespace, root){
-	return document.implementation.createDocument(namespace, root);
-};

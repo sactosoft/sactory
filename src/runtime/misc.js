@@ -89,12 +89,12 @@ Sactory.check = function(version, warn){
 /**
  * @since 0.32.0
  */
-Sactory.unique = function(scope, {element}, id, fun){
-	var className = SactoryConfig.config.prefix + id;
-	if(!(element && element.ownerDocument || document).querySelector("." + className)) {
-		var ret = fun.call(scope);
-		ret["~builder"].addClass(className);
-		return ret;
+Sactory.unique = function(context, id, fun){
+	var className = "unique-" + SactoryConfig.config.prefix + id;
+	if(!(context.document || document).querySelector("." + className)) {
+		var element = fun();
+		element["~builder"].addClass(className, context.bind);
+		return element;
 	}
 };
 

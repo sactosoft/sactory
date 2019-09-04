@@ -308,6 +308,21 @@ chain.createIf = function(context, tagName, options, tagNameString){
 };
 
 /**
+ * @since 0.134.0
+ */
+chain.ref = function(context){
+	Array.prototype.slice.call(arguments, 1).forEach(ref => ref(context.element));
+};
+
+/**
+ * @since 0.134.0
+ */
+chain.refWidget = function(context){
+	var widget = context.element["~builder"].widget;
+	Array.prototype.slice.call(arguments, 1).forEach(ref => ref(widget));
+};
+
+/**
  * @since 0.128.0
  */
 chain.slots = function(context, slots){
@@ -349,9 +364,12 @@ chain.body = function(context, fun){
 /**
  * @since 0.82.0
  */
-chain.forms = function(context, ...values){
-	var input = context.input || context.content;
-	values.forEach(([info, value, update]) => input["~builder"].form(context, info, value, update));
+chain.forms = function(context){
+	var element = context.input || context.content;
+	Array.prototype.slice.call(arguments, 1).forEach(([info, value, update, type]) => {
+		if(type) element.type = type;
+		element["~builder"].form(context, info, value, update);
+	});
 };
 
 /**
