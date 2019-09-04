@@ -25,4 +25,26 @@ Sactory.createDocument = function(charset){
 	return global.document = new HTMLDocument();
 };
 
+/**
+ * @class
+ * @since 0.134.0
+ */
+function Document() {}
+
+Document.prototype = Object.create(SactoryWidget.Widget.prototype);
+
+Document.prototype.render = function({charset}){
+	return global.document = new HTMLDocument();
+};
+
+Document.prototype.render$head = function(){
+	return this.element.head;
+};
+
+Document.prototype.render$body = function(){
+	return this.element.body;
+};
+
+Object.defineProperty(Sactory.widgets, "document", {value: Document});
+
 module.exports = Sactory;

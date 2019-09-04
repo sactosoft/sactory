@@ -12,26 +12,6 @@ function add(name, value, register) {
 }
 
 /**
- * @class
- * @since 0.134.0
- */
-function Document() {}
-
-Document.prototype = Object.create(SactoryWidget.Widget.prototype);
-
-Document.prototype.render = function({charset}){
-	return global.document = new HTMLDocument();
-};
-
-Document.prototype.render$head = function(){
-	return this.element.head;
-};
-
-Document.prototype.render$body = function(){
-	return this.element.body;
-};
-
-/**
  * @since 0.134.0
  */
 function documentFragment(arg0, arg1, context) {
@@ -97,7 +77,6 @@ function show(value, arg1, {element, bind}) {
 	element["~builder"].visibility({bind}, value, 1);
 }
 
-add("document", Document, false);
 add("document-fragment", documentFragment, false);
 add("shadow-root", shadowRoot, true);
 add("xml", xml, false);
