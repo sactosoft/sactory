@@ -193,7 +193,7 @@ Widget.createStyle = function(context, styler, element){
 /**
  * @since 0.129.0
  */
-Widget.newInstanceRender = function(Class, args, context){
+Widget.newInstanceRender = function(Class, context, args){
 	var instance = Widget.newInstance(Class, context, args);
 	return {instance, element: Widget.render(Class, instance, context, args)};
 };
