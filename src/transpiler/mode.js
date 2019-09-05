@@ -776,13 +776,18 @@ SourceCodeMode.prototype.next = function(match){
 					coff = false;
 				}
 				if(coff) {
-					var modsIndex = index;
+					var beforeIndex = index;
+					var afterIndex = index;
 					var mod, mods = {};
 					while(mod = previous()) {
-						if(["async"].indexOf(mod) == -1) this.parser.error(`Unknown computed observable modifier "${mod}".`);
-						mods[mod] = true;
+						if(["async"].indexOf(mod) != -1) {
+							mods[mod] = true;
+							beforeIndex = index;
+						} else {
+							break;
+						}
 					}
-					tail.value = `${tail.value.slice(0, -index)}${this.transpiler.feature("coff")}(${tail.value.substr(-modsIndex)}`;
+					tail.value = `${tail.value.slice(0, -beforeIndex)}${this.transpiler.feature("coff")}(${tail.value.substr(-afterIndex)}`;
 					// add expression
 					var parsed = this.transpiler.parseCode(this.parser.readExpression());
 					this.source.addSource(`${parsed.source})`);
