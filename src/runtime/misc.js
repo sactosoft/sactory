@@ -38,12 +38,14 @@ Attr.prototype.split = function(separator){
 					curr = null;
 					splitted.shift();
 				}
-				var last = splitted.pop();
-				splitted.forEach(value => {
-					push(value);
-					curr = null;
-				});
-				if(last.length) push(last);
+				if(splitted.length) {
+					var last = splitted.pop();
+					splitted.forEach(value => {
+						push(value);
+						curr = null;
+					});
+					if(last.length) push(last);
+				}
 			}
 		}
 	});

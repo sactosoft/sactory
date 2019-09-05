@@ -470,7 +470,7 @@ Transpiler.prototype.open = function(){
 								case "form":
 								case "value":
 									if(!attr.hasOwnProperty("value")) this.parser.error("Value for form attribute is required.");
-									if(column == start.name.length - 1) attr.parts.shift();
+									if(column == start.name.length || column == start.name.length - 1) attr.parts.shift();
 									else start.name = start.name.substr(column + 1);
 									if(start.name.charAt(0) == ":") start.name = ":" + start.name;
 									this.compileAttributeParts(attr);
