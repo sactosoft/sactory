@@ -611,7 +611,7 @@ OptionalLogicMode.prototype = Object.create(LogicMode.prototype);
  * @since 0.15.0
  */
 function SourceCodeMode(transpiler, parser, source, attributes) {
-	BreakpointMode.call(this, transpiler, parser, source, attributes, ['(', ')', '{', '}', '$', '&', '*', '^', '=']);
+	BreakpointMode.call(this, transpiler, parser, source, attributes, ['(', ')', '{', '}', '$', '&', '*', '^']);
 	this.observables = [];
 	this.maybeObservables = [];
 	this.parentheses = [];
@@ -659,27 +659,6 @@ SourceCodeMode.prototype.lookBehind = function(){
 	return this.parser.input.substring(index + 1, end + 1);
 };
 
-/**
- * @since 0.129.0
- */
-SourceCodeMode.prototype.searchInSource = function(search){
-	var sourceIndex = this.transpiler.source.length - 1;
-	var source, index;
-	do {
-		source = this.transpiler.source[sourceIndex];
-		var index = source.lastIndexOf(search);
-		if(index != -1) return { source, sourceIndex, index };
-	} while(sourceIndex-- > 0);
-	return false;
-};
-
-/**
- * @since 0.129.0
- */
-SourceCodeMode.prototype.injectInSource = function({ source, sourceIndex, index }, str){
-	this.transpiler.source[sourceIndex] = source.substring(0, index) + str + source.substr(index);
-};
-
 SourceCodeMode.prototype.next = function(match){
 	switch(match) {
 		case '(':
@@ -698,9 +677,9 @@ SourceCodeMode.prototype.next = function(match){
 		case '{':
 			var last = this.parser.last;
 			this.restoreIndex('{');
-			if(!this.attributes.inAttr && last == ')' && !this.parser.lastKeywordAtIn(this.parser.lastParenthesis.lastIndex, "if", "else", "for", "while", "do", "switch", "catch", "with")) {
+			if(!this.attributes.inAttr && last == ')' && !this.parser.lastKeywordAtIn(this.parser.lastParenthesis.lastIndex, "if", "for", "while", "switch", "catch", "with")) {
 				// new function declaration
-				this.source.startFunction();
+				this.source.startFunction(this.parser.input.substring(this.parser.lastParenthesis.start, this.parser.lastParenthesis.end - 1));
 			} else {
 				// loop/conditional statement
 				this.source.startScope();
@@ -847,51 +826,6 @@ SourceCodeMode.prototype.next = function(match){
 			} else {
 				// xor operator
 				this.restoreIndex('^');
-			}
-			break;
-		case '=':
-			if(!this.attributes.inAttr && this.parser.readIf(">")) {
-				// it's an arrow function, collect arguments to check what to inject
-				this.source.addSource("=>");
-				// check whether arguments are wrapped
-				var info = {};
-				if(this.parser.last == ")") {
-					// arguments are wrapped, check whether it's injectable
-					info.wrapped = true;
-					var tail = this.source.data.pop();
-					var open = tail.value.length - (this.parser.index - this.parser.lastParenthesis.start);
-					var close = tail.value.length - (this.parser.index - this.parser.lastParenthesis.end) - 1;
-					if(open >= 0) {
-						this.source.addSource(tail.value.substring(0, open));
-						info.data = this.source.addIsolatedSource(tail.value.substring(open, close));
-						this.source.addSource(tail.value.substr(close));
-					} else {
-						// probably a syntax error
-						this.source.data.push(tail);
-					}
-				} else {
-					// single argument, not wrapped
-					info.wrapped = false;
-					var tail = this.source.data.pop();
-					var close = tail.value.length - (this.parser.index - this.parser.lastIndex);
-					var start = close - 1;
-					while(start >= 0 && /[a-zA-Z0-9_$]/.test(tail.value.charAt(start))) start--;
-					this.source.addSource(tail.value.substring(0, start + 1));
-					info.data = this.source.addIsolatedSource(tail.value.substring(start + 1, close + 1));
-					this.source.addSource(tail.value.substr(close + 1));
-				}
-				this.source.addSource(this.parser.skipImpl({strings: false}));
-				if(this.parser.readIf("{")) {
-					this.restoreIndex("{");
-					this.source.startArrowFunction(info);
-				} else {
-					// inline arrow function
-					//TODO
-					this.parser.last = ">";
-					this.parser.lastIndex = this.parser.index - 1;
-				}
-			} else {
-				this.restoreIndex('=');
 			}
 			break;
 	}

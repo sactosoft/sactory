@@ -935,7 +935,11 @@ Transpiler.prototype.open = function(){
 
 				var mapNext = a => `, [${a.join(", ")}]`;
 				this.source.addSource(`${this.chain}${all ? ".all" : ""}(`);
-				this.source.addContext();
+				if(dattributes.context) {
+					this.source.addSource(dattributes.context);
+				} else {
+					this.source.addContext();
+				}
 				this.source.addSource(before.map(mapNext).join(""));
 				if(!inline) {
 					// create body

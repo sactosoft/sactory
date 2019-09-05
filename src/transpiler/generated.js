@@ -56,35 +56,41 @@ Generated.prototype.addSource = Generated.prototype.push = function(value, isola
 	return this.add(SOURCE, value, isolate);
 };
 
+/**
+ * @since 0.132.0
+ */
 Generated.prototype.addIsolatedSource = function(value){
 	return this.addSource(value, true);
 };
 
+/**
+ * @since 0.132.0
+ */
 Generated.prototype.injectFunctionContext = function(scope){
 	if(!scope.injected) {
-		if(scope.args.data) {
-			// it's an arrow function, need to inject the arguments too
-			if(scope.args.wrapped) {
-				var value = scope.args.data.value.trim();
-				var comma = value.lastIndexOf(",");
-				var arg = value.substr(comma + 1).trim();
-				if(Polyfill.startsWith.call(arg, "...") && !Polyfill.endsWith.call(arg, "]")) {
-					// do not inject, use arguments from already existing spread syntax
-					scope.args = arg.substr(3);
-				} else if(comma == -1 ? value.length : arg.length) {
-					// inject comma and arguments
-					scope.args.data.value += ", ..." + (scope.args = this.transpiler.arguments);
-				} else  {
-					// there's already a comma or it's not needed
-					scope.args.data.value += "..." + (scope.args = this.transpiler.arguments);
-				}
-			} else {
-				scope.args.data.value = `(${scope.args.data.value}, ...${scope.args = this.transpiler.arguments})`;
-			}
-		}
-		//scope.data.value = `var ${this.transpiler["context" + scope.context]}=${this.transpiler.runtime}.cfa` + (scope.prevContext == -1 ? "(" : `c(${this.transpiler["context" + scope.prevContext]}, `) + `${scope.args});`;
-		scope.data.value = `var ${this.transpiler["context" + scope.context]}=${this.transpiler.runtime}.cfac(${this.transpiler["context" + scope.prevContext]}, ${scope.args});`;
 		scope.injected = true;
+		// calculate number of arguments
+		var skip, count = 0;
+		var args = scope.args.split(",");
+		if(args.length) {
+			args = args.map(arg => arg.trim());
+			if(!args[args.length - 1].length) args.pop();
+			args.forEach(arg => {
+				if(skip) {
+					if(arg.charAt(arg.length - 1) == skip) {
+						skip = false;
+						count++;
+					}
+				} else if(arg.charAt(0) == "{") {
+					skip = "}";
+				} else if(arg.charAt(0) == "[") {
+					skip = "]";
+				} else {
+					count++;
+				}
+			});
+		}
+		scope.data.value = `var ${this.transpiler["context" + scope.context]}=${this.transpiler.runtime}.cfa(${this.transpiler["context" + scope.prevContext]}, arguments, ${count});`;
 	}
 };
 
@@ -122,6 +128,9 @@ Generated.prototype.getContextArg = function(){
 	return this.fun ? this.transpiler["context" + this.fun.context] : this.transpiler.context0;
 };
 
+/**
+ * @since 0.132.0
+ */
 Generated.prototype.startScope = function(after){
 	var scope = {
 		parent: this.scope,
@@ -134,7 +143,10 @@ Generated.prototype.startScope = function(after){
 	this.scope = scope;
 };
 
-Generated.prototype.startFunctionImpl = function(args){
+/**
+ * @since 0.132.0
+ */
+Generated.prototype.startFunction = function(args){
 	var scope = {
 		parent: this.scope,
 		prevContext: this.scope.context,
@@ -148,14 +160,9 @@ Generated.prototype.startFunctionImpl = function(args){
 	this.scope = this.fun = scope;
 };
 
-Generated.prototype.startFunction = function(){
-	this.startFunctionImpl("arguments");
-};
-
-Generated.prototype.startArrowFunction = function(info){
-	this.startFunctionImpl(info);
-};
-
+/**
+ * @since 0.132.0
+ */
 Generated.prototype.endScope = function(){
 	if(this.scope.fun) {
 		// search for closest parent function
@@ -169,6 +176,9 @@ Generated.prototype.endScope = function(){
 	this.scope = this.scope.parent;
 };
 
+/**
+ * @since 0.132.0
+ */
 Generated.prototype.toString = function(){
 	return this.data.map(({type, value}) => {
 		return value;

@@ -5,20 +5,14 @@ var Sactory = {};
 /**
  * @since 0.132.0
  */
-Sactory.getContextFromArguments = Sactory.cfa = function(args){
-	for(var i=args.length; i>0; i--) {
+Sactory.contextFromArguments = Sactory.cfa = function(context, args, from){
+	for(var i=args.length; i>from; i--) {
 		var arg = args[i - 1];
 		if(arg && arg.__context) {
 			return arg;
 		}
 	}
-};
-
-/**
- * @since 0.132.0
- */
-Sactory.getContextFromArgumentsAndContext = Sactory.cfac = function(context, args){
-	return Sactory.cfa(args) || context;
+	return context;
 };
 
 /**

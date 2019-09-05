@@ -2,6 +2,18 @@ var SactoryWidget = require("./widget");
 
 var Sactory = {};
 
+/**
+ * @since 0.135.0
+ */
+Sactory.classes = function(){
+	var classes = Array.prototype.slice.call(arguments, 0);
+	return function(arg0, arg1, {element, bind}){
+		var builder = element["~builder"];
+		classes.forEach(className => builder.className(className, bind));
+		return element;
+	};
+};
+
 Sactory.widgets = {};
 
 function add(name, value, register) {
