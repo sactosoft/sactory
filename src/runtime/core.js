@@ -641,8 +641,9 @@ Sactory.prototype[Const.BUILDER_TYPE_ON] = function({bind}, name, value){
  */
 Sactory.prototype.visibility = function({bind}, value, visible){
 	var document = this.element.ownerDocument;
-	if(!document["~hidden"]) {
-		var hidden = document["~hidden"] = counter.nextPrefix();
+	var hidden = document["~hidden"];
+	if(!hidden) {
+		hidden = document["~hidden"] = counter.nextPrefix();
 		var style = document.createElement("style");
 		style.textContent = `.${hidden}{display:none !important;}`;
 		/* debug:

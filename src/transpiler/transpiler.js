@@ -646,8 +646,7 @@ Transpiler.prototype.open = function(){
 							break;
 						case "super":
 							computed = true;
-							tagName = "super.render";
-							if(arg) tagName += "$" + arg;
+							tagName = "super.render" + (arg ? "$" + arg : "") + ".bind(this)";
 							rattributes.unshift({
 								type: "$",
 								name: "",
