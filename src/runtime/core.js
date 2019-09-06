@@ -184,12 +184,17 @@ Sactory.prototype.styleImpl = function(values){
 	
 Sactory.prototype.text = function(value, bind, anchor){
 	var textNode;
-	if(SactoryMisc.isBuilderObservable(value)) {
+	var use = value => {
 		textNode = document.createTextNode("");
-		this.observe(bind, value, value => {
+		this.observeImpl(bind, value, value => {
 			textNode.textContent = value + "";
 			textNode.observed = true;
 		});
+	};
+	if(SactoryObservable.isObservable(value)) {
+		use(value);
+	} else if(SactoryMisc.isBuilderObservable(value)) {
+		use(value.use(bind));
 	} else {
 		textNode = document.createTextNode(value);
 	}
@@ -208,8 +213,7 @@ Sactory.prototype.html = function(value, bind, anchor){
 		children = Array.prototype.slice.call(container.childNodes, 0);
 		children.forEach(child => this.append(child, bind, anchor));
 	};
-	if(SactoryMisc.isBuilderObservable(value)) {
-		value = value.use(bind);
+	var use = value => {
 		// create an anchor to maintain the right order
 		var innerAnchor = SactoryBind.anchor({element: this.element, bind, anchor});
 		this.subscribe(bind, value.subscribe(value => {
@@ -219,6 +223,11 @@ Sactory.prototype.html = function(value, bind, anchor){
 			parse(value, innerAnchor);
 		}));
 		parse(value.value, innerAnchor);
+	};
+	if(SactoryObservable.isObservable(value)) {
+		use(value);
+	} else if(SactoryMisc.isBuilderObservable(value)) {
+		use(value.use(bind));
 	} else {
 		parse(value, anchor);
 	}
@@ -228,7 +237,7 @@ Sactory.prototype.html = function(value, bind, anchor){
  * @since 0.100.0
  */
 Sactory.prototype.className = function(className, bind){
-	if(SactoryMisc.isBuilderObservable(className)) {
+	var use = className => {
 		var value = className.value;
 		this.subscribe(bind, className.subscribe(newValue => {
 			this.removeClassName(value);
@@ -238,6 +247,11 @@ Sactory.prototype.className = function(className, bind){
 		if(bind) {
 			bind.addRollback(() => this.removeClassName(value));
 		}
+	};
+	if(SactoryObservable.isObservable(className)) {
+		use(className);
+	} else if(SactoryMisc.isBuilderObservable(className)) {
+		use(className.use(bind));
 	} else {
 		this.addClassName(className);
 		if(bind) {
@@ -250,8 +264,7 @@ Sactory.prototype.className = function(className, bind){
  * @since 0.100.0
  */
 Sactory.prototype.classNameIf = function(className, condition, bind){
-	if(SactoryMisc.isBuilderObservable(condition)) {
-		condition = condition.use(bind);
+	var use = condition => {
 		this.subscribe(bind, condition.subscribe(newValue => {
 			if(newValue) {
 				// add class
@@ -265,6 +278,11 @@ Sactory.prototype.classNameIf = function(className, condition, bind){
 		if(bind) {
 			bind.addRollback(() => condition.value && this.removeClassName(className));
 		}
+	};
+	if(SactoryObservable.isObservable(condition)) {
+		use(condition);
+	} else if(SactoryMisc.isBuilderObservable(condition)) {
+		use(condition.use(bind));
 	} else if(condition) {
 		this.addClassName(className);
 		if(bind) {
@@ -608,24 +626,6 @@ Sactory.prototype[Const.BUILDER_TYPE_STYLE] = function({bind}, name, value){
 		this.style(name, value, bind);
 	} else {
 		this.complexStyle(name, value, bind);
-	}
-};
-
-/**
- * @since 0.96.0
- */
-Sactory.prototype[Const.BUILDER_TYPE_CONCAT] = function({bind, anchor}, name, value){
-	name = name.toString();
-	switch(name) {
-		case "text": return this.text(value, bind, anchor);
-		case "html": return this.html(value, bind, anchor);
-		case "class": return this.className(value, bind);
-		default:
-			if(Polyfill.startsWith.call(name, "class:")) {
-				this.classNameIf(name.substr(6), value, bind);
-			} else {
-				throw new Error("Unknown concat attribute '" + name + "'.");
-			}
 	}
 };
 

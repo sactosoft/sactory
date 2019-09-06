@@ -14,9 +14,9 @@ function mapAttributeType(type) {
 		case "": return Const.BUILDER_TYPE_NONE;
 		case "@": return Const.BUILDER_TYPE_PROP;
 		case "&": return Const.BUILDER_TYPE_STYLE;
-		case "~": return Const.BUILDER_TYPE_CONCAT;
 		case "+": return Const.BUILDER_TYPE_ON;
-		case "$": return Const.BUILDER_TYPE_WIDGET;
+		case "$": return Const.BUILDER_TYPE_CREATE_WIDGET;
+		case "~": return Const.BUILDER_TYPE_UPDATE_WIDGET;
 		case "$$": return Const.BUILDER_TYPE_EXTEND_WIDGET;
 	}
 }
@@ -26,9 +26,9 @@ function mapAttributeTypeName(type) {
 		case "": return "attribute";
 		case "@": return "property";
 		case "&": return "style";
-		case "~": return "concat";
 		case "+": return "event";
-		case "$": return "widget";
+		case "$": return "create widget";
+		case "~": return "update widget";
 		case "$$": return "extend widget";
 	}
 }
@@ -1051,6 +1051,7 @@ Transpiler.prototype.getDefaultAttributeValue = function({type, negated}){
 			return "\"\"";
 		case "@":
 		case "$":
+		case "~":
 		case "$$":
 			return !negated;
 		case "+":

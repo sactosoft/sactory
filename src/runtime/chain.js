@@ -114,13 +114,12 @@ chain.updateImpl = function(context, [attrs = [], iattrs, sattrs, transitions, v
 	// filter out optional arguments
 	attrs.forEach(([type, name, value, optional]) => {
 		if(!optional || value !== undefined) {
-			var ext = type == Const.BUILDER_TYPE_EXTEND_WIDGET;
-			if(ext || type == Const.BUILDER_TYPE_WIDGET) {
+			if(type >= Const.BUILDER_TYPE_CREATE_WIDGET) {
 				var obj;
 				if(SactoryMisc.isBuilderObservable(value)) {
 					value = value.use(context.bind);
 				}
-				if(ext) {
+				if(type >= Const.BUILDER_TYPE_UPDATE_WIDGET) {
 					if(typeof name[0] == "function") {
 						var widget = name[0];
 						name = name.slice(1).toString().substr(1); // assuming the first character is a column
@@ -147,7 +146,12 @@ chain.updateImpl = function(context, [attrs = [], iattrs, sattrs, transitions, v
 							return;
 						} else {
 							var key = name.substring(0, col);
-							if(!Object.prototype.hasOwnProperty.call(widgetExtRef, key)) {
+							if(type == Const.BUILDER_TYPE_UPDATE_WIDGET) {
+								widgetExt.push({
+									name: key,
+									args: obj = {}
+								});
+							} else if(!Object.prototype.hasOwnProperty.call(widgetExtRef, key)) {
 								widgetExt.push({
 									name: key,
 									args: obj = widgetExtRef[key] = {}

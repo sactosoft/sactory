@@ -36,7 +36,7 @@ Bind.prototype.rollback = function(){
 	}
 	if(this.elements.length) {
 		this.elements.forEach(element => {
-			if(element["~builder"] && element["~builder"].events.remove) element["~builder"].dispatchEvent("remove", {bubbles: false});
+			if(element["~builder"] && element["~builder"].events.remove && element["~builder"].dispatchEvent("remove", {bubbles: false, cancelable: true}).defaultPrevented) return;
 			if(element.parentNode) element.parentNode.removeChild(element);
 		});
 		this.elements = [];

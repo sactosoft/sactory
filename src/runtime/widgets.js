@@ -1,3 +1,4 @@
+var SactoryObservable = require("./observable");
 var SactoryWidget = require("./widget");
 
 var Sactory = {};
@@ -72,7 +73,13 @@ function html(value, arg1, {element, bind, anchor}) {
  * @since 0.134.0
  */
 function className(value, arg1, {element, bind}) {
-	element["~builder"].className(value, bind);
+	if(typeof value == "object" && !SactoryObservable.isObservable(value)) {
+		for(var className in value) {
+			element["~builder"].classNameIf(className, value[className], bind);
+		}
+	} else {
+		element["~builder"].className(value, bind);
+	}
 }
 
 /**
