@@ -638,7 +638,11 @@ SourceCodeMode.prototype.addObservable = function(observables, maybeObservables,
 		tail.value = tail.value.slice(0, -name.length);
 	}
 	var maybe = !!this.parser.readIf('?');
-	name += this.parseCodeToSource("readVarName", true);
+	if(this.parser.peek() == '(') {
+		name += this.parseCodeToSource("skipEnclosedContent");
+	} else {
+		name += this.parseCodeToSource("readVarName", true);
+	}
 	if(maybe) {
 		this.source.addSource(`${this.transpiler.feature("value")}(${name})`);
 		if(maybeObservables) maybeObservables.push(name);
