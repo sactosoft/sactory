@@ -339,9 +339,7 @@ Transpiler.prototype.open = function(){
 				optional: !!this.parser.readIf('?'),
 				negated: !!this.parser.readIf('!'),
 				type: this.parser.readAttributePrefix() || "",
-				beforeName: skipped,
-				afterName: "",
-				beforeValue: ""
+				beforeName: skipped
 			};
 			if(this.isSpreadAttribute()) {
 				//TODO assert not optional nor negated
@@ -350,19 +348,20 @@ Transpiler.prototype.open = function(){
 			} else {
 				var content = this.parseAttributeName(false);
 				if(this.parser.readIf('{')) {
-					if(attr.type == ':' || attr.type == '*' || attr.type == '#') this.parser.error("Cannot interpolate this type of attribute.");
+					if(attr.type == ':' || attr.type == '*') this.parser.error("Cannot interpolate this type of attribute.");
 					attr.before = content;
 					attr.inner = [];
 					do {
-						skip(); //TODO do not ignore
+						var curr, before = skip();
 						if(this.isSpreadAttribute()) {
-							attr.inner.push({spread: true, expr: this.parser.readSingleExpression(false, true)});
+							attr.inner.push(curr = {spread: true, expr: this.parser.readSingleExpression(false, true)});
 						} else {
-							var an = this.parseAttributeName(true);
-							this.compileAttributeParts(an);
-							attr.inner.push(an);
+							curr = this.parseAttributeName(true);
+							this.compileAttributeParts(curr);
+							attr.inner.push(curr);
 						}
-						skip(); //TODO do not ignore
+						curr.beforeValue = before;
+						curr.afterValue = skip();
 					} while((next = this.parser.read()) == ',');
 					if(next != '}') this.parser.error("Expected '}' after interpolated attributes list.");
 					attr.after = this.parseAttributeName(false);
@@ -418,6 +417,7 @@ Transpiler.prototype.open = function(){
 							} else {
 								dattributes[attr.name] = attr.value;
 							}
+							rattributes.push({spacer: `${attr.beforeName}/*${attr.name}${attr.afterName || ""}=${attr.beforeValue || ""}${attr.value}*/`});
 							break;
 						case '*':
 							var add = false;
@@ -429,25 +429,9 @@ Transpiler.prototype.open = function(){
 							var name = start.name.substring(0, column);
 							switch(name) {
 								case "next":
-									temp = true;
 								case "prev":
-									attr.type = "";
-									if(start.name.length == 5) attr.parts.shift();
-									else start.name = start.name.substr(5);
-									var value = temp ? `${this.feature("nextId")}(${this.context})` : `${this.feature("prevId")}()`;
-									if(attr.hasOwnProperty("value")) attr.value += " + " + value;
-									else attr.value = value;
-									add = true;
+									this.warn("Attributes `*next` and `*prev` are deprecated. Use `~next` and `~prev` instead.");
 									break;
-								/*case "io":
-								case "in":
-								case "out":
-									var type = start.name.substring(0, column);
-									start.name = start.name.substr(column + 1);
-									if(!start.name.length) attr.parts.shift();
-									this.compileAttributeParts(attr);
-									transitions.push({type: type, name: this.stringifyAttribute(attr), value: attr.value})
-									break;*/
 								case "show":
 									temp = 1;
 								case "hide":
@@ -514,36 +498,36 @@ Transpiler.prototype.open = function(){
 			var level = ++this.level;
 			var ret = {};
 			if(rattributes.length) {
-				ret.attrs = rattributes.map(function(attribute){
-					return (attribute.beforeName || "") + "[" + mapAttributeType(attribute.type) + ", " +
-						(attribute.computed ? attribute.name : '"' + (attribute.name || "") + '"') + (attribute.afterName || "") + ", " +
-						(attribute.beforeValue || "") + attribute.value +
-						(attribute.optional ? ", 1" : "") + "]";
-				}).join(",");
+				ret.attrs = rattributes.map(attribute => attribute.spacer ||
+					(`${attribute.beforeName || ""}[${mapAttributeType(attribute.type)}, ` +
+					`${attribute.computed ? attribute.name : `"${attribute.name || ""}"`}${attribute.afterName || ""}, ` +
+					(attribute.beforeValue || "") + attribute.value +
+					(attribute.optional ? ", 1" : "") + "]")
+				).join(",");
 			}
 			if(iattributes.length) {
 				var s = this.stringifyAttribute;
-				ret.iattrs = iattributes.map(function(attribute){
+				ret.iattrs = iattributes.map(attribute => {
 					var prev = {};
-					return "[" + mapAttributeType(attribute.type) + ", " + s(attribute.before) + ", " + attribute.inner.map(function(attribute, i){
-						var ret = "";
+					return `[${mapAttributeType(attribute.type)},${attribute.beforeName}${s(attribute.before)}, ${attribute.inner.map((attribute, i) => {
+						var ret = attribute.beforeValue;
 						if(i == 0) {
 							if(attribute.spread) {
-								ret = attribute.expr + ".concat(";
+								ret += `${attribute.expr}.concat(`;
 							} else {
-								ret = "Array(" + s(attribute);
+								ret += `Array(${s(attribute)}`;
 							}
 						} else {
 							if(attribute.spread) {
-								ret = ").concat(" + attribute.expr + ").concat(";
+								ret += `).concat(${attribute.expr}).concat(`;
 							} else {
-								if(!prev.spread) ret = ", ";
+								if(!prev.spread) ret += ", ";
 								ret += s(attribute);
 							}
 						}
 						prev = attribute;
-						return ret;
-					}).join("") + "), " + s(attribute.after) + ", " + attribute.value + "]";
+						return ret + attribute.afterValue;
+					}).join("")}), ${s(attribute.after)},${attribute.beforeValue || ""}${attribute.value}]`;
 				});
 			}
 			if(sattributes.length) {
@@ -728,6 +712,7 @@ Transpiler.prototype.open = function(){
 						case "scope":
 						case "debug":
 						case "bind":
+						case "unbind":
 							create = update = append = false;
 							break;
 						default:

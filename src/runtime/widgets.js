@@ -82,6 +82,26 @@ function className(value, arg1, {element, bind}) {
 	}
 }
 
+var currentId;
+
+/**
+ * @since 0.70.0
+ */
+function next(attrs, arg1, context) {
+	currentId = counter.nextPrefix();
+	prevId(attrs, arg1, context);
+}
+
+/**
+ * @since 0.70.0
+ */
+function prev(attrs, arg1, {element}) {
+	for(var name in attrs) {
+		var value = attrs[name];
+		element.setAttribute(name, value === true ? currentId : value + currentId);
+	}
+}
+
 /**
  * @since 0.134.0
  */
@@ -102,6 +122,8 @@ add("xml", xml, false);
 add("text", text, true);
 add("html", html, true);
 add("class", className, true);
+add("next", next, true);
+add("prev", prev, true);
 add("hide", hide, true);
 add("show", show, true);
 
