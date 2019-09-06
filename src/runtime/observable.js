@@ -1,6 +1,4 @@
-var Polyfill = require("../polyfill");
 var SactoryConst = require("./const");
-var SactoryContext = require("./context");
 
 var Sactory = {};
 

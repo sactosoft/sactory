@@ -16,12 +16,14 @@ var { version } = require("./version");
 var nos = Object("");
 var debugExp = /\/\* debug:\r?\n([\s\S]*?)\*\//g;
 
-function make(filename, className, sources) {
+function make(filename, className, declare, sources) {
 
 	var header = `var toString=function(){return Object.toString().replace(/Object/,'${className}').replace(/native/,'sactory');};${className}.toString=toString.toString=toString;` +
 		`Object.defineProperty(${className},'VERSION',{value:'${version}'});` +
-		`Object.defineProperty(${className},'BUILD',{value:'${new Date().toISOString()}'});`;
+		`Object.defineProperty(${className},'BUILT',{value:'${new Date().toISOString()}'});`;
 	var reserved = [className, "Widget", "Builder", "Bind", "Observable", "Subscription", "Array", "Color", "RGBColor", "HSLColor", "Parser", "ParserError"];
+
+	if(declare) header += `function ${className}(){}`;
 
 	var stream = gulp.src(sources.map(s => "src/" + s + ".js"))
 		.pipe(sourcemaps.init())
@@ -78,39 +80,40 @@ function make(filename, className, sources) {
 
 }
 
-gulp.task("dist:sactory", function(){
-	return make("sactory", "Sactory", [
-		"polyfill",
-		"const",
-		"util",
-		"runtime/config", // must be first
-		"runtime/animation",
-		"runtime/bind",
-		"runtime/core",
-		"runtime/counter",
-		"runtime/chain",
-		"runtime/const",
-		"runtime/context",
-		"runtime/client",
-		"runtime/misc",
-		"runtime/observable",
-		"runtime/style",
-		"runtime/widget",
-		"runtime/widgets"
-	]);
-});
+gulp.task("dist:sactory", () => make("sactory", "Sactory", false, [
+	"polyfill",
+	"const",
+	"util",
+	"runtime/config", // must be first
+	"runtime/animation",
+	"runtime/bind",
+	"runtime/core",
+	"runtime/counter",
+	"runtime/chain",
+	"runtime/const",
+	"runtime/context",
+	"runtime/client",
+	"runtime/misc",
+	"runtime/observable",
+	"runtime/style",
+	"runtime/widget",
+	"runtime/widgets"
+]));
 
-gulp.task("dist:transpiler", function(){
-	return make("transpiler", "Transpiler", [
-		"polyfill",
-		"const",
-		"transpiler/util",
-		"transpiler/parser",
-		"transpiler/generated",
-		"transpiler/mode",
-		"transpiler/transpiler",
-		"transpiler/eval"
-	]);
-});
+gulp.task("dist:sactory-observable", () => make("sactory-observable", "Sactory", true, [
+	"runtime/context",
+	"runtime/observable"
+]));
 
-gulp.task("dist", gulp.parallel("dist:sactory", "dist:transpiler"));
+gulp.task("dist:transpiler", () => make("transpiler", "Transpiler", false, [
+	"polyfill",
+	"const",
+	"transpiler/util",
+	"transpiler/parser",
+	"transpiler/generated",
+	"transpiler/mode",
+	"transpiler/transpiler",
+	"transpiler/eval"
+]));
+
+gulp.task("dist", gulp.parallel("dist:sactory", "dist:sactory-observable", "dist:transpiler"));
