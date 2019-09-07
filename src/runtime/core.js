@@ -19,6 +19,11 @@ function Sactory(element) {
 	this.hasComplexStyle = false;
 	this.styles = [];
 	this.events = {};
+	if(!this.element.classList) {
+		// element does not have `classList`, bind to a polyfill
+		this.addClassName = this.addClassNamePolyfill.bind(this);
+		this.removeClassName = this.removeClassNamePolyfill.bind(this);
+	}
 }
 
 Sactory.prototype.widgets = {};
@@ -287,6 +292,44 @@ Sactory.prototype.classNameIf = function(className, condition, bind){
 		this.addClassName(className);
 		if(bind) {
 			bind.addRollback(() => this.removeClassName(className));
+		}
+	}
+};
+
+/**
+ * @since 0.62.0
+ */
+Sactory.prototype.addClassName = function(className){
+	this.element.classList.add(className);
+};
+
+/**
+ * @since 0.62.0
+ */
+Sactory.prototype.removeClassName = function(className){
+	this.element.classList.remove(className);
+};
+
+/**
+ * @since 0.137.0
+ */
+Sactory.prototype.addClassNamePolyfill = function(className){
+	var classes = this.element.getAttribute("class") || "";
+	if(classes.length) classes += " ";
+	this.element.setAttribute(classes + className);
+};
+
+/**
+ * @since 0.137.0
+ */
+Sactory.prototype.removeClassNamePolyfill = function(className){
+	var classes = this.element.getAttribute("class");
+	if(classes) {
+		classes = classes.split(" ");
+		var index = classes.indexOf(className);
+		if(index != -1) {
+			classes.splice(index, 1);
+			this.element.setAttribute("class", classes.join(" "));
 		}
 	}
 };
@@ -584,24 +627,6 @@ if(SactoryConfig.config.ie) {
 		impl.call(this, event, listener, options.capture, bind);
 	};
 }
-
-/**
- * @since 0.62.0
- */
-Sactory.prototype.addClassName = function(className){
-	if(this.element.className.length && !Polyfill.endsWith.call(this.element.className, ' ')) className = ' ' + className;
-	this.element.className += className;
-};
-
-/**
- * @since 0.62.0
- */
-Sactory.prototype.removeClassName = function(className){
-	var index = this.element.className.indexOf(className);
-	if(index != -1) {
-		this.element.className = (this.element.className.substring(0, index) + this.element.className.substr(index + className.length)).replace(/\s{2,}/, " ");
-	}
-};
 
 /**
  * @since 0.69.0
