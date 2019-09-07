@@ -90,7 +90,7 @@ chain.clear = function(context){
 /**
  * @since 0.60.0
  */
-chain.updateImpl = function(context, [attrs = [], iattrs, sattrs, transitions, visibility, widgetCheck, namespace, tagName, tagNameString]){
+chain.updateImpl = function(context, [attrs = [], iattrs, sattrs, widgetCheck, namespace, tagName, tagNameString]){
 
 	if(iattrs) {
 		iattrs.forEach(([type, before, names, after, value]) => {
@@ -239,15 +239,6 @@ chain.updateImpl = function(context, [attrs = [], iattrs, sattrs, transitions, v
 	// apply attributes to builder
 	args.forEach(({type, name, value}) => updatedElement["~builder"][type](context, name, value));
 
-	if(transitions) {
-		transitions.forEach(([type, name, options]) => updatedElement["~builder"].addAnimation(type, name, options || {}));
-	}
-
-	if(visibility) {
-		var [value, visible] = visibility;
-		updatedElement["~builder"].visibility(context, value, visible);
-	}
-
 	widgetExt.forEach(({widget, name, args}) => {
 		var ref = { name };
 		if(!widget) {
@@ -293,8 +284,8 @@ chain.update = function(context, options){
  * @since 0.60.0
  */
 chain.create = function(context, tagName, options, tagNameString){
-	options[7] = tagName;
-	options[8] = tagNameString;
+	options[5] = tagName;
+	options[6] = tagNameString;
 	context.anchor = null; // invalidate the current anchor so the children will not use it
 	context.created = true;
 	chain.updateImpl(context, options);

@@ -106,7 +106,7 @@ Sactory.unique = function(context, id, fun){
 Sactory.inherit = function(target, ...args){
 	// the last two options (widget and namespace) are assigned only if
 	// the target does not have them and the inheritance does
-	for(var i=4; i<=6; i++) {
+	for(var i=3; i<5; i++) {
 		if(target[i] === undefined) {
 			args.forEach(arg => {
 				var value = arg[i];
@@ -117,7 +117,7 @@ Sactory.inherit = function(target, ...args){
 	// the first four options are arrays and are merged in reverse so
 	// the more the inherit tag was the less important is
 	args.reverse().forEach(options => {
-		for(var i=0; i<Math.min(4, options.length); i++) {
+		for(var i=0; i<Math.min(3, options.length); i++) {
 			var option = options[i];
 			if(option) {
 				if(target[i]) target[i].unshift(...option);
@@ -161,22 +161,6 @@ Sactory.bo = function(fun, dependencies, maybeDependencies){
  */
 Sactory.isBuilderObservable = function(value){
 	return value instanceof BuilderObservable;
-};
-
-var currentId;
-
-/**
- * @since 0.70.0
- */
-Sactory.nextId = function(){
-	return currentId = counter.nextPrefix();
-};
-
-/**
- * @since 0.70.0
- */
-Sactory.prevId = function(){
-	return currentId;
 };
 
 /**

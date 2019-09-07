@@ -308,8 +308,6 @@ Transpiler.prototype.open = function(){
 		var currentInheritance = null;
 		var currentClosing = [];
 		var createAnchor;
-		var transitions = [];
-		var visibility;
 		var forms = [];
 		var computed = false;
 		var originalTagName, tagName = "", tagNameString;
@@ -433,10 +431,8 @@ Transpiler.prototype.open = function(){
 									this.warn("Attributes `*next` and `*prev` are deprecated. Use `~next` and `~prev` instead.");
 									break;
 								case "show":
-									temp = 1;
 								case "hide":
-									var value = attr.hasOwnProperty("value") ? attr.value : 1;
-									visibility = `[${value}, ${attr.negated ^ (temp || 0)}]`;
+									this.warn("Attributes `*show` and `*hide` are deprecated. Use `~show` and `~hide` instead.");
 									break;
 								case "number":
 									start.name += ":number";
@@ -533,12 +529,6 @@ Transpiler.prototype.open = function(){
 			if(sattributes.length) {
 				ret.spread = sattributes.map(({space, type, expr}) => `${space}[${mapAttributeType(type)}, ${expr}]`).join(", ");
 			}
-			if(transitions.length) {
-				ret.transitions = transitions.map(({type, name, value}) => `["${type}", ${name}, ${value == '""' ? "{}" : value}]`).join(", ");
-			}
-			if(visibility) {
-				ret.visibility = visibility;
-			}
 			if(Object.prototype.hasOwnProperty.call(dattributes, "widget")) {
 				ret.widget = dattributes.widget;
 			}
@@ -549,16 +539,15 @@ Transpiler.prototype.open = function(){
 				enumerable: false,
 				value: function(){
 					var str = [];
-					["attrs", "iattrs", "spread", "transitions"].forEach((type, i) => {
+					var i = 0;
+					["attrs", "iattrs", "spread"].forEach(type => {
 						var value = ret[type];
-						if(value) {
-							str[i] = "[" + value + "]";
-						}
+						if(value) str[i] = "[" + value + "]";
+						i++;
 					});
-					["visibility", "widget", "namespace"].forEach((type, i) => {
-						if(ret.hasOwnProperty(type)) {
-							str[i + 4] = ret[type];
-						}
+					["widget", "namespace"].forEach(type => {
+						if(ret.hasOwnProperty(type)) str[i] = ret[type];
+						i++;
 					});
 					return "[" + str.join(",") + "]";
 				}
@@ -951,7 +940,7 @@ Transpiler.prototype.open = function(){
 						this.source.push(`${this.inheritance}.push(${options(true)});`);
 					} else if(currentNamespace) {
 						currentInheritance = {index: this.inheritCount++};
-						this.source.push(`${this.inheritance}.push([,,,,,${currentNamespace}]);`);
+						this.source.push(`${this.inheritance}.push([,,,,${currentNamespace}]);`);
 					}
 
 				}
