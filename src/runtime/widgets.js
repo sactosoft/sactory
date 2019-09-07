@@ -1,5 +1,6 @@
 var SactoryObservable = require("./observable");
 var SactoryWidget = require("./widget");
+var counter = require("./counter");
 
 var Sactory = {};
 
@@ -82,14 +83,14 @@ function className(value, arg1, {element, bind}) {
 	}
 }
 
-var currentId;
+var current;
 
 /**
  * @since 0.70.0
  */
 function next(attrs, arg1, context) {
-	currentId = counter.nextPrefix();
-	prevId(attrs, arg1, context);
+	current = counter.nextPrefix();
+	prev(attrs, arg1, context);
 }
 
 /**
@@ -98,7 +99,7 @@ function next(attrs, arg1, context) {
 function prev(attrs, arg1, {element}) {
 	for(var name in attrs) {
 		var value = attrs[name];
-		element.setAttribute(name, value === true ? currentId : value + currentId);
+		element.setAttribute(name, value === true ? current : value + current);
 	}
 }
 

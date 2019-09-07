@@ -18,11 +18,11 @@ var babel = source => {
 };
 
 fs.readdirSync("./test/").forEach(filename => {
-	var [type, name, mode] = filename.slice(0, -4).split("--");
+	var [, type, name, ext] = filename.match(/^([a-z-]+)--([0-9a-z-]+)\.([a-z]+)$/);
 	var source = fs.readFileSync("./test/" + filename, "utf8");
 	var error, result = {};
 	try {
-		result = transpile({filename, mode: mode ? mode.replace(/./g, ",") : "auto-code@logic", versionCheck: false, env: ["amd"], es6: true, bind: "__bind", before: "return function(__bind){", after: "}"}, source);
+		result = transpile({filename, mode: ext == "sx" ? "auto-code@logic" : "code", env: ["amd"], es6: true, bind: "__bind", before: "return function(__bind){", after: "}"}, source);
 		fs.writeFile(`./_test/${type}--${name}__es6.js`, result.source.all, nop);
 		fs.writeFile(`./_test/${type}--${name}__es5.js`, babel(result.source.all), nop);
 	} catch(e) {
@@ -180,7 +180,7 @@ function format(num){
 </:head>
 <:body>
 	<div class="text" &margin="16px 32px">
-		<span &font-size="2em" &font-weight=600>Sactory ${version}</span>
+		<span &font-size="2em" &font-weight=600>Sactory v${version}</span>
 		<div class="buttons" &margin-top="4px">
 			&bull;&bull;&bull;
 			<button +click=testAll>run all</button>
@@ -216,6 +216,7 @@ function format(num){
 									<td :ref=outcome>NONE</td>
 									<td class="buttons">
 										<button +click=run>run</button>
+										<button +click={window.open("https://sactory.github.io/sandbox#" + btoa(JSON.stringify({version: "${version}", source: {js: info.source}})))}>edit</button>
 										<button +click={source(info)}>source</button>
 									</td>
 								}
@@ -240,7 +241,7 @@ fs.writeFileSync("./_test/index.html", `
 	<!DOCTYPE html>
 	<html>
 		<head>
-			<title>Test Suite — Sactory ${version}</title>
+			<title>Tests — Sactory v${version}</title>
 			<meta charset="utf-8" />
 			<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.46.0/codemirror.min.css" />
 			<link rel="stylesheet" href="file:///C:/Users/MARCO/Desktop/cm-sactory.css" />
