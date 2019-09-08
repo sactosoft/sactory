@@ -742,7 +742,7 @@ SourceCodeMode.prototype.next = function(match){
 				};
 				this.parser.parseTemplateLiteral = null;
 				if(this.parser.readIf(')')) {
-					// from function or wrapped arrow function
+					// wrapped in parentheses
 					this.add(space);
 					var popped = this.parser.parentheses.pop();
 					if(popped) popped.end = this.parser.index;
@@ -757,7 +757,8 @@ SourceCodeMode.prototype.next = function(match){
 							this.parser.expect('>');
 							this.add("=>");
 							index = this.parser.index - start;
-						} else {
+						} else if(this.parser.peek() == '{') {
+							// a function
 							if(this.parser.lastKeywordAt(popped.lastIndex, "function")) {
 								index = this.parser.index - popped.lastIndex + 6;
 							} else {
@@ -765,6 +766,11 @@ SourceCodeMode.prototype.next = function(match){
 								previous(); // function name
 								previous(); // `function` keyword
 							}
+						} else {
+							// not a computed observable, just an observable with no value
+							var index = tail.value.length - (this.parser.index - this.parser.lastParenthesis.end) - 1;
+							tail.value = `${tail.value.substring(0, index)}${this.transpiler.feature("cofv")}()${tail.value.substr(index)}`;
+							coff = false;
 						}
 					}
 				} else if(this.parser.peek() == '=') {
@@ -776,7 +782,7 @@ SourceCodeMode.prototype.next = function(match){
 				}  else {
 					// from variable
 					var parsed = this.transpiler.parseCode(this.parser.readSingleExpression(true));
-					this.add(`${space}${this.transpiler.feature("cofv")}(${parsed.source})`);
+					this.add(`${space}(${this.transpiler.feature("cofv")}(${parsed.source}))`);
 					coff = false;
 				}
 				if(coff) {
