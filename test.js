@@ -225,13 +225,13 @@ function format(num){
 					</table>
 				</div>
 			</td>
-			<td *hide=*showSource rowspan=2 class="border">
+			<td ~hide=*showSource rowspan=2 class="border">
 				<div &padding="8px" &max-height="100%" &overflow-y="auto"><div :ref=container /></div>
 			</td>
-			<td :ref=sources.upper *show=*showSource class="border" />
+			<td :ref=sources.upper ~show=*showSource class="border" />
 		</tr>
 		<tr>
-			<td :ref=sources.lower *show=*showSource class="border" />
+			<td :ref=sources.lower ~show=*showSource class="border" />
 		</tr>
 	</table>
 </:body>

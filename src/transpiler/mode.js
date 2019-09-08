@@ -909,10 +909,46 @@ ScriptMode.getOptions = function(){
 	return {comments: false, strings: false, children: false, tags: ["script"]};
 };
 
+ScriptMode.matchesTag = function(tagName){
+	return tagName.toLowerCase() == "script";
+};
+
 ScriptMode.prototype = Object.create(TextExprMode.prototype);
 
+ScriptMode.prototype.addCurrent = function(){
+	// make sure there are no observables to bind to
+	this.current.forEach(({text, value}) => {
+		if(!text) {
+			value.observables = value.maybeObservables = [];
+		}
+	});
+	TextExprMode.prototype.addCurrent.call(this);
+};
+
 ScriptMode.prototype.handle = function(){
-	return !!/^\/#?script>/.exec(this.parser.input.substr(this.parser.index));
+	return !!/^\/script>/.exec(this.parser.input.substr(this.parser.index));
+};
+
+ScriptMode.prototype.parseImpl = function(pre, match, handle, eof){
+	if(match == '#') {
+		if(pre.slice(-1) == '\\') {
+			this.current[this.current.length - 1].value = this.current[this.current.length - 1].value.slice(0, -1) + match;
+		} else if(this.parser.peek() == '{') {
+			var expr = this.parseCode("skipEnclosedContent", true);
+			expr.source = `${this.transpiler.feature("stringify")}(${expr.source})`;
+			this.pushExpr(expr);
+		} else {
+			this.pushText(match);
+		}
+	} else {
+		TextExprMode.prototype.parseImpl.apply(this, arguments);
+	}
+};
+
+ScriptMode.prototype.parse = function(handle, eof){
+	var result = this.parser.find(['<', '#'], false, true);
+	this.pushText(result.pre);
+	this.parseImpl(result.pre, result.match, handle, eof);
 };
 
 /**

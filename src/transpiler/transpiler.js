@@ -421,7 +421,7 @@ Transpiler.prototype.open = function(){
 							var add = false;
 							var temp;
 							var start = attr.parts[0];
-							if(!start || start.computed) this.parser.error("First part of semi compile-time attributes cannot be computed.");
+							if(!start || start.computed) this.parser.error("First part of bind attributes cannot be computed.");
 							var column = start.name.indexOf(":");
 							if(column == -1) column = start.name.length;
 							var name = start.name.substring(0, column);
@@ -462,7 +462,7 @@ Transpiler.prototype.open = function(){
 									});
 									break;
 								default:
-									this.parser.error("Unknown semi compile-time attribute '" + name + "'.");
+									this.parser.error("Unknown bind attribute '" + name + "'.");
 							}
 							if(add) this.compileAttributeParts(attr);
 							else break;

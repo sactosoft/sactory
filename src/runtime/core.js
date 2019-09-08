@@ -662,35 +662,6 @@ Sactory.prototype[Const.BUILDER_TYPE_ON] = function({bind}, name, value){
 };
 
 /**
- * @since 0.122.0
- */
-Sactory.prototype.visibility = function({bind}, value, visible){
-	var document = this.element.ownerDocument;
-	var hidden = document["~hidden"];
-	if(!hidden) {
-		hidden = document["~hidden"] = counter.nextPrefix();
-		var style = document.createElement("style");
-		style.textContent = `.${hidden}{display:none !important;}`;
-		/* debug:
-		style.setAttribute(":usage", "visibility-toggle");
-		*/
-		document.head.appendChild(style);
-	}
-	var update = value => {
-		if(!!value ^ visible) {
-			this.addClass(hidden);
-		} else {
-			this.removeClass(hidden);
-		}
-	};
-	if(SactoryMisc.isBuilderObservable(value)) {
-		this.observe(bind, value, (newValue, oldValue) => update(newValue, oldValue));
-	} else {
-		update(value);
-	}
-};
-
-/**
  * @since 0.46.0
  */
 Sactory.prototype.form = function({bind}, info, value, update){

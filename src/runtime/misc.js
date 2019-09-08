@@ -196,6 +196,21 @@ Sactory.range = function(from, to, fun){
 };
 
 /**
+ * @since 0.138.0
+ */
+Sactory.stringify = function(value){
+	switch(typeof value) {
+		case "number":
+		case "function":
+			return value.toString();
+		case "undefined":
+			return "undefined";
+		default:
+			return JSON.stringify(value);
+	}
+};
+
+/**
  * @since 0.93.0
  */
 Sactory.ready = function(callback){

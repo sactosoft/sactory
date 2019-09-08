@@ -104,17 +104,44 @@ function prev(attrs, arg1, {element}) {
 }
 
 /**
+ * @since 0.122.0
+ */
+function visibility(element, value, visible, bind) {
+	var builder = element["~builder"];
+	var document = element.ownerDocument;
+	var hidden = document["~hidden"];
+	if(!hidden) {
+		hidden = document["~hidden"] = counter.nextPrefix();
+		var style = document.createElement("style");
+		style.textContent = `.${hidden}{display:none!important;}`;
+		document.head.appendChild(style);
+	}
+	var update = value => {
+		if(!!value ^ visible) {
+			builder.addClass(hidden);
+		} else {
+			builder.removeClass(hidden);
+		}
+	};
+	if(SactoryObservable.isObservable(value)) {
+		builder.observeImpl(bind, value, update);
+	} else {
+		update(value);
+	}
+}
+
+/**
  * @since 0.134.0
  */
 function hide(value, arg1, {element, bind}) {
-	element["~builder"].visibility({bind}, value, 0);
+	visibility(element, value, 0, bind);
 }
 
 /**
  * @since 0.134.0
  */
 function show(value, arg1, {element, bind}) {
-	element["~builder"].visibility({bind}, value, 1);
+	visibility(element, value, 1, bind);
 }
 
 add("document-fragment", documentFragment, false);

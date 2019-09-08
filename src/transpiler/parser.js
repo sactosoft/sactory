@@ -426,12 +426,12 @@ Parser.prototype.readTagName = function(force){
  * @since 0.68.0
  */
 Parser.prototype.readAttributePrefix = function(){
-	var match = /^(?:([:@&*~+]|\$\$?)|(dir|sdir|attr|prop|style|on|widget|update|extend):)/.exec(this.input.substr(this.index));
+	var match = /^(?:([:@&*~+]|\$\$?)|(dir|bind|attr|prop|style|on|widget|update|extend):)/.exec(this.input.substr(this.index));
 	if(match) {
 		this.index += match[0].length;
 		return match[1] || {
 			dir: ':',
-			sdir: '*',
+			bind: '*',
 			attr: '',
 			prop: '@',
 			style: '&',
