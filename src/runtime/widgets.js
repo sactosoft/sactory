@@ -57,17 +57,17 @@ var xmlImpl = typeof document != "undefined" && document.implementation ?
 /**
  * @since 0.134.0
  */
-function text(value, arg1, {element, bind, anchor}) {
-	element["~builder"].text(value, bind, anchor);
-	return element;
+function text(value, arg1, context) {
+	context.element["~builder"].text(value, context);
+	return context.element;
 }
 
 /**
  * @since 0.134.0
  */
-function html(value, arg1, {element, bind, anchor}) {
-	element["~builder"].html(value, bind, anchor);
-	return element;
+function html(value, arg1, context) {
+	context.element["~builder"].html(value, context);
+	return context.element;
 }
 
 /**

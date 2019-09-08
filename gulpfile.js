@@ -14,7 +14,7 @@ var es = require("event-stream");
 var { version } = require("./version");
 
 var nos = Object("");
-var debugExp = /\/\* debug:\r?\n([\s\S]*?)\*\//g;
+var debugExp = /\/\* debug: ([\s\S]*?)\*\//g;
 
 function make(filename, className, declare, sources) {
 
@@ -58,7 +58,7 @@ function make(filename, className, declare, sources) {
 		.pipe(gulp.dest("dist"));
 
 	var amdDebug = amd.pipe(clone())
-		.pipe(replace(debugExp, "/* debug: */\n$1"))
+		.pipe(replace(debugExp, "/* debug: */$1"))
 		.pipe(rename(filename + ".debug.js"))
 		.pipe(sourcemaps.write("./maps"))
 		.pipe(gulp.dest("dist"));

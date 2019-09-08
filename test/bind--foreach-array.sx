@@ -8,6 +8,7 @@ var values = &[count++, count++, count++];
 	<button +click={*values.shift()}>Shift</button>
 	<button +click={*values.splice(2, 1)}>Remove 3rd</button>
 	<button +click={*values.splice(3, 1, count++)}>Replace 4th</button>
+	<button +click={*values.splice(1, 2, count++, count++)}>Replace 2nd and 3rd</button>
 	<section>
 		Not observable:
 		foreach(^values as value) {

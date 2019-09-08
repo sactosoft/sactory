@@ -328,14 +328,14 @@ chain.slots = function(context, slots){
  * @since 0.128.0
  */
 chain.text = function(context, text){
-	SactoryContext.currentElement(context)["~builder"].text(text, context.bind, context.anchor);
+	SactoryContext.currentElement(context)["~builder"].text(text, context);
 };
 
 /**
  * @since 0.128.0
  */
 chain.html = function(context, html){
-	SactoryContext.currentElement(context)["~builder"].html(html, context.bind, context.anchor);
+	SactoryContext.currentElement(context)["~builder"].html(html, context);
 };
 
 /**
@@ -343,7 +343,7 @@ chain.html = function(context, html){
  */
 chain.mixin = function(context, data){
 	if(data instanceof Node) {
-		chain.appendTo({element: data, bind: context.bind, parentAnchor: context.anchor}, SactoryContext.currentElement(context), {adoption: true});
+		chain.appendTo({element: data, top: context.top, bind: context.bind, parentAnchor: context.anchor}, SactoryContext.currentElement(context));
 	} else if(data) {
 		chain.html(context, data);
 	}
@@ -353,7 +353,7 @@ chain.mixin = function(context, data){
  * @since 0.60.0
  */
 chain.body = function(context, fun){
-	fun(SactoryContext.newContext(context, {slot: context.element, element: context.content || context.element || context.parentElement}));
+	fun(SactoryContext.newContext(context, {slot: context.element, element: context.content || context.element || context.parentElement, top: context.top && !context.created}));
 };
 
 /**
@@ -371,7 +371,10 @@ chain.forms = function(context){
  * @since 0.60.0
  */
 chain.appendTo = function(context, parent){
-	if(context.bind) {
+	if(context.top) {
+		// the data is registered as a child of the bind context only if the `top` property is true,
+		// this is because only the direct children should be removed from the parent when the bind is rolled back.
+		// The property should guarantee that the `bind` property is an instance of `Bind`, thus valid.
 		if(context.element instanceof DocumentFragment) {
 			// special case for adopted fragments: add to the bind context its children instead of
 			// the document fragment itself because the children are removed when the fragment is appended,

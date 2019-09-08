@@ -247,7 +247,7 @@ Object.defineProperty(Sactory, "debug", {
 							children: bind.children.map(make)
 						};
 					}
-					return make(Sactory.bindFactory);
+					return make(factory);
 				}
 			});
 			Object.defineProperty(window, "help", {

@@ -30,13 +30,20 @@ Sactory.newContext = function(context, newContext){
  * @since 0.128.0
  */
 Sactory.newChainContext = function(context){
-	return (({counter, element, bind, anchor, registry, selector}) => ({
+	return (({counter, element, top, bind, anchor, registry, selector}) => ({
 		__context: true,
-		counter, bind, anchor, registry, selector,
+		top, bind, anchor, registry, selector,
 		parentElement: element,
 		parentAnchor: anchor,
 		document: element ? element.ownerDocument : document
 	}))(context);
+};
+
+/**
+ * @since 0.138.0
+ */
+Sactory.newBindContext = function(context, bind, anchor){
+	return Sactory.newContext(context, {bind, anchor, top: true});
 };
 
 /**

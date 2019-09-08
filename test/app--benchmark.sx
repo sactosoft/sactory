@@ -39,7 +39,7 @@ var buildData = count => {
 	var colors = ["red", "yellow", "blue", "green", "pink", "brown", "purple", "brown", "white", "black", "orange"];
 	var nouns = ["table", "chair", "house", "bbq", "desk", "car", "pony", "cookie", "sandwich", "burger", "pizza", "mouse", "keyboard"];
 	var data = [];
-    for(var i = 0; i<count; i++) {
+	for(var i = 0; i<count; i++) {
 		data.push({
 			id: rowId++,
 			label: adjectives[_random(adjectives.length)] + " " + colors[_random(colors.length)] + " " + nouns[_random(nouns.length)],

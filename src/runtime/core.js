@@ -71,15 +71,6 @@ Sactory.prototype.prop = function(name, value, bind, type){
 };
 
 /**
- * @since 0.63.0
- */
-Sactory.prototype.append = function(element, bind, anchor){
-	if(anchor && anchor.parentNode === this.element) this.element.insertBefore(element, anchor);
-	else this.element.appendChild(element);
-	if(bind) bind.appendChild(element);
-};
-
-/**
  * @since 0.79.0
  */
 Sactory.prototype.complexStyle = function(name, value, bind){
@@ -187,7 +178,7 @@ Sactory.prototype.styleImpl = function(values){
 	document.head.appendChild(node);
 };
 	
-Sactory.prototype.text = function(value, bind, anchor){
+Sactory.prototype.text = function(value, {top, bind, anchor}){
 	var textNode;
 	var use = value => {
 		textNode = document.createTextNode("");
@@ -205,18 +196,22 @@ Sactory.prototype.text = function(value, bind, anchor){
 	}
 	if(anchor && anchor.parentNode === this.element) this.element.insertBefore(textNode, anchor);
 	else this.element.appendChild(textNode);
-	if(bind) bind.appendChild(textNode);
+	if(top) bind.appendChild(textNode);
 };
 
 /**
  * @since 0.63.0
  */
-Sactory.prototype.html = function(value, bind, anchor){
+Sactory.prototype.html = function(value, {top, bind, anchor}){
 	var children, container = document.createElement("div");
 	var parse = (value, anchor) => {
 		container.innerHTML = value;
 		children = Array.prototype.slice.call(container.childNodes, 0);
-		children.forEach(child => this.append(child, bind, anchor));
+		children.forEach(child => {
+			if(anchor && anchor.parentNode === this.element) this.element.insertBefore(element, anchor);
+			else this.element.appendChild(element);
+			if(top) bind.appendChild(element);
+		});
 	};
 	var use = value => {
 		// create an anchor to maintain the right order
@@ -615,16 +610,16 @@ Sactory.prototype.eventImpl = function(event, listener, options, bind){
 
 if(SactoryConfig.config.ie) {
 	var impl = Sactory.prototype.eventImpl;
-	Sactory.prototype.eventImpl = function(event, listener, options, bind){
-		if(options.once) {
+	Sactory.prototype.eventImpl = function(event, listener, {capture, once}, bind){
+		if(once) {
 			// polyfill
 			var prev = listener;
 			listener = function(){
 				prev.apply(this, arguments);
-				this.removeEventListener(event, listener, options.capture);
+				this.removeEventListener(event, listener, capture);
 			};
 		}
-		impl.call(this, event, listener, options.capture, bind);
+		impl.call(this, event, listener, capture, bind);
 	};
 }
 
