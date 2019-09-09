@@ -31,7 +31,7 @@ function make(filename, className, declare, sources) {
 		.pipe(replace(/var Sactory = {};?/gm, ""))
 		.pipe(replace(/(var {?[a-zA-Z0-9_,\s]+}? = )?require\(\"[a-zA-Z0-9_\-\.\/]*\"\)[a-zA-Z0-9_\.]*;/gm, ""))
 		.pipe(replace(/(module\.exports = {?[a-zA-Z0-9_,\s\.]*}?;)/gm, ""))
-		.pipe(replace(/(Sactory[A-Z][a-z]+)/gm, className))
+		.pipe(replace(/(Sactory[A-Z][a-z]+)/gm, className));
 
 	var module = stream.pipe(clone())
 		.pipe(prepend(header, nos));
@@ -85,7 +85,6 @@ gulp.task("dist:sactory", () => make("sactory", "Sactory", false, [
 	"const",
 	"util",
 	"runtime/config", // must be first
-	"runtime/animation",
 	"runtime/bind",
 	"runtime/core",
 	"runtime/counter",

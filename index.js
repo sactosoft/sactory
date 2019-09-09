@@ -20,7 +20,6 @@ module.exports = merge(
 	require("./src/runtime/config"),
 	require("./src/runtime/const"),
 	require("./src/runtime/context"),
-	require("./src/runtime/animation"),
 	require("./src/runtime/bind"),
 	require("./src/runtime/misc"),
 	require("./src/runtime/observable"),

@@ -23,13 +23,6 @@ function defineMode(names, parser, isDefault) {
 }
 
 /**
- * @since 0.53.0
- */
-function getModeByName(name) {
-	return modeNames[name];
-}
-
-/**
  * @since 0.35.0
  */
 function startMode(mode, transpiler, parser, source, attributes, parent) {
@@ -73,7 +66,7 @@ Mode.prototype.parseCodeToSource = function(fun){
 	return this.transpiler.parseCode(expr, this.parser).source;
 };
 
-Mode.prototype.parseCodeToValue = function(fun){
+Mode.prototype.parseCodeToValue = function(/*fun*/){
 	return this.parseCode.apply(this, arguments).toValue();
 };
 
@@ -83,7 +76,7 @@ Mode.prototype.end = function(){};
 
 Mode.prototype.chainAfter = function(){};
 
-Mode.prototype.parse = function(handle, eof){};
+Mode.prototype.parse = function(/*handle, eof*/){};
 
 /**
  * @class
@@ -91,23 +84,23 @@ Mode.prototype.parse = function(handle, eof){};
  */
 function BreakpointMode(transpiler, parser, source, attributes, breakpoints) {
 	Mode.call(this, transpiler, parser, source, attributes);
-	this.breakpoints = ['<'].concat(breakpoints);
+	this.breakpoints = ["<"].concat(breakpoints);
 }
 
 BreakpointMode.prototype = Object.create(Mode.prototype);
 
-BreakpointMode.prototype.next = function(match){};
+BreakpointMode.prototype.next = function(/*match*/){};
 
 BreakpointMode.prototype.parse = function(handle, eof){
 	var result = this.parser.find(this.breakpoints, false, true);
 	if(result.pre) this.add(result.pre);
-	if(result.match == '<') {
-		if(this.parser.couldStartRegExp() && this.parser.input.charAt(this.parser.index - 2) != '<') {
+	if(result.match == "<") {
+		if(this.parser.couldStartRegExp() && this.parser.input.charAt(this.parser.index - 2) != "<") {
 			handle();
 		} else {
 			// just a comparison or left shift
 			this.add("<");
-			this.parser.last = '<';
+			this.parser.last = "<";
 			this.parser.lastIndex = this.parser.index;
 		}
 	} else if(result.match) {
@@ -143,6 +136,7 @@ TextExprMode.prototype.addText = function(expr){
  * Adds whitespace to the chain.
  */
 TextExprMode.prototype.addSpace = function(space){
+	// eslint-disable-next-line no-sparse-arrays
 	this.chain.push([, space]);
 };
 
@@ -170,7 +164,7 @@ TextExprMode.prototype.addCurrent = function(){
 				}
 			});
 			if(observables.length || maybeObservables.length) {
-				joined = `${this.transpiler.feature("bo")}(${this.es6 ? `() => ${joined}` : `function(){return ${joined}}.bind(this)`}, [${uniq(observables).join(", ")}]${maybeObservables.length ? `, [${uniq(maybeObservables).join(", ")}]` : ""})`
+				joined = `${this.transpiler.feature("bo")}(${this.es6 ? `() => ${joined}` : `function(){return ${joined}}.bind(this)`}, [${uniq(observables).join(", ")}]${maybeObservables.length ? `, [${uniq(maybeObservables).join(", ")}]` : ""})`;
 			}
 			this.addText(joined);
 		}
@@ -266,14 +260,14 @@ TextExprMode.prototype.handle = function(){
 
 TextExprMode.prototype.parseImpl = function(pre, match, handle, eof){
 	switch(match) {
-		case '$':
-		case '#':
-			if(pre.slice(-1) == '\\') {
+		case "$":
+		case "#":
+			if(pre.slice(-1) == "\\") {
 				this.current[this.current.length - 1].value = this.current[this.current.length - 1].value.slice(0, -1) + match;
 				break;
-			} else if(this.parser.peek() == '{') {
+			} else if(this.parser.peek() == "{") {
 				var expr = this.parseCode("skipEnclosedContent", true);
-				if(match == '#') {
+				if(match == "#") {
 					this.addCurrent();
 					this.chain.push(["mixin", expr.source]);
 				} else {
@@ -283,7 +277,7 @@ TextExprMode.prototype.parseImpl = function(pre, match, handle, eof){
 				this.pushText(match);
 			}
 			break;
-		case '<':
+		case "<":
 			if(this.handle()) {
 				if(this.parser.peek() == "/") {
 					// tag is being closed, chainable is not modified
@@ -294,7 +288,7 @@ TextExprMode.prototype.parseImpl = function(pre, match, handle, eof){
 				}
 				handle();
 			} else {
-				this.pushText('<');
+				this.pushText("<");
 			}
 			break;
 		default:
@@ -304,7 +298,7 @@ TextExprMode.prototype.parseImpl = function(pre, match, handle, eof){
 };
 
 TextExprMode.prototype.parse = function(handle, eof){
-	var result = this.parser.find(['<', '$', '#'], false, true);
+	var result = this.parser.find(["<", "$", "#"], false, true);
 	this.pushText(result.pre);
 	this.parseImpl(result.pre, result.match, handle, eof);
 };
@@ -325,7 +319,7 @@ LogicMode.prototype = Object.create(TextExprMode.prototype);
 LogicMode.prototype.getLineText = function(){
 	var last = this.current[this.current.length - 1];
 	if(last.text) {
-		var index = last.value.lastIndexOf('\n');
+		var index = last.value.lastIndexOf("\n");
 		if(index > 0) return last.value.substr(index);
 		else return last.value;
 	} else {
@@ -347,18 +341,18 @@ LogicMode.prototype.parseLogic = function(expected, type, closing){
 		if(type === 0) {
 			// variable
 			this.endChainable(); // variable declarations cannot be chained
-			var end = this.parser.find(closing || ['=', ';'], true, {comments: true, strings: false});
+			var end = this.parser.find(closing || ["=", ";"], true, {comments: true, strings: false});
 			this.add(expected + end.pre + end.match); // add declaration (e.g. `var a =` or `var a;`)
-			if(end.match == '=') {
+			if(end.match == "=") {
 				this.add(this.transpiler.parseCode(this.parser.readExpression()).source); // add the value/body of the variable
-				if(this.parser.readIf(';')) this.add(';');
+				if(this.parser.readIf(";")) this.add(";");
 			}
 		} else {
 			// statement
 			var statement = Polyfill.startsWith.call(expected, "else") ? this.popped.pop() : {
 				type: expected,
 				startRef: this.source.addIsolatedSource(""),
-				context: this.source.getContextArg(),
+				context: this.source.getContext(),
 				observables: [],
 				maybeObservables: [],
 				inlineable: true,
@@ -384,7 +378,7 @@ LogicMode.prototype.parseLogic = function(expected, type, closing){
 					return parsed.source;
 				};
 				var skipped = this.parser.skipImpl({});
-				if(this.parser.peek() != '(') this.parser.error("Expected '(' after '" + expected + "'.");
+				if(this.parser.peek() != "(") this.parser.error("Expected '(' after '" + expected + "'.");
 				var position = this.parser.position;
 				var source = reparse(this.parser.skipEnclosedContent(), this.parser);
 				if(expected == "foreach") {
@@ -415,7 +409,7 @@ LogicMode.prototype.parseLogic = function(expected, type, closing){
 						var key, column = rest.indexOf(":");
 						if(column == -1 || (key = rest.substring(0, column)).indexOf("{") != -1 || key.indexOf("[") != -1) {
 							// divided in 4 parts so it can be modified later
-							statement.ref.a = this.source.addIsolatedSource(this.transpiler.feature("forEachArray") + "(")
+							statement.ref.a = this.source.addIsolatedSource(this.transpiler.feature("forEachArray") + "(");
 							statement.ref.b = this.source.addIsolatedSource(expr);
 							if(this.es6) {
 								statement.ref.c = this.source.addIsolatedSource(", (");
@@ -445,14 +439,14 @@ LogicMode.prototype.parseLogic = function(expected, type, closing){
 				part.decl = this.source.addIsolatedSource(expected);
 			}
 			this.source.addSource(this.parser.skipImpl({}));
-			if(!(statement.inline = part.inline = !this.parser.readIf('{')) || !statement.inlineable) this.source.addSource('{');
+			if(!(statement.inline = part.inline = !this.parser.readIf("{")) || !statement.inlineable) this.source.addSource("{");
 			part.declEnd = this.source.addIsolatedSource("");
 			this.statements.push(statement);
 			this.onStatementStart(statement);
 		}
 		return true;
 	} else {
-		if(line && line.slice(-1) == '\\') {
+		if(line && line.slice(-1) == "\\") {
 			var curr = this.current[this.current.length - 1];
 			curr.value = curr.value.slice(0, -1);
 		}
@@ -461,82 +455,84 @@ LogicMode.prototype.parseLogic = function(expected, type, closing){
 };
 
 LogicMode.prototype.find = function(){
-	return this.parser.find(['$', '#', '<', 'c', 'l', 'v', 'b', 'd', 'i', 'e', 'f', 'w', 's', '}', '\n'], false, false);
+	return this.parser.find(["$", "#", "<", "c", "l", "v", "b", "d", "i", "e", "f", "w", "s", "}", "\n"], false, false);
 };
 
 LogicMode.prototype.parse = function(handle, eof){
 	var result = this.find();
 	this.pushText(result.pre);
 	switch(result.match) {
-		case 'c':
-			if(!this.parseLogic("const", 0) && !this.parseLogic("case", 0, [':'])) this.pushText('c');
+		case "c":
+			if(!this.parseLogic("const", 0) && !this.parseLogic("case", 0, [":"])) this.pushText("c");
 			break;
-		case 'l':
-			if(!this.parseLogic("let", 0)) this.pushText('l');
+		case "l":
+			if(!this.parseLogic("let", 0)) this.pushText("l");
 			break;
-		case 'v':
-			if(!this.parseLogic("var", 0)) this.pushText('v');
+		case "v":
+			if(!this.parseLogic("var", 0)) this.pushText("v");
 			break;
-		case 'b':
-			if(!this.parseLogic("break", 0)) this.pushText('b');
+		case "b":
+			if(!this.parseLogic("break", 0)) this.pushText("b");
 			break;
-		case 'd':
-			if(!this.parseLogic("default", 0, [':'])) this.pushText('d');
+		case "d":
+			if(!this.parseLogic("default", 0, [":"])) this.pushText("d");
 			break;
-		case 'i':
-			if(!this.parseLogic("if", 1)) this.pushText('i');
+		case "i":
+			if(!this.parseLogic("if", 1)) this.pushText("i");
 			break;
-		case 'e':
-			if(!this.parseLogic("else if", 1) && !this.parseLogic("else", 2)) this.pushText('e');
+		case "e":
+			if(!this.parseLogic("else if", 1) && !this.parseLogic("else", 2)) this.pushText("e");
 			break;
-		case 'f':
-			if(!this.parseLogic("foreach", 1) && !this.parseLogic("for", 1)) this.pushText('f');
+		case "f":
+			if(!this.parseLogic("foreach", 1) && !this.parseLogic("for", 1)) this.pushText("f");
 			break;
-		case 'w':
-			if(!this.parseLogic("while", 1)) this.pushText('w');
+		case "w":
+			if(!this.parseLogic("while", 1)) this.pushText("w");
 			break;
-		case 's':
-			if(!this.parseLogic("switch", 1)) this.pushText('s');
+		case "s":
+			if(!this.parseLogic("switch", 1)) this.pushText("s");
 			break;
-		case '}':
-			if(result.pre.slice(-1) == '\\') {
-				var curr = this.current[this.current.length - 1];
-				curr.value = curr.value.slice(0, -1) + '}';
+		case "}": {
+			if(result.pre.slice(-1) == "\\") {
+				let curr = this.current[this.current.length - 1];
+				curr.value = curr.value.slice(0, -1) + "}";
 			} else if(this.statements.length) {
-				var trimmed = this.trimEnd();
+				let trimmed = this.trimEnd();
 				this.endChainable();
 				this.source.addSource(trimmed);
-				var statement = this.statements.pop();
+				let statement = this.statements.pop();
 				statement.endRef = statement.parts[statement.parts.length - 1].close = this.source.addIsolatedSource("}");
 				this.popped.push(statement);
 				this.onStatementEnd(statement);
 			} else {
-				this.pushText('}');
+				this.pushText("}");
 			}
 			break;
-		case '\n':
+		}
+		case "\n": {
 			if(this.statements.length && this.statements[this.statements.length - 1].inline) {
-				var trimmed = this.trimEnd();
+				let trimmed = this.trimEnd();
 				this.endChainable();
 				this.add(trimmed);
-				this.add('\n');
-				var statement = this.statements.pop();
+				this.add("\n");
+				let statement = this.statements.pop();
 				if(!statement.inlineable) this.source.addSource("}");
 				statement.endRef = statement.parts[statement.parts.length - 1].close = this.source.addIsolatedSource("");
 				this.popped.push(statement);
 				this.onStatementEnd(statement);
 			} else {
-				this.pushText('\n');
+				this.pushText("\n");
 			}
 			break;
+		}
 		default:
 			this.parseImpl(result.pre, result.match, handle, eof);
 	}
 };
 
-LogicMode.prototype.onStatementStart = function(statement){};
+LogicMode.prototype.onStatementStart = function(/*statement*/){};
 
-LogicMode.prototype.onStatementEnd = function(statement){};
+LogicMode.prototype.onStatementEnd = function(/*statement*/){};
 
 LogicMode.prototype.end = function(){
 	this.popped.forEach(popped => {
@@ -611,7 +607,7 @@ OptionalLogicMode.prototype = Object.create(LogicMode.prototype);
  * @since 0.15.0
  */
 function SourceCodeMode(transpiler, parser, source, attributes) {
-	BreakpointMode.call(this, transpiler, parser, source, attributes, ['(', ')', '{', '}', '$', '&', '*', '^']);
+	BreakpointMode.call(this, transpiler, parser, source, attributes, ["(", ")", "{", "}", "$", "&", "*", "^"]);
 	this.observables = [];
 	this.maybeObservables = [];
 	this.parentheses = [];
@@ -637,8 +633,8 @@ SourceCodeMode.prototype.addObservable = function(observables, maybeObservables,
 		var tail = this.source.tail();
 		tail.value = tail.value.slice(0, -name.length);
 	}
-	var maybe = !!this.parser.readIf('?');
-	if(this.parser.peek() == '(') {
+	var maybe = !!this.parser.readIf("?");
+	if(this.parser.peek() == "(") {
 		name += this.parseCodeToSource("skipEnclosedContent");
 	} else {
 		name += this.parseCodeToSource("readVarName", true);
@@ -650,14 +646,14 @@ SourceCodeMode.prototype.addObservable = function(observables, maybeObservables,
 		this.add(`${name}.value`);
 		if(observables) observables.push(name);
 	}
-	this.parser.last = ')';
+	this.parser.last = ")";
 	this.parser.lastIndex = this.parser.index - 1;
 };
 
 SourceCodeMode.prototype.lookBehind = function(){
 	var end = this.parser.lastIndex;
 	var index = end;
-	while(index >= 0 && /[\s\.a-zA-Z0-9_$]/.test(this.parser.input.charAt(index))) {
+	while(index >= 0 && /[\sa-zA-Z0-9_$.]/.test(this.parser.input.charAt(index))) {
 		index--;
 	}
 	return this.parser.input.substring(index + 1, end + 1);
@@ -665,23 +661,23 @@ SourceCodeMode.prototype.lookBehind = function(){
 
 SourceCodeMode.prototype.next = function(match){
 	switch(match) {
-		case '(':
+		case "(":
 			this.parser.parentheses.push({
 				lastIndex: this.parser.lastIndex,
 				start: this.parser.index
 			});
 			this.handleParenthesis(match);
 			break;
-		case ')':
+		case ")":
 			var popped = this.parser.parentheses.pop();
 			if(popped) popped.end = this.parser.index;
 			this.parser.lastParenthesis = popped;
 			this.handleParenthesis(match);
 			break;
-		case '{':
+		case "{":
 			var last = this.parser.last;
-			this.restoreIndex('{');
-			if(!this.attributes.inAttr && last == ')' && !this.parser.lastKeywordAtIn(this.parser.lastParenthesis.lastIndex, "if", "for", "while", "switch", "catch", "with")) {
+			this.restoreIndex("{");
+			if(!this.attributes.inAttr && last == ")" && !this.parser.lastKeywordAtIn(this.parser.lastParenthesis.lastIndex, "if", "for", "while", "switch", "catch", "with")) {
 				// new function declaration
 				this.source.startFunction(this.parser.input.substring(this.parser.lastParenthesis.start, this.parser.lastParenthesis.end - 1));
 			} else {
@@ -689,47 +685,48 @@ SourceCodeMode.prototype.next = function(match){
 				this.source.startScope();
 			}
 			break;
-		case '}':
-			this.restoreIndex('}');
+		case "}":
+			this.restoreIndex("}");
 			this.source.endScope();
 			break;
-		case '$':
-			if(this.parser.readIf('$')) {
-				var input = this.parser.input.substr(this.parser.index);
+		case "$": {
+			if(this.parser.readIf("$")) {
+				let input = this.parser.input.substr(this.parser.index);
 				if(Polyfill.startsWith.call(input, "context")) {
 					this.parser.index += 7;
 					this.source.addContext();
-					this.parser.last = ')';
+					this.parser.last = ")";
 					return;
 				}
-				var functions = ["on", "subscribe", "depend", "rollback", "bind", "unbind"];
-				for(var i in functions) {
-					var fname = functions[i];
+				let functions = ["on", "subscribe", "depend", "rollback", "bind", "unbind"];
+				for(let i in functions) {
+					let fname = functions[i];
 					if(Polyfill.startsWith.call(input, fname + "(")) {
 						this.parser.index += fname.length + 1;
 						this.source.addSource(`$$${fname}(`);
 						this.source.addContext();
 						this.source.addSource(", ");
-						this.parser.last = ',';
+						this.parser.last = ",";
 						return;
 					}
 				}
-				this.restoreIndex('$');
+				this.restoreIndex("$");
 			}
-			this.restoreIndex('$');
+			this.restoreIndex("$");
 			break;
-		case '&':
+		}
+		case "&": {
 			if(this.parser.couldStartRegExp() || this.parser.lastKeywordIn("async")) {
-				var space = this.parser.skipImpl({strings: false});
-				var coff = true;
-				var tail = this.source.tail();
-				var index, start;
-				var previous = () => {
-					var beforeSpace = index;
+				let space = this.parser.skipImpl({strings: false});
+				let coff = true;
+				let tail = this.source.tail();
+				let index;
+				let previous = () => {
+					let beforeSpace = index;
 					while(index < tail.value.length && /\s/.test(tail.value.charAt(tail.value.length - index - 1))) {
 						index++;
 					}
-					var prevStart = index;
+					let prevStart = index;
 					while(index < tail.value.length && /[a-zA-Z0-9_$]/.test(tail.value.charAt(tail.value.length - index - 1))) {
 						index++;
 					}
@@ -741,23 +738,23 @@ SourceCodeMode.prototype.next = function(match){
 					}
 				};
 				this.parser.parseTemplateLiteral = null;
-				if(this.parser.readIf(')')) {
+				if(this.parser.readIf(")")) {
 					// wrapped in parentheses
 					this.add(space);
-					var popped = this.parser.parentheses.pop();
+					let popped = this.parser.parentheses.pop();
 					if(popped) popped.end = this.parser.index;
 					this.parser.lastParenthesis = popped;
-					this.handleParenthesis(')');
+					this.handleParenthesis(")");
 					if(popped) {
 						// parentheses do match
-						var start = popped.start;
+						let start = popped.start;
 						this.add(this.parser.skipImpl({strings: false}));
-						if(this.parser.readIf('=')) {
+						if(this.parser.readIf("=")) {
 							// arrow function, start is before the open parenthesis
-							this.parser.expect('>');
+							this.parser.expect(">");
 							this.add("=>");
 							index = this.parser.index - start;
-						} else if(this.parser.peek() == '{') {
+						} else if(this.parser.peek() == "{") {
 							// a function
 							if(this.parser.lastKeywordAt(popped.lastIndex, "function")) {
 								index = this.parser.index - popped.lastIndex + 6;
@@ -768,27 +765,27 @@ SourceCodeMode.prototype.next = function(match){
 							}
 						} else {
 							// not a computed observable, just an observable with no value
-							var index = tail.value.length - (this.parser.index - this.parser.lastParenthesis.end) - 1;
+							let index = tail.value.length - (this.parser.index - this.parser.lastParenthesis.end) - 1;
 							tail.value = `${tail.value.substring(0, index)}${this.transpiler.feature("cofv")}()${tail.value.substr(index)}`;
 							coff = false;
 						}
 					}
-				} else if(this.parser.peek() == '=') {
+				} else if(this.parser.peek() == "=") {
 					// from arrow function not wrapped
 					index = space.length + 4;
 					this.parser.read(); // =
-					this.parser.expect('>');
+					this.parser.expect(">");
 					this.source.addSource(`()${space}=>`);
 				}  else {
 					// from variable
-					var parsed = this.transpiler.parseCode(this.parser.readSingleExpression(true));
+					let parsed = this.transpiler.parseCode(this.parser.readSingleExpression(true));
 					this.add(`${space}(${this.transpiler.feature("cofv")}(${parsed.source}))`);
 					coff = false;
 				}
 				if(coff) {
-					var beforeIndex = index;
-					var afterIndex = index;
-					var mod, mods = {};
+					let beforeIndex = index;
+					let afterIndex = index;
+					let mod, mods = {};
 					while(mod = previous()) {
 						if(["async"].indexOf(mod) != -1) {
 							mods[mod] = true;
@@ -799,7 +796,7 @@ SourceCodeMode.prototype.next = function(match){
 					}
 					tail.value = `${tail.value.slice(0, -beforeIndex)}${this.transpiler.feature("coff")}(${tail.value.substr(-afterIndex)}`;
 					// add expression
-					var parsed = this.transpiler.parseCode(this.parser.readExpression());
+					let parsed = this.transpiler.parseCode(this.parser.readExpression());
 					this.source.addSource(`${parsed.source})`);
 					if(mods.async) this.source.addSource(".async()");
 					if(parsed.observables.length) {
@@ -814,33 +811,34 @@ SourceCodeMode.prototype.next = function(match){
 					}
 				}
 				this.transpiler.updateTemplateLiteralParser();
-				this.parser.last = ')';
+				this.parser.last = ")";
 				this.parser.lastIndex = this.parser.index;
 			} else {
 				// bitwise or boolean comparator
-				this.restoreIndex('&');
-				if(this.parser.readIf('&')) this.restoreIndex('&'); // skip to avoid treating it as possible `and`
+				this.restoreIndex("&");
+				if(this.parser.readIf("&")) this.restoreIndex("&"); // skip to avoid treating it as possible `and`
 			}
 			break;
-		case '*':
+		}
+		case "*":
 			if(this.parser.couldStartRegExp()) {
 				this.addObservable(this.observables, this.maybeObservables, "");
-			} else if(this.parser.last == '.') {
+			} else if(this.parser.last == ".") {
 				this.addObservable(this.observables, this.maybeObservables, this.lookBehind());
 			} else {
 				// just a multiplication or exponentiation
-				this.restoreIndex('*');
-				if(this.parser.readIf('*')) this.restoreIndex('*'); // exponentiation, skip to avoid trying to treat it as observable
+				this.restoreIndex("*");
+				if(this.parser.readIf("*")) this.restoreIndex("*"); // exponentiation, skip to avoid trying to treat it as observable
 			}
 			break;
-		case '^':
+		case "^":
 			if(this.parser.couldStartRegExp()) {
 				this.addObservable(null, null, "");
-			} else if(this.parser.last == '.') {
+			} else if(this.parser.last == ".") {
 				this.addObservable(null, null, this.lookBehind());
 			} else {
 				// xor operator
-				this.restoreIndex('^');
+				this.restoreIndex("^");
 			}
 			break;
 	}
@@ -878,7 +876,7 @@ HTMLMode.prototype.replaceText = Text.replaceEntities || (function(){
 		if(!converter) converter = document.createElement("textarea");
 		converter.innerHTML = data;
 		return converter.value;
-	}
+	};
 })();
 
 /**
@@ -929,11 +927,11 @@ ScriptMode.prototype.handle = function(){
 	return !!/^\/script>/.exec(this.parser.input.substr(this.parser.index));
 };
 
-ScriptMode.prototype.parseImpl = function(pre, match, handle, eof){
-	if(match == '#') {
-		if(pre.slice(-1) == '\\') {
+ScriptMode.prototype.parseImpl = function(pre, match/*, handle, eof*/){
+	if(match == "#") {
+		if(pre.slice(-1) == "\\") {
 			this.current[this.current.length - 1].value = this.current[this.current.length - 1].value.slice(0, -1) + match;
-		} else if(this.parser.peek() == '{') {
+		} else if(this.parser.peek() == "{") {
 			var expr = this.parseCode("skipEnclosedContent", true);
 			expr.source = `${this.transpiler.feature("stringify")}(${expr.source})`;
 			this.pushExpr(expr);
@@ -946,7 +944,7 @@ ScriptMode.prototype.parseImpl = function(pre, match, handle, eof){
 };
 
 ScriptMode.prototype.parse = function(handle, eof){
-	var result = this.parser.find(['<', '#'], false, true);
+	var result = this.parser.find(["<", "#"], false, true);
 	this.pushText(result.pre);
 	this.parseImpl(result.pre, result.match, handle, eof);
 };
@@ -1013,33 +1011,33 @@ SSBMode.prototype.start = function(){
 	this.source.addSource(`, ${this.es6 ? `(${args}) => ` : `function(${args})`}{`);
 	this.add(`var ${this.scopes[0]}=${this.transpiler.feature("root")}();`);
 	if(this.scoped) this.addScope(this.es6 ? `\`.\${${this.transpiler.className}}\`` : `'.' + ${this.transpiler.className}`);
-	else if(this.scope) this.addScope(JSON.stringify('.' + this.scope));
+	else if(this.scope) this.addScope(JSON.stringify("." + this.scope));
 };
 
 SSBMode.prototype.find = function(){
-	return this.parser.find(['$', '<', 'v', 'c', 'l', 'i', 'e', 'f', '{', '}', ';'], false, false);
+	return this.parser.find(["$", "<", "v", "c", "l", "i", "e", "f", "{", "}", ";"], false, false);
 };
 
 SSBMode.prototype.lastValue = function(callback, parser){
-	var end;
+	let end;
 	if(this.current.length) {
 		if(this.current[0].text) {
 			// trim start
-			var value = this.current[0].value;
-			var trimmed = Polyfill.trimStart.call(value);
+			let value = this.current[0].value;
+			let trimmed = Polyfill.trimStart.call(value);
 			this.add(value.substring(0, value.length - trimmed.length));
 			this.current[0].value = trimmed;
 		}
 		if(this.current[this.current.length - 1].text) {
 			// trim end
-			var value = this.current[this.current.length - 1].value;
-			var trimmed = Polyfill.trimEnd.call(value);
+			let value = this.current[this.current.length - 1].value;
+			let trimmed = Polyfill.trimEnd.call(value);
 			end = value.substr(trimmed.length);
 			this.current[this.current.length - 1].value = trimmed;
 		}
 	}
 	// create filtered array and add observables to mode's dependencies
-	var filtered = this.current.filter(part => {
+	let filtered = this.current.filter(part => {
 		if(part.text) {
 			return part.value.length;
 		} else {
@@ -1065,12 +1063,12 @@ SSBMode.prototype.lastValue = function(callback, parser){
 
 SSBMode.prototype.parseImpl = function(pre, match, handle, eof){
 	switch(match) {
-		case '<':
+		case "<":
 			if(!/\s/.test(this.parser.peek())) {
 				TextExprMode.prototype.parseImpl.call(this, pre, match, handle, eof);
 				break;
 			}
-		case '{':
+		case "{":
 			this.lastValue(value => this.addScope(value));
 			this.statements.push({
 				selector: true,
@@ -1078,27 +1076,27 @@ SSBMode.prototype.parseImpl = function(pre, match, handle, eof){
 				maybeObservables: [],
 				end: "",
 				parts: [{}],
-				single: match == '<'
+				single: match == "<"
 			});
 			this.inExpr = false;
 			break;
-		case ';':
-			var scope = this.scopes[this.scopes.length - 1];
-			var filtered = this.current.filter(c => !c.text || c.value.trim().length);
+		case ";": {
+			let scope = this.scopes[this.scopes.length - 1];
+			let filtered = this.current.filter(c => !c.text || c.value.trim().length);
 			if(filtered.length == 1 && !filtered[0].text && Polyfill.startsWith.call(filtered[0].value.source, "...")) {
 				this.add(`${scope}.spread(${filtered[0].value.source.substr(3)});`);
-				var curr;
+				let curr;
 				while((curr = this.current.pop()).text) this.add(curr.value);
 				this.current = [];
 			} else {
-				var value;
-				for(var i=0; i<this.current.length; i++) {
-					var current = this.current[i];
+				let value;
+				for(let i=0; i<this.current.length; i++) {
+					let current = this.current[i];
 					if(current.text) {
-						var column = current.value.indexOf(':');
+						let column = current.value.indexOf(":");
 						if(column != -1) {
-							var transpiler = this.transpiler;
-							var value = this.current.slice(i + 1);
+							let transpiler = this.transpiler;
+							let value = this.current.slice(i + 1);
 							value.unshift({text: true, value: current.value.substr(column + 1)});
 							current.value = current.value.substring(0, column);
 							this.current = this.current.slice(0, i + 1);
@@ -1114,13 +1112,14 @@ SSBMode.prototype.parseImpl = function(pre, match, handle, eof){
 					this.lastValue(value => this.add(`${scope}.stat(${value});`));
 				}
 			}
-			var statement = this.statements[this.statements.length - 1];
+			let statement = this.statements[this.statements.length - 1];
 			if(statement && statement.single) {
 				// inlined with `<`, close statement
 				this.onStatementEnd(this.statements.pop());
 			}
 			this.inExpr = false;
 			break;
+		}
 		default:
 			TextExprMode.prototype.parseImpl.call(this, pre, match, handle, eof);
 	}
@@ -1134,7 +1133,7 @@ SSBMode.prototype.parse = function(handle, eof){
 	LogicMode.prototype.parse.call(this, handle, eof);
 };
 
-SSBMode.prototype.onStatementStart = function(statement){
+SSBMode.prototype.onStatementStart = function(/*statement*/){
 	this.inExpr = false;
 };
 
@@ -1191,7 +1190,7 @@ SSBMode.reparseExprImpl = function(expr, info, transpiler){
 		}
 	}
 	function readOp() {
-		var result = parser.readImpl(/^[+*\/%-]/, false);
+		var result = parser.readImpl(/^[+*/%-]/, false);
 		if(result) {
 			info.computed += result;
 			info.op++;
@@ -1201,11 +1200,10 @@ SSBMode.reparseExprImpl = function(expr, info, transpiler){
 	while(!parser.eof()) {
 		skip();
 		readSign();
-		if(parser.peek() == '(') {
-			info.computed += '(';
-			var start = parser.index + 1;
+		if(parser.peek() == "(") {
+			info.computed += "(";
 			if(!SSBMode.reparseExprImpl(parser.skipEnclosedContent().slice(1, -1), info, transpiler)) return false;
-			info.computed += ')';
+			info.computed += ")";
 		} else {
 			var v = parser.readSingleExpression(true);
 			if(/^[a-zA-Z_$]/.exec(v)) {
@@ -1259,7 +1257,7 @@ HTMLCommentMode.prototype.addText = function(expr){
 };
 
 HTMLCommentMode.prototype.parse = function(handle, eof){
-	var result = this.parser.find(['$'], false, true);
+	var result = this.parser.find(["$"], false, true);
 	this.pushText(result.pre);
 	this.parseImpl(result.pre, result.match, handle, eof);
 };

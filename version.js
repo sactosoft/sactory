@@ -1,5 +1,5 @@
 var version = require("./package.json").version;
-var splitted = version.split('.');
+var splitted = version.split(".");
 
 function get(i) {
 	return parseInt(splitted[i]);

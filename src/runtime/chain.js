@@ -137,7 +137,7 @@ chain.updateImpl = function(context, [attrs = [], iattrs, sattrs, widgetCheck, n
 						}
 					} else {
 						name = name.toString();
-						var col = name.indexOf(':');
+						var col = name.indexOf(":");
 						if(col == -1) {
 							widgetExt.push({
 								name, 
@@ -171,7 +171,7 @@ chain.updateImpl = function(context, [attrs = [], iattrs, sattrs, widgetCheck, n
 						return;
 					}
 				}
-				var splitted = name.split('.');
+				var splitted = name.split(".");
 				if(splitted.length > 1) {
 					for(var i=0; i<splitted.length-1; i++) {
 						var k = splitted[i];
@@ -298,7 +298,7 @@ chain.createIf = function(context, tagName, options, tagNameString){
 	if(context.parentElement) {
 		chain.update(context, options);
 	} else {
-		chain.create(context, tagName, options, tagNameString)
+		chain.create(context, tagName, options, tagNameString);
 	}
 };
 

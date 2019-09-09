@@ -2,7 +2,6 @@ var Polyfill = require("../polyfill");
 var Const = require("../const");
 var { hyphenate } = require("../util");
 
-var SactoryAnimation = require("./animation");
 var SactoryBind = require("./bind");
 var SactoryConfig = require("./config");
 var SactoryConst = require("./const");
@@ -94,7 +93,7 @@ Sactory.prototype.complexStyle = function(name, value, bind){
 	*/
 	var className = counter.nextPrefix();
 	var wrap;
-	var dot = name.indexOf('.');
+	var dot = name.indexOf(".");
 	if(dot == -1) {
 		wrap = value => `.${className}${name}{${value}}`;
 	} else {
@@ -208,9 +207,9 @@ Sactory.prototype.html = function(value, {top, bind, anchor}){
 		container.innerHTML = value;
 		children = Array.prototype.slice.call(container.childNodes, 0);
 		children.forEach(child => {
-			if(anchor && anchor.parentNode === this.element) this.element.insertBefore(element, anchor);
-			else this.element.appendChild(element);
-			if(top) bind.appendChild(element);
+			if(anchor && anchor.parentNode === this.element) this.element.insertBefore(child, anchor);
+			else this.element.appendChild(child);
+			if(top) bind.appendChild(child);
 		});
 	};
 	var use = value => {
@@ -333,7 +332,7 @@ Sactory.prototype.removeClassNamePolyfill = function(className){
  * @since 0.22.0
  */
 Sactory.prototype.event = function(name, value, bind){
-	var split = name.split(':');
+	var split = name.split(":");
 	if(name.args) split = split.map(a => a.toValue());
 	var event = split.shift();
 	var listener = value || function(){};
@@ -347,7 +346,7 @@ Sactory.prototype.event = function(name, value, bind){
 		} else {
 			switch(mod) {
 				case "this":
-					console.warn(`Event modifier ":this" does no longer work. Either bind the function yourself or use an arrow function to maintain the right scope.`);
+					console.warn("Event modifier \":this\" does no longer work. Either bind the function yourself or use an arrow function to maintain the right scope.");
 					break;
 				case "noargs":
 					listener = function(){
@@ -416,30 +415,31 @@ Sactory.prototype.event = function(name, value, bind){
 					};
 					break;
 				default:
-					var positive = mod.charAt(0) != '!';
+					var positive = mod.charAt(0) != "!";
 					if(!positive) mod = mod.substr(1);
-					var dot = mod.split('.');
+					var dot = mod.split(".");
+					var keys, delay, timeout;
 					switch(dot[0]) {
 						case "key":
-							var keys = dot.slice(1).map(function(a){
-								var ret = a.toLowerCase();
+							keys = dot.slice(1).map(ret => {
+								ret = ret.toLowerCase();
 								if(Object.prototype.hasOwnProperty.call(SactoryConfig.config.event.aliases, ret)) ret = SactoryConfig.config.event.aliases[ret];
-								var separated = ret.split('-');
+								var separated = ret.split("-");
 								if(separated.length == 2) {
 									var range;
 									if(separated[0].length == 1 && separated[1].length == 1) {
 										range = [separated[0].toUpperCase().charCodeAt(0), separated[1].toUpperCase().charCodeAt(0)];
-									} else if(separated[0].charAt(0) == 'f' && separated[1].charAt(0) == 'f') {
+									} else if(separated[0].charAt(0) == "f" && separated[1].charAt(0) == "f") {
 										range = [111 + parseInt(separated[0].substr(1)), 111 + parseInt(separated[1].substr(1))];
 									}
 									if(range) {
 										return function(event){
 											var code = event.keyCode || event.which;
 											return code >= range[0] && code <= range[1];
-										}
+										};
 									}
 								}
-								if(ret != '-') ret = ret.replace(/-/g, "");
+								if(ret != "-") ret = ret.replace(/-/g, "");
 								return function(event){
 									return event.key.toLowerCase() == ret;
 								};
@@ -460,7 +460,7 @@ Sactory.prototype.event = function(name, value, bind){
 							}
 							break;
 						case "code":
-							var keys = dot.slice(1).map(a => a.toLowerCase().replace(/-/g, ""));
+							keys = dot.slice(1).map(a => a.toLowerCase().replace(/-/g, ""));
 							if(positive) {
 								listener = function(event){
 									if(keys.indexOf(event.code.toLowerCase()) != -1) return prev.apply(this, arguments);
@@ -473,7 +473,7 @@ Sactory.prototype.event = function(name, value, bind){
 							break;
 						case "keyCode":
 						case "key-code":
-							var keys = dot.slice(1).map(a => parseInt(a));
+							keys = dot.slice(1).map(a => parseInt(a));
 							if(positive) {
 								listener = function(event){
 									if(keys.indexOf(event.keyCode || event.which) != -1) return prev.apply(this, arguments);
@@ -538,10 +538,8 @@ Sactory.prototype.event = function(name, value, bind){
 							}
 							break;
 						case "throttle":
-							var delay = parseInt(dot[1]);
-							if(delay >= 0) {
-								var timeout = false;
-								listener = function(event){
+							if((delay = parseInt(dot[1])) >= 0) {
+								listener = function(){
 									if(!timeout) {
 										prev.apply(this, arguments);
 										timeout = true;
@@ -553,10 +551,8 @@ Sactory.prototype.event = function(name, value, bind){
 							}
 							break;
 						case "debounce":
-							var delay = parseInt(dot[1]);
-							if(delay >= 0) {
-								var timeout;
-								listener = function(event){
+							if((delay = parseInt(dot[1])) >= 0) {
+								listener = function(){
 									if(timeout) clearTimeout(timeout);
 									timeout = setTimeout(() => {
 										timeout = 0;
@@ -577,11 +573,11 @@ Sactory.prototype.event = function(name, value, bind){
 	if(event == "documentappend") {
 		// special event
 		event = "append";
-		var prev = listener;
+		var append = listener;
 		var element = this.element;
 		listener = function(event){
 			if(BuilderPolyfill.contains(element.ownerDocument, element)) {
-				prev.call(element, event, element);
+				append.call(element, event, element);
 			} else {
 				var parent = this.parentNode;
 				while(parent.parentNode) parent = parent.parentNode;
@@ -672,7 +668,7 @@ Sactory.prototype.form = function({bind}, info, value, update){
 	var get, set, converters = [];
 	// calculate property name and default converter
 	if(select) {
-	 	if(this.element.multiple) {
+		if(this.element.multiple) {
 			// select multiple, returns an array
 			get = callback => callback(Array.prototype.map.call(BuilderPolyfill.selectedOptions(this.element), option => option.value));
 			set = value => Array.prototype.forEach.call(this.element.options, option => option.selected = value.indexOf(option.value) != -1);
@@ -724,7 +720,7 @@ Sactory.prototype.form = function({bind}, info, value, update){
 					return;
 				}
 			}
-			converters.push(function(){
+			converters.push((() => {
 				switch(mod) {
 					case "number":
 					case "num":
@@ -743,16 +739,16 @@ Sactory.prototype.form = function({bind}, info, value, update){
 							return this + "";
 						};
 					case "date":
-						switch(inputType) {
+						switch(this.element.type) {
 							case "date":
 							case "month":
 								return function(){
-									var s = this.split('-');
+									var s = this.split("-");
 									return new Date(s[0], s[1] - 1, s[2] || 1);
 								};
 							case "time":
 								return function(){
-									var s = this.split(':');
+									var s = this.split(":");
 									var date = new Date();
 									date.setHours(s[0]);
 									date.setMinutes(s[1]);
@@ -767,7 +763,7 @@ Sactory.prototype.form = function({bind}, info, value, update){
 						}
 					case "comma":
 						return function(){
-							return this.replace(/,/g, '.');
+							return this.replace(/,/g, ".");
 						};
 					case "trim":
 						return String.prototype.trim;
@@ -791,7 +787,7 @@ Sactory.prototype.form = function({bind}, info, value, update){
 					default:
 						throw new Error("Unknown value modifier '" + mod + "'.");
 				}
-			}());
+			})());
 		});
 	}
 	if(isObservable) {
@@ -835,15 +831,15 @@ if(Object.getOwnPropertyDescriptor(Element.prototype, "classList")) {
 } else {
 
 	Sactory.prototype.addClass= function(className){
-		if(!this.element.className.split(' ').indexOf(className) != -1) {
-			this.element.className = (this.element.className + ' ' + className).trim();
+		if(!this.element.className.split(" ").indexOf(className) != -1) {
+			this.element.className = (this.element.className + " " + className).trim();
 		}
 	};
 
 	Sactory.prototype.removeClass = function(className){
-		this.element.className = this.element.className.split(' ').filter(function(a){
+		this.element.className = this.element.className.split(" ").filter(function(a){
 			return a != className;
-		}).join(' ');
+		}).join(" ");
 	};
 
 }
@@ -880,7 +876,7 @@ BuilderPolyfill.contains = function(owner, element){
 
 BuilderPolyfill.selectedOptions =
 	typeof HTMLSelectElement == "function" && Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "selectedOptions") ? 
-	select => select.selectedOptions :
-	select => Array.prototype.filter.call(select.options, option => option.selected);
+		select => select.selectedOptions :
+		select => Array.prototype.filter.call(select.options, option => option.selected);
 
 module.exports = Sactory;

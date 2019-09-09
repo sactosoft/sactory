@@ -30,7 +30,7 @@ Sactory.newContext = function(context, newContext){
  * @since 0.128.0
  */
 Sactory.newChainContext = function(context){
-	return (({counter, element, top, bind, anchor, registry, selector}) => ({
+	return (({element, top, bind, anchor, registry, selector}) => ({
 		__context: true,
 		top, bind, anchor, registry, selector,
 		parentElement: element,

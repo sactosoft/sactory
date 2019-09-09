@@ -13,7 +13,7 @@ var babel = source => {
 	try {
 		return transform(source, {presets: [["babel-preset-env", {modules: false}]]}).code;
 	} catch(e) {
-		return `throw new Error("Could not transpile")`;
+		return "throw new Error(\"Could not transpile\")";
 	}
 };
 

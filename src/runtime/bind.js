@@ -25,7 +25,7 @@ Bind.prototype.fork = function(createdBy){
 	var child = new Bind(this, createdBy);
 	this.children.push(child);
 	return child;
-}
+};
 
 /**
  * @since 0.45.0
@@ -246,7 +246,6 @@ Sactory.bindEach = function(context, target, getter, fun){
 		*/
 	}
 	var binds = currentBind.children; // children are added/removed manually
-	var addImpl = (bind, anchor, value, index, array) => {};
 	function add(action, bind, anchor, value, index, array) {
 		if(bind.anchor = anchor) bind.appendChild(anchor);
 		fun(SactoryContext.newBindContext(context, bind, anchor), value, index, array);
@@ -295,9 +294,10 @@ Sactory.bindEach = function(context, target, getter, fun){
 				break;
 			case SactoryConst.OUT_ARRAY_SPLICE:
 				// insert new elements then call splice on binds and rollback
-				var index = data[0] + (data[1] || 0) - 1;
-				var ptr = binds[index];
-				var anchorTo = ptr && ptr.anchor && ptr.anchor.nextSibling || lastAnchor;
+				var startIndex = data[0];
+				var endIndex = startIndex + (data[1] || 0) - 1;
+				var ref = binds[endIndex];
+				var anchorTo = ref && ref.anchor && ref.anchor.nextSibling || lastAnchor;
 				var args = Array.prototype.slice.call(data, 2).map(value => {
 					var ret = new Bind(currentBind, "bindEach.splice");
 					ret.value = value;
@@ -311,7 +311,7 @@ Sactory.bindEach = function(context, target, getter, fun){
 						bind.anchor = Sactory.anchor({element: context.element, anchor: anchorTo});
 						bind.appendChild(bind.anchor);
 					}
-					fun(SactoryContext.newBindContext(context, bind, bind.anchor), bind.value, i + index, array);
+					fun(SactoryContext.newBindContext(context, bind, bind.anchor), bind.value, i + startIndex, array);
 				});
 				break;
 			default:
@@ -330,7 +330,7 @@ Sactory.bindEachMaybe = function(context, target, getter, fun){
 	if(SactoryObservable.isObservable(target)) {
 		Sactory.bindEach(context, target, getter, fun);
 	} else {
-		SactoryMisc.forEachArray(scope, getter(), (...args) => fun(context, ...args));
+		SactoryMisc.forEachArray(getter(), (...args) => fun(context, ...args));
 	}
 };
 

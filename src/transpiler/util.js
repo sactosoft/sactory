@@ -18,10 +18,10 @@ function uniq(array) {
 
 function stringify(str) {
 	// that's not very fast
-	return '"' + str.replace(/(\r?\n)|([\\"])/gm, function(_, newline, escaped){
+	return "\"" + str.replace(/(\r?\n)|([\\"])/gm, function(_, newline, escaped){
 		if(newline) return "\\n\\\n";
-		else return '\\' + escaped;
-	}) + '"';
+		else return "\\" + escaped;
+	}) + "\"";
 }
 
 module.exports = { hash, now, uniq, stringify };

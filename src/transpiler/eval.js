@@ -12,6 +12,7 @@ var count = 0;
 var es6 = false;
 try {
 	eval("es6 = class {}, true");
+// eslint-disable-next-line no-empty
 } catch(e) {}
 
 function evalScripts() {

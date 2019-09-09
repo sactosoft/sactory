@@ -1,3 +1,5 @@
+var Sactory = {}; // just to make the linter happy
+
 function defineBuilder(Class) {
 	Object.defineProperty(Class.prototype, "~builder", {
 		configurable: true,

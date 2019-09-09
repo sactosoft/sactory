@@ -1,6 +1,5 @@
 var Polyfill = require("../polyfill");
 var counter = require("./counter");
-var SactoryObservable = require("./observable");
 
 var colors = require("../json/colors.json");
 
@@ -75,7 +74,7 @@ Sactory.compileStyle = function(root) {
 		array.forEach(function(item){
 			if(item.plain) {
 				if(!item.value) {
-					ret += item.selector + ';';
+					ret += item.selector + ";";
 				} else {
 					ret += item.selector + ":" + item.value + ";";
 				}
@@ -88,7 +87,7 @@ Sactory.compileStyle = function(root) {
 	}
 	compile(root);
 	return ret;
-}
+};
 
 /**
  * Converts an object in SSB format to minified CSS.
@@ -100,35 +99,35 @@ Sactory.convertStyle = function(root){
 		obj.forEach(function(value){
 			if(value.selector) {
 				var selector = value.selector;
-				if(selector.charAt(0) == '@') {
+				if(selector.charAt(0) == "@") {
 					var oret = ret;
 					ret = [];
-					if(selector.substr(1, 5) == "media" || selector.substr(1, 8) == "document") compile(selectors, Sactory.select({content: ret}, selectors.join(',')).content, value.value);
+					if(selector.substr(1, 5) == "media" || selector.substr(1, 8) == "document") compile(selectors, Sactory.select({content: ret}, selectors.join(",")).content, value.value);
 					else compile([], ret, value.value);
 					oret.push({selector: selector, value: ret});
 					ret = oret;
 				} else {
 					var ns = [];
 					if(selectors.length) {
-						selector.split(',').map(function(s2){
-							var prefix = s2.indexOf('&') != -1;
+						selector.split(",").map(function(s2){
+							var prefix = s2.indexOf("&") != -1;
 							selectors.forEach(function(s1){
 								if(prefix) ns.push(s2.trim().replace(/&/g, s1));
-								else ns.push(s1 + ' ' + s2.trim());
+								else ns.push(s1 + " " + s2.trim());
 							});
 						});
 					} else {
-						ns = selector.split(',').map(function(s){
+						ns = selector.split(",").map(function(s){
 							return s.trim();
 						});
 					}
-					compile(ns, Sactory.select({content: ret}, ns.join(',')).content, value.value);
+					compile(ns, Sactory.select({content: ret}, ns.join(",")).content, value.value);
 				}
 			} else {
-				if(value.key.charAt(0) == '@') {
+				if(value.key.charAt(0) == "@") {
 					ret.push({plain: true, selector: value.key, value: value.value});
 				} else {
-					value.key.split(',').forEach(function(key){
+					value.key.split(",").forEach(function(key){
 						curr.push({plain: true, selector: key.trim(), value: value.value});
 					});
 				}
@@ -147,7 +146,7 @@ Sactory.convertStyle = function(root){
  */
 Sactory.compileAndBindStyle = Sactory.cabs = function({element, bind, selector}, fun, observables, maybe){
 	var className = element["~builder"].scopedClassName = counter.nextPrefix();
-	var conv = selector ? value => ([{selector, value}]) : value => value;
+	var conv = selector ? value => [{selector, value}] : value => value;
 	var observable = Sactory.coff(() => element.textContent = Sactory.convertStyle(conv(fun(className, Sactory.css))));
 	observable.addDependencies(observables, bind);
 	observable.addMaybeDependencies(maybe, bind);
@@ -201,9 +200,9 @@ function RGBColor(r, g, b, a) {
 RGBColor.prototype = Object.create(Color.prototype);
 
 RGBColor.prototype.update = function(fun){
-	this.r = fun(this.r, 'r');
-	this.g = fun(this.g, 'g');
-	this.b = fun(this.b, 'b');
+	this.r = fun(this.r, "r");
+	this.g = fun(this.g, "g");
+	this.b = fun(this.b, "b");
 };
 
 RGBColor.prototype.toHSL = function(){
@@ -243,12 +242,10 @@ RGBColor.prototype.toHSL = function(){
 
 };
 
-function multiply(number) {
-	return Math.round(number * 255);
-}
+var multiply = number => Math.round(number * 255);
 
 RGBColor.prototype.toHexString = function(){
-	return '#' + [this.r, this.g, this.b].map(multiply).map(function(a){ return Polyfill.padStart.call(a.toString(16), 2, '0'); }).join("");
+	return "#" + [this.r, this.g, this.b].map(multiply).map(a => Polyfill.padStart.call(a.toString(16), 2, "0")).join("");
 };
 
 RGBColor.prototype.toRGBString = function(){
@@ -266,15 +263,9 @@ RGBColor.prototype.toString = function(){
 
 RGBColor.fromHexString = function(color){
 	if(color.length == 3) {
-		function parse(num) {
-			return parseInt(num, 16) / 15;
-		}
-		return new RGBColor(parse(color.charAt(0)), parse(color.charAt(1)), parse(color.charAt(2)));
+		return new RGBColor(...color.split("").map(num => parseInt(num, 16) / 15));
 	} else {
-		function parse(num) {
-			return parseInt(num, 16) / 255;
-		}
-		return new RGBColor(parse(color.substring(0, 2)), parse(color.substring(2, 4)), parse(color.substring(4, 6)));
+		return new RGBColor(...color.match(/.{2}/g).map(num => parseInt(num, 16) / 255));
 	}
 };
 
@@ -299,11 +290,11 @@ function HSLColor(h, s, l, a) {
 HSLColor.prototype = Object.create(Color.prototype);
 
 HSLColor.prototype.toHSLString = function(){
-	return "hsl(" + Math.round(this.h * 360) + ", " + Math.round(this.s * 100) + "%, " + Math.round(this.l * 100) + "%)";
+	return `hsl(${Math.round(this.h * 360)}, ${Math.round(this.s * 100)}%, ${Math.round(this.l * 100)}%)`;
 };
 
 HSLColor.prototype.toHSLAString = function(){
-	return "hsla(" + Math.round(this.h * 360) + ", " + Math.round(this.s * 100) + "%, " + Math.round(this.l * 100) + "%, " + this.a + ")";
+	return `hsla(${Math.round(this.h * 360)}, ${Math.round(this.s * 100)}%, ${Math.round(this.l * 100)}%, ${this.a})`;
 };
 
 HSLColor.prototype.toString = function(){
@@ -359,13 +350,13 @@ HSLColor.from = function(color){
  * @since 0.100.0
  */
 function parseColor(color) {
-	if(color.charAt(0) == '#') {
+	if(color.charAt(0) == "#") {
 		return RGBColor.fromHexString(color.substr(1));
 	} else {
-		var p = color.indexOf('(');
+		var p = color.indexOf("(");
 		if(p > 0) {
 			var type = color.substring(0, p);
-			var values = color.slice(p + 1, -1).split(',');
+			var values = color.slice(p + 1, -1).split(",");
 			var alpha = values.length > 3 ? +values[3] : undefined;
 			switch(type) {
 				case "rgb":
@@ -383,21 +374,23 @@ function parseColor(color) {
 	}
 }
 
-var parseTextualColor = typeof colors == "object" ? function(color){
-	if(colors.hasOwnProperty(color)) {
-		return RGBColor.fromHexString(colors[color]);
-	} else {
-		return new RGBColor(0, 0, 0);
-	}
-} : function(color){
-	// use window.getComputedStyle to convert the color to rgb
-	var conv = document.createElement("div");
-	conv.style.color = color;
-	document.head.appendChild(conv);
-	color = window.getComputedStyle(conv).color;
-	document.head.removeChild(conv);
-	return parseColor(color);
-};
+var parseTextualColor = typeof colors == "object" ?
+	color => {
+		if(Object.prototype.hasOwnProperty.call(colors, color)) {
+			return RGBColor.fromHexString(colors[color]);
+		} else {
+			return new RGBColor(0, 0, 0);
+		}
+	} : 
+	color => {
+		// use window.getComputedStyle to convert the color to rgb
+		var conv = document.createElement("div");
+		conv.style.color = color;
+		document.head.appendChild(conv);
+		color = window.getComputedStyle(conv).color;
+		document.head.removeChild(conv);
+		return parseColor(color);
+	};
 
 function random(T, alpha) {
 	return new T(Math.random(), Math.random(), Math.random(), alpha ? Math.random() : undefined);

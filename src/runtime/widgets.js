@@ -45,9 +45,9 @@ function shadowRoot({mode = "open"}, arg1, context) {
  * @since 0.134.0
  */
 function xml({namespace, root, name}, arg1, {registry}) {
-	var root = xmlImpl(namespace, root || name || "xml");
-	registry.add(null, "", root.firstElementChild);
-	return root;
+	var ret = xmlImpl(namespace, root || name || "xml");
+	registry.add(null, "", ret.firstElementChild);
+	return ret;
 }
 
 var xmlImpl = typeof document != "undefined" && document.implementation ?

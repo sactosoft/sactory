@@ -3,7 +3,7 @@ function hyphenate(value) {
 	for(var i=0; i<value.length; i++) {
 		var code = value.charCodeAt(i);
 		if(code >= 65 && code <= 90) {
-			if(i > 0) ret += '-';
+			if(i > 0) ret += "-";
 			ret += String.fromCharCode(code + 32);
 		} else {
 			ret += value.charAt(i);
@@ -15,7 +15,7 @@ function hyphenate(value) {
 function dehyphenate(value) {
 	var ret = "";
 	for(var i=0; i<value.length; i++) {
-		if(value.charAt(i) == '-') {
+		if(value.charAt(i) == "-") {
 			var code = value.charCodeAt(++i);
 			if(code >= 97 && code <= 122) {
 				ret += String.fromCharCode(code - 32);

@@ -1,5 +1,6 @@
-var Polyfill = require("../polyfill");
-
+/**
+ * @class
+ */
 function ParserError(message, fileName, lineNumber) {
 	var error = new Error(message, fileName, lineNumber);
 	if(Object.setPrototypeOf) {
@@ -43,7 +44,7 @@ Object.defineProperty(Parser.prototype, "position", {
 		var line = 0;
 		var column = 0;
 		for(var i=0; i<=this.index; i++) {
-			if(this.input.charAt(i) == '\n') {
+			if(this.input.charAt(i) == "\n") {
 				line++;
 				column = -1;
 			} else {
@@ -74,11 +75,11 @@ Parser.prototype.error = function(message){
  * @since 0.71.0
  */
 Parser.prototype.errorAt = function(position, message){
-	var endIndex = this.input.substr(position.index).indexOf('\n');
-	var start = this.input.substring(0, position.index).lastIndexOf('\n') + 1;
+	var endIndex = this.input.substr(position.index).indexOf("\n");
+	var start = this.input.substring(0, position.index).lastIndexOf("\n") + 1;
 	var end = endIndex == -1 ? this.input.length : position.index + endIndex;
-	message += '\n' + this.input.substring(start, end) + '\n';
-	for(var i=start; i<end; i++) message += i == position.index ? '^' : (this.input.charAt(i) == '\t' ? '\t' : ' ');
+	message += "\n" + this.input.substring(start, end) + "\n";
+	for(var i=start; i<end; i++) message += i == position.index ? "^" : (this.input.charAt(i) == "\t" ? "\t" : " ");
 	throw new ParserError("Line " + (position.line + 1) + ", Column " + position.column + ": " + message);
 };
 
@@ -151,7 +152,7 @@ Parser.prototype.expectSequence = function(seq){
  * @since 0.57.0
  */
 Parser.prototype.lastKeywordAt = function(index, value){
-	return this.input.charAt(index) === value.charAt(value.length - 1) && this.input.substring(index - value.length + 1, index + 1) == value && !/[a-zA-Z0-9_$\.]/.test(this.input.charAt(index - value.length));
+	return this.input.charAt(index) === value.charAt(value.length - 1) && this.input.substring(index - value.length + 1, index + 1) == value && !/[a-zA-Z0-9_$.]/.test(this.input.charAt(index - value.length));
 };
 
 /**
@@ -203,9 +204,9 @@ Parser.prototype.lastKeywordIsPlusMinus = function(){
  * @since 0.50.0
  */
 Parser.prototype.couldStartRegExp = function(){
-	return this.last === undefined || !this.last.match(/^[a-zA-Z0-9_$'"`\)\].+-]$/) ||
+	return this.last === undefined || !this.last.match(/^[a-zA-Z0-9_$'"`)\].+-]$/) ||
 		this.lastKeywordIn("return", "throw", "typeof", "do", "in", "instanceof", "new", "delete", "else") ||
-		this.last == ')' && this.lastParenthesis && this.lastKeywordAtIn(this.lastParenthesis.lastIndex, "if", "else", "for", "while", "with") ||
+		this.last == ")" && this.lastParenthesis && this.lastKeywordAtIn(this.lastParenthesis.lastIndex, "if", "else", "for", "while", "with") ||
 		/\n/.test(this.input.substring(this.lastIndex, this.index)) && this.lastKeywordIn("++", "--", "break", "continue") ||
 		this.lastKeywordIsPlusMinus();
 };
@@ -218,7 +219,6 @@ Parser.prototype.couldStartRegExp = function(){
  * @since 0.19.0
  */
 Parser.prototype.skipImpl = function(options){
-	var start = this.index;
 	var prelast = this.last;
 	var prelastIndex = this.lastIndex;
 	var ret = "";
@@ -227,22 +227,20 @@ Parser.prototype.skipImpl = function(options){
 		var comment;
 		if(options.whitespaces !== false && /\s/.test(next)) {
 			ret += this.read();
-		} else if(options.comments !== false && next == '/' && ((comment = this.input[this.index + 1]) == '/' && options.inlineComments !== false || comment == '*')) {
-			ret += this.read() + this.read() + (comment == '/' ? this.findSequence("\n", false) : this.findSequence("*/", false));
+		} else if(options.comments !== false && next == "/" && ((comment = this.input[this.index + 1]) == "/" && options.inlineComments !== false || comment == "*")) {
+			ret += this.read() + this.read() + (comment == "/" ? this.findSequence("\n", false) : this.findSequence("*/", false));
 			this.last = undefined;
-		} else if(options.strings !== false && (next == '"' || next == '\'' || next == '`')) {
+		} else if(options.strings !== false && (next == "\"" || next == "'" || next == "`")) {
 			ret += this.skipString();
 			prelast = this.last;
 			prelastIndex = this.index;
-		} else if(options.regexp === true && next == '/' && this.couldStartRegExp()) {
+		} else if(options.regexp === true && next == "/" && this.couldStartRegExp()) {
 			ret += this.skipRegExp();
 			prelast = this.last;
 			prelastIndex = this.index;
 		} else {
 			this.last = prelast;
 			this.lastIndex = prelastIndex;
-			prelast = next;
-			prelastIndex = this.index;
 			break;
 		}
 	}
@@ -261,15 +259,15 @@ Parser.prototype.skip = function(){
 Parser.prototype.skipEscapableContent = function(message){
 	var start = this.position;
 	var type = this.read();
-	var search = ['\\', type];
-	if(type == '`') search.push('$');
+	var search = ["\\", type];
+	if(type == "`") search.push("$");
 	var ret = type;
 	while(!this.eof()) {
 		var result = this.find(search, false, false);
 		ret += result.pre;
 		if(!result.match) this.error("Could not find end of " + message() + " started at line " + start.line + " column " + start.column);
-		else if(result.match == '\\') ret += '\\' + this.read(); // skip escaped character
-		else if(result.match == '$' && this.peek() == '{'){ var e = this.skipEnclosedContent().slice(1, -1); ret += "${" + (typeof this.parseTemplateLiteral == "function" ? this.parseTemplateLiteral(e, this) : e) + '}'; }
+		else if(result.match == "\\") ret += "\\" + this.read(); // skip escaped character
+		else if(result.match == "$" && this.peek() == "{"){ var e = this.skipEnclosedContent().slice(1, -1); ret += "${" + (typeof this.parseTemplateLiteral == "function" ? this.parseTemplateLiteral(e, this) : e) + "}"; }
 		else break;
 	}
 	return ret + type;
@@ -295,14 +293,14 @@ Parser.prototype.skipString = function(){
  */
 Parser.prototype.skipRegExp = function(){
 	var ret = this.skipEscapableContent(() => "regular expression");
-	var flags = ['g', 'i', 'm', 's', 'u', 'y'];
+	var flags = ["g", "i", "m", "s", "u", "y"];
 	var index;
 	while((index = flags.indexOf(this.peek())) != -1) {
 		flags.splice(index, 1);
 		ret += this.read();
 	}
 	this.lastIndex = this.index - 1;
-	this.last = 'a'; // behave like it was a variable name
+	this.last = "a"; // behave like it was a variable name
 	return ret;
 };
 
@@ -316,12 +314,11 @@ Parser.prototype.skipRegExp = function(){
  */
 Parser.prototype.skipEnclosedContent = function(trim){
 	this.lastEnclosureIndex = this.index;
-	var par = {'}': '{', ']': '[', ')': '('};
+	var par = {"}": "{", "]": "[", ")": "("};
 	var ret = this.read();
-	var match = par[ret];
-	var count = {'{': 0, '[': 0, '(': 0};
+	var count = {"{": 0, "[": 0, "(": 0};
 	while(!this.eof()) {
-		var result = this.find(['{', '}', '[', ']', '(', ')'], true, {comments: true, strings: true, regexp: true});
+		var result = this.find(["{", "}", "[", "]", "(", ")"], true, {comments: true, strings: true, regexp: true});
 		ret += result.pre + result.match;
 		var close = par[result.match];
 		var open = count[result.match];
@@ -430,15 +427,15 @@ Parser.prototype.readAttributePrefix = function(){
 	if(match) {
 		this.index += match[0].length;
 		return match[1] || {
-			dir: ':',
-			bind: '*',
-			attr: '',
-			prop: '@',
-			style: '&',
-			on: '+',
-			widget: '$',
-			update: '~',
-			extend: '$$'
+			dir: ":",
+			bind: "*",
+			attr: "",
+			prop: "@",
+			style: "&",
+			on: "+",
+			widget: "$",
+			update: "~",
+			extend: "$$"
 		}[match[2]];
 	} else {
 		return false;
@@ -461,7 +458,7 @@ Parser.prototype.readAttributeName = function(force){
  * @since 0.42.0
  */
 Parser.prototype.readComputedExpr = function(){
-	if(this.peek() == '[') {
+	if(this.peek() == "[") {
 		return this.skipEnclosedContent().slice(1, -1);
 	} else {
 		return false;
@@ -475,9 +472,9 @@ Parser.prototype.readComputedExpr = function(){
  */
 Parser.prototype.readQueryExpr = function(){
 	var peek = this.peek();
-	if(peek == '{') {
+	if(peek == "{") {
 		return this.skipEnclosedContent().slice(1, -1);
-	} else if(peek == '"' || peek == '\'' || peek == '`') {
+	} else if(peek == "\"" || peek == "'" || peek == "`") {
 		return this.skipString();
 	} else {
 		return false;
@@ -495,9 +492,9 @@ Parser.prototype.readSingleExpression = function(skip, force){
 	var ret = this.readImpl(/^([-+~!]*((new|delete|typeof)\s+)?(&|\*\??|\^\??)?)/) || "";
 	if(skip) ret += this.skipImpl({strings: false});
 	var peek = this.peek();
-	if(peek == '"' || peek == '\'' || peek == '`') {
+	if(peek == "\"" || peek == "'" || peek == "`") {
 		ret += this.skipString();
-	} else if(peek == '/') {
+	} else if(peek == "/") {
 		ret += this.skipRegExp();
 	} else {
 		ret += this.readImpl(/^(([a-zA-Z_$][a-zA-Z0-9_$]*)|0[box][0-9]+|([0-9]*\.?[0-9]+([eE][+-]?[0-9]+)?))/, false) || "";
@@ -514,15 +511,15 @@ Parser.prototype.readSingleExpression = function(skip, force){
 			if(skip) ret += this.skipImpl({strings: false});
 		}
 		peek = this.peek();
-		if(peek == '{' || peek == '[' || peek == '(') ret += this.skipEnclosedContent();
+		if(peek == "{" || peek == "[" || peek == "(") ret += this.skipEnclosedContent();
 		else if(!expr) {
 			ret = before.ret;
 			this.index = before.index;
 			break;
 		}
 	}
-	var peek = this.peek();
-	if((peek == '+' || peek == '-') && this.input.charAt(this.index + 1) == peek) ret += this.read() + this.read();
+	peek = this.peek();
+	if((peek == "+" || peek == "-") && this.input.charAt(this.index + 1) == peek) ret += this.read() + this.read();
 	if(force && !ret.length) this.error("Could not find a valid expression.");
 	return ret;
 };
@@ -538,7 +535,7 @@ Parser.prototype.readExpression = function(){
 	var expr;
 	if(expr = this.readSingleExpression(true)) {
 		ret += expr + this.skipImpl({strings: false});
-		while(!this.eof() && (expr = this.readImpl(/^(\*\*|&&?|\|\|?|\^|=>|==?=?|!==?|<<|>>>?|\?|:|[\+\-\*\/%<>]=?|in(stanceof)?\s)/, false))) {
+		while(!this.eof() && (expr = this.readImpl(/^(\*\*|&&?|\|\|?|\^|=>|==?=?|!==?|<<|>>>?|\?|:|[+*/%<>-]=?|in(stanceof)?\s)/, false))) {
 			ret += expr + this.skipImpl({strings: false});
 			if(!(expr = this.readSingleExpression(true)).trim()) this.error("Could not find a valid expression.");
 			ret += expr + this.skipImpl({strings: false});
@@ -564,8 +561,8 @@ Parser.prototype.readAttributeValue = function(){
  * @since 0.29.0
  */
 Parser.prototype.readVar = function(force){
-	if(this.peek() == '{') {
-		return '(' + this.skipEnclosedContent().slice(1, -1) + ')';
+	if(this.peek() == "{") {
+		return "(" + this.skipEnclosedContent().slice(1, -1) + ")";
 	} else {
 		return this.readVarName(force);
 	}

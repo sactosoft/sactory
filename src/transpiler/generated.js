@@ -1,8 +1,3 @@
-var Polyfill = require("../polyfill");
-
-var SOURCE = 0;
-var CONTEXT = 1;
-
 /**
  * @class
  * @since 0.132.0
@@ -12,6 +7,7 @@ function Generated(transpiler) {
 	this.scope = {context: 0, children: []};
 	this.fun;
 	this.data = [];
+	this.uses = {};
 }
 
 /**
@@ -53,7 +49,7 @@ Generated.prototype.add = function(type, value, isolate){
  * @since 0.132.0
  */
 Generated.prototype.addSource = Generated.prototype.push = function(value, isolate){
-	return this.add(SOURCE, value, isolate);
+	return this.add(0, value, isolate);
 };
 
 /**
@@ -98,6 +94,14 @@ Generated.prototype.injectFunctionContext = function(scope){
  * @since 0.132.0
  */
 Generated.prototype.addContext = function(){
+	this.addSource(this.getContext());
+};
+
+/**
+ * @since 0.139.0
+ */
+Generated.prototype.getContext = function(){
+	this.uses.context = true;
 	if(this.fun) {
 		var context = "context" + this.fun.context;
 		// check whether the current function is already injected
@@ -108,24 +112,10 @@ Generated.prototype.addContext = function(){
 			}
 		} while(scope = scope.parent);
 		// add actual variable to source
-		this.addSource(this.transpiler[context]);
+		return this.transpiler[context];
 	} else {
-		this.addSource(this.transpiler.context0);
+		return this.transpiler.context0;
 	}
-};
-
-/**
- * @since 0.132.0
- */
-Generated.prototype.addContextArg = function(){
-	this.addSource(this.getContextArg());
-};
-
-/**
- * @since 0.132.0
- */
-Generated.prototype.getContextArg = function(){
-	return this.fun ? this.transpiler["context" + this.fun.context] : this.transpiler.context0;
 };
 
 /**
@@ -180,9 +170,7 @@ Generated.prototype.endScope = function(){
  * @since 0.132.0
  */
 Generated.prototype.toString = function(){
-	return this.data.map(({type, value}) => {
-		return value;
-	}).join("");
+	return this.data.map(a => a.value).join("");
 };
 
 module.exports = Generated;

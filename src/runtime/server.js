@@ -2,6 +2,8 @@
 require("../dom");
 
 var Builder = require("./core");
+var SactoryWidget = require("./widget");
+var Sactory = require("./widgets");
 
 Builder.prototype.event = function(name, value){
 	this.element.ownerDocument.addEventListener(this.element, name, value);
@@ -16,13 +18,11 @@ Object.defineProperty(Node.prototype, "~builder", {
 	}
 });
 
-var Sactory = {};
-
 /**
  * @since 0.36.0
  */
 Sactory.createDocument = function(charset){
-	return global.document = new HTMLDocument();
+	return global.document = new HTMLDocument(charset);
 };
 
 /**
@@ -34,7 +34,7 @@ function Document() {}
 Document.prototype = Object.create(SactoryWidget.Widget.prototype);
 
 Document.prototype.render = function({charset}){
-	return global.document = new HTMLDocument();
+	return global.document = new HTMLDocument(charset);
 };
 
 Document.prototype.render$head = function(){

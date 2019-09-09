@@ -8,5 +8,5 @@ class Button {
 
 <:this>
 	<button>Normal Button</button>
-	<[Button]>Class Widget Button</[btn]>
+	<[Button]>Class Widget Button</[Button]>
 </:this>

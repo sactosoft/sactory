@@ -6,7 +6,7 @@ var SactoryConfig = require("./config");
  */
 function Counter(count){
 	this.init = this.count = count;
-};
+}
 
 /**
  * @since 0.132.0

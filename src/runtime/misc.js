@@ -1,7 +1,5 @@
 var SactoryConfig = require("./config");
-var SactoryContext = require("./context");
 var SactoryObservable = require("./observable");
-var counter = require("./counter");
 
 var Sactory = {};
 
@@ -77,8 +75,8 @@ BuilderObservable.prototype.use = function(bind){
  * @since 0.32.0
  */
 Sactory.check = function(version, warn){
-	var transpiled = version.split('.');
-	var runtime = Sactory.VERSION.split('.');
+	var transpiled = version.split(".");
+	var runtime = Sactory.VERSION.split(".");
 	if(transpiled[0] != runtime[0] || transpiled[1] != runtime[1]) {
 		if(warn) {
 			console.warn(`Code transpiled using version ${version} may not work properly in the current runtime environment using version ${Sactory.VERSION}.`);
@@ -86,6 +84,41 @@ Sactory.check = function(version, warn){
 			throw new Error(`Code transpiled using version ${version} cannot be run in the current runtime environment using version ${Sactory.VERSION}.`);
 		}
 	}
+};
+
+/**
+ * @since 0.139.0
+ */
+Sactory.document = function(context){
+	return context.document || document;
+};
+
+/**
+ * @since 0.139.0
+ */
+Sactory.documentElement = function(context){
+	return Sactory.document(context).documentElement;
+};
+
+/**
+ * @since 0.139.0
+ */
+Sactory.root = function(context, composed){
+	return context.element ? context.element.getRootNode({composed}) : Sactory.document(context);
+};
+
+/**
+ * @since 0.139.0
+ */
+Sactory.head = function(context){
+	return Sactory.document(context).head;
+};
+
+/**
+ * @since 0.139.0
+ */
+Sactory.body = function(context){
+	return Sactory.document(context).body;
 };
 
 /**
@@ -126,7 +159,7 @@ Sactory.inherit = function(target, ...args){
 		}
 	});
 	return target;
-}
+};
 
 /**
  * @since 0.130.0
@@ -185,12 +218,12 @@ Sactory.forEachObject = function(value, fun){
  */
 Sactory.range = function(from, to, fun){
 	if(from < to) {
-		for(var i=from; i<to; i++) {
-			fun(i);
+		while(from < to) {
+			fun(from++);
 		}
 	} else {
-		for(var i=from; i>to; i--) {
-			fun(i);
+		while(from > to) {
+			fun(from--);
 		}
 	}
 };

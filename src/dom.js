@@ -13,25 +13,25 @@ class HTMLParser extends Parser {
 	}
 
 	readTagName() {
-		return this.find([' ', '\n', '\t', '/', '>'], false, false);
+		return this.find([" ", "\n", "\t", "/", ">"], false, false);
 	}
 
 	readAttributeName() {
-		return this.find([' ', '\n', '\t', '/', '>', '='], false, false);
+		return this.find([" ", "\n", "\t", "/", ">", "="], false, false);
 	}
 
 	parseNextTag(document, current) {
-		var text = this.find(['<'], false, false).pre;
+		var text = this.find(["<"], false, false).pre;
 		if(text.length) {
 			current.appendChild(document.createTextNode(Text.replaceEntities(text)));
 		}
 		if(!this.eof()) {
-			if(this.readIf('!')) {
+			if(this.readIf("!")) {
 				// probably a comment
-				this.expect('-');
-				this.expect('-');
+				this.expect("-");
+				this.expect("-");
 				current.appendChild(document.createComment(this.findSequence("-->").slice(0, -3)));
-			} else if(this.readIf('/')) {
+			} else if(this.readIf("/")) {
 				// closing a tag
 				this.readTagName();
 				if(current.parentNode) current = current.parentNode;
@@ -39,14 +39,14 @@ class HTMLParser extends Parser {
 				// opening a tag
 				var last = this.readTagName();
 				var element = document.createElement(last.pre);
-				while(last.match && last.match != '/' && last.match != '>') {
+				while(last.match && last.match != "/" && last.match != ">") {
 					this.skip();
 					last = this.readAttributeName();
 					if(last.pre.length) {
 						var attr = last.pre;
-						if(last.match == '=' || this.skip() && this.readIf('=')) {
+						if(last.match == "=" || this.skip() && this.readIf("=")) {
 							this.skip();
-							var quote = this.readIf('"') || this.readIf("'");
+							var quote = this.readIf("\"") || this.readIf("'");
 							if(quote) {
 								last = this.find([quote], false, false);
 								element.setAttribute(attr, Text.replaceEntities(last.pre));
@@ -61,7 +61,7 @@ class HTMLParser extends Parser {
 					}
 				}
 				current.appendChild(element);
-				if(last.match == '/') {
+				if(last.match == "/") {
 					this.skip();
 					last.match = this.peek();
 				}
@@ -246,7 +246,7 @@ class Document extends Node {
 		return ret;
 	}
 
-	querySelector(value) {
+	querySelector(/*value*/) {
 		return null;
 	}
 
@@ -268,16 +268,16 @@ class Document extends Node {
 			current = created;
 		}
 		create();
-		value.replace(/(?:(\*)|(?:\[([a-zA-Z0-9_-]+)(=(["'])((?:[^\3\\]|\\.)*?)\3)?\])|(?:(#|\.)?([a-zA-Z0-9_-]+)))((?:\s*(>|,)\s*)|\s+)?/g, (_, all, attr, hasValue, quote, value, type, name, inheritance, itype) => {
+		value.replace(/(?:(\*)|(?:\[([a-zA-Z0-9_-]+)(=(["'])((?:[^\3\\]|\\.)*?)\4)?\])|(?:(#|\.)?([a-zA-Z0-9_-]+)))((?:\s*(>|,)\s*)|\s+)?/g, (_, all, attr, hasValue, quote, value, type, name, inheritance, itype) => {
 			if(!all) {
 				if(attr) current.attributes[attr] = hasValue ? value.replace(new RegExp("\\\\" + quote, "g"), quote) : null;
-				else if(type == '#') current.id = name;
-				else if(type == '.') current.classes.push(name);
+				else if(type == "#") current.id = name;
+				else if(type == ".") current.classes.push(name);
 				else current.tagName = name;
 			}
 			if(inheritance) {
-				if(itype == ',') create()
-				else if(itype == '>') create(true);
+				if(itype == ",") create();
+				else if(itype == ">") create(true);
 				else create(false);
 			}
 		});
@@ -294,7 +294,7 @@ class Document extends Node {
 
 class HTMLDocument extends Document {
 
-	constructor() {
+	constructor(charset = "UTF-8") {
 		super();
 		this.ownerDocument = this;
 		this.documentElement = this.appendChild(this.createElement("html"));
@@ -305,7 +305,7 @@ class HTMLDocument extends Document {
 		this.scriptElement = null;
 		this.scriptElementAnchor = this.head.appendChild(this.createTextNode(""));
 		this.eventsElement = null;
-		this.characterSet = "UTF-8";
+		this.characterSet = charset;
 		this.events = [];
 	}
 
@@ -420,8 +420,8 @@ function createStyleProxy(element) {
 
 	function generateMap() {
 		var ret = {};
-		(element.getAttribute("style") || "").split(';').forEach(a => {
-			var i = a.indexOf(':');
+		(element.getAttribute("style") || "").split(";").forEach(a => {
+			var i = a.indexOf(":");
 			if(i != -1) ret[a.substring(0, i)] = a.substr(i + 1);
 		});
 		return ret;
@@ -437,7 +437,7 @@ function createStyleProxy(element) {
 			else delete map[hyphenate(prop)];
 			var style = "";
 			for(var key in map) {
-				style += key + ':' + map[key] + ';';
+				style += key + ":" + map[key] + ";";
 			}
 			element.setAttribute("style", style);
 		}
@@ -592,9 +592,9 @@ class Element extends Document {
 		this.setAttribute("value", value);
 	}
 
-	addEventListener(event, listener, options) {}
+	addEventListener(/*event, listener, options*/) {}
 
-	removeEventListener(event, listener, options) {}
+	removeEventListener(/*event, listener, options*/) {}
 
 	render() {
 		return this.ownerDocument.renderElement(this);
@@ -613,7 +613,7 @@ class Text extends Document {
 		return Node.TEXT_NODE;
 	}
 
-	cloneNode(deep) {
+	cloneNode() {
 		return new Text(this.textContent, this.ownerDocument);
 	}
 
@@ -638,7 +638,7 @@ class Comment extends Document {
 		return Node.COMMENT_NODE;
 	}
 
-	cloneNode(deep) {
+	cloneNode() {
 		return new Comment(this.textContent, this.ownerDocument);
 	}
 

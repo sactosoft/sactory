@@ -55,7 +55,7 @@ Observable.prototype.addDependencies = function(dependencies, bind){
  * @since 0.129.0
  */
 Observable.prototype.addMaybeDependencies = function(dependencies, bind){
-	this.addDependencies(dependencies.filter(Sactory.isObservable));
+	this.addDependencies(dependencies.filter(Sactory.isObservable), bind);
 };
 
 /**
