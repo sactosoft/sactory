@@ -1,0 +1,19 @@
+var data = [
+	{name: "John"},
+	{name: "Mark"},
+	{name: "Jesus"}
+];
+
+<:this>
+	<section>
+		foreach(data as {name: firstName}) {
+			<p>${firstName}</p>
+		}
+	</section>
+
+	<section>
+		foreach(data as key: value) {
+			<p>${key}: ${JSON.stringify(value)}</p>
+		}
+	</section>
+</:this>

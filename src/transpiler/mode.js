@@ -412,8 +412,8 @@ LogicMode.prototype.parseLogic = function(expected, type, closing){
 						rest = parser.input.substr(parser.index);
 					}
 					if(expr) {
-						var column = rest.indexOf(":");
-						if(column == -1) {
+						var key, column = rest.indexOf(":");
+						if(column == -1 || (key = rest.substring(0, column)).indexOf("{") != -1 || key.indexOf("[") != -1) {
 							// divided in 4 parts so it can be modified later
 							statement.ref.a = this.source.addIsolatedSource(this.transpiler.feature("forEachArray") + "(")
 							statement.ref.b = this.source.addIsolatedSource(expr);
@@ -427,7 +427,7 @@ LogicMode.prototype.parseLogic = function(expected, type, closing){
 						} else {
 							// object
 							statement.type = part.type = "object-foreach";
-							rest = rest.substring(0, column) + "," + rest.substr(column + 1);
+							rest = key + "," + rest.substr(column + 1);
 							this.source.addSource(`${this.transpiler.feature("forEachObject")}(${expr}, ${this.es6 ? `(${rest}) =>` : `function(${rest})`}`);
 						}
 					} else {
