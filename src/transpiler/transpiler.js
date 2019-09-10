@@ -1166,14 +1166,16 @@ Transpiler.prototype.transpile = function(input){
 		}
 	}
 	if(this.options.before) this.before += this.options.before;
+	if(this.options.versionCheck) this.before += `${this.runtime}.check("${v}");`;
 	if(this.source.uses.chain) this.before += `var ${this.chain}=${this.runtime}.chain;`;
 	if(this.inheritCount) this.before += `var ${this.inheritance}=[];`;
-	if(this.source.uses.context || this.options.scope || this.options.anchor || this.options.bind) this.before += `var ${this.context0}={};`;
-	if(this.options.versionCheck) this.before += `${this.runtime}.check("${v}");`;
-
-	if(this.options.scope) this.before += `${this.context0}.element=${this.options.scope};`;
-	if(this.options.anchor) this.before += `${this.context0}.anchor=${this.options.anchor};`;
-	if(this.options.bind) this.before += `${this.context0}.bind=${this.options.bind};`;
+	if(this.source.uses.context) {
+		let data = [];
+		if(this.options.scope) data.push(`element:${this.options.scope}`);
+		if(this.options.anchor) data.push(`anchor:${this.options.anchor}`);
+		if(this.options.bind) data.push(`bind:${this.options.bind}`);
+		this.before += `var ${this.context0}={${data.join(",")}};`;
+	}
 
 	if(this.options.after) this.after += this.options.after;
 	if(!noenv) this.after += "}.bind(this));";

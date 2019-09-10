@@ -294,7 +294,7 @@ class Document extends Node {
 
 class HTMLDocument extends Document {
 
-	constructor(charset = "UTF-8") {
+	constructor() {
 		super();
 		this.ownerDocument = this;
 		this.documentElement = this.appendChild(this.createElement("html"));
@@ -305,7 +305,7 @@ class HTMLDocument extends Document {
 		this.scriptElement = null;
 		this.scriptElementAnchor = this.head.appendChild(this.createTextNode(""));
 		this.eventsElement = null;
-		this.characterSet = charset;
+		this.characterSet = "UTF-8";
 		this.events = [];
 	}
 

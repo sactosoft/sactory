@@ -33,17 +33,12 @@ function evalScripts() {
 			namespace: id,
 			mode: element.getAttribute("mode"),
 			modeAttributes: attributes,
-			es6
+			es6,
+			before: `var $$script=document.querySelector("[data-sactory-from='${id}']");`,
+			element: "$$script&&$$script.parentNode",
+			anchor: "$$script&&$$script.nextSibling"
 		});
-		var result = transpiler.transpile(element.textContent);
-		var currentScript = transpiler.nextVarName();
-		script.textContent =
-			result.source.before +
-			`var ${currentScript}=document.querySelector("[data-sactory-from='${id}']");` +
-			`${result.variables.context0}.element=${currentScript}&&${currentScript}.parentNode;` +
-			`${result.variables.context0}.anchor=${currentScript}&&${currentScript}.nextSibling;` +
-			result.source.contentOnly + 
-			result.source.after;
+		script.textContent = transpiler.transpile(element.textContent);
 		document.head.appendChild(script);
 	});
 }

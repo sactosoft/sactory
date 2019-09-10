@@ -19,32 +19,12 @@ Object.defineProperty(Node.prototype, "~builder", {
 });
 
 /**
- * @since 0.36.0
- */
-Sactory.createDocument = function(charset){
-	return global.document = new HTMLDocument(charset);
-};
-
-/**
- * @class
  * @since 0.134.0
  */
-function Document() {}
+function document() {
+	return new HTMLDocument();
+}
 
-Document.prototype = Object.create(SactoryWidget.Widget.prototype);
-
-Document.prototype.render = function({charset}){
-	return global.document = new HTMLDocument(charset);
-};
-
-Document.prototype.render$head = function(){
-	return this.element.head;
-};
-
-Document.prototype.render$body = function(){
-	return this.element.body;
-};
-
-Object.defineProperty(Sactory.widgets, "document", {value: Document});
+Object.defineProperty(Sactory.widgets, "document", {value: document});
 
 module.exports = Sactory;

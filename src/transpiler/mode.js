@@ -722,11 +722,11 @@ SourceCodeMode.prototype.next = function(match){
 				let tail = this.source.tail();
 				let index;
 				let previous = () => {
-					let beforeSpace = index;
+					var beforeSpace = index;
 					while(index < tail.value.length && /\s/.test(tail.value.charAt(tail.value.length - index - 1))) {
 						index++;
 					}
-					let prevStart = index;
+					var prevStart = index;
 					while(index < tail.value.length && /[a-zA-Z0-9_$]/.test(tail.value.charAt(tail.value.length - index - 1))) {
 						index++;
 					}
@@ -1096,7 +1096,7 @@ SSBMode.prototype.parseImpl = function(pre, match, handle, eof){
 						let column = current.value.indexOf(":");
 						if(column != -1) {
 							let transpiler = this.transpiler;
-							let value = this.current.slice(i + 1);
+							value = this.current.slice(i + 1);
 							value.unshift({text: true, value: current.value.substr(column + 1)});
 							current.value = current.value.substring(0, column);
 							this.current = this.current.slice(0, i + 1);
