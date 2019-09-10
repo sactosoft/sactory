@@ -102,6 +102,17 @@ Sactory.getWidget = function(name, registry, ref = {}){
 };
 
 /**
+ * @since 0.139.0
+ */
+Sactory.getFunctionWidget = function(name, registry, ref){
+	if(typeof name == "function") {
+		return name;
+	} else {
+		return Sactory.getWidget(name, registry, ref);
+	}
+};
+
+/**
  * Gets a list with the names of every registered widget.
  * @since 0.73.0
  */

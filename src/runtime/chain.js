@@ -195,7 +195,7 @@ chain.updateImpl = function(context, [attrs = [], iattrs, sattrs, widgetCheck, n
 	
 	if(!updatedElement) {
 		var widget, ref = { name: tagNameString || tagName };
-		if((widgetCheck === undefined || widgetCheck) && ((widget = typeof tagName == "function" && tagName) || (widget = SactoryWidget.getWidget(tagName, context.registry, ref)))) {
+		if(widgetCheck !== false && (widget = SactoryWidget.getFunctionWidget(tagName, context.registry, ref))) {
 			var slotRegistry = registry.sub(ref.name, true);
 			var newContext = SactoryContext.newContext(context, {element: null, anchor: null, registry: slotRegistry});
 			if(widget.prototype && widget.prototype.render) {
