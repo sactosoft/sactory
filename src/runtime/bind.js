@@ -129,7 +129,8 @@ Sactory.bind = function(context, dependencies, maybeDependencies, fun){
 	var currentBind = (context.bind || Sactory.bindFactory).fork("bind");
 	var currentAnchor = null;
 	var subscribe = !context.bind ? () => {} : subscriptions => context.bind.subscribe(subscriptions);
-	var reload = () => fun(SactoryContext.newBindContext(context, currentBind, currentAnchor));
+	var args = dependencies.concat(maybeDependencies);
+	var reload = () => fun(SactoryContext.newBindContext(context, currentBind, currentAnchor), args);
 	if(context.element) {
 		currentAnchor = Sactory.anchor(context);
 		/* debug:

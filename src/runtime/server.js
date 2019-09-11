@@ -2,7 +2,6 @@
 require("../dom");
 
 var Builder = require("./core");
-var SactoryWidget = require("./widget");
 var Sactory = require("./widgets");
 
 Builder.prototype.event = function(name, value){

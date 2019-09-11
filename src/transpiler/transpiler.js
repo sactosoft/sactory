@@ -636,6 +636,7 @@ Transpiler.prototype.open = function(){
 							create = false;
 							break;
 						case "slot": {
+							if(!arg) arg = "";
 							let column = arg.indexOf(",");
 							if(column == -1) {
 								slotName = arg.trim();
@@ -745,6 +746,8 @@ Transpiler.prototype.open = function(){
 				currentClosing.unshift("}");
 			}
 
+			this.options.es6 = true;
+
 			if(tagName == ":bind" || tagName == ":unbind") {
 
 				let str = value => Array.isArray(value) ? value.join(", ") : (value || "");
@@ -753,13 +756,20 @@ Transpiler.prototype.open = function(){
 				this.source.addContext();
 				this.source.addSource(`, [${str(dattributes.to)}], [${str(dattributes["maybe-to"])}], `);
 				if(this.options.es6) {
-					this.source.addContext();
-					this.source.push(" => {");
+					if(dattributes.as) {
+						let as = dattributes.as;
+						if(Array.isArray(as)) as = `[${as.join(", ")}]`;
+						else if(as.charAt(0) != "[" || as.charAt(as.length - 1) != "]") as = `[${as}]`;
+						this.source.addSource(`(${this.source.getContext()}, ${this.value}) => {var ${as}=${this.value}.map(${this.runtime}.value);`);
+					} else {
+						this.source.addSource(`${this.source.getContext()} => {`);
+					}
 					currentClosing.unshift("})");
 				} else {
-					this.source.addSource("function(");
-					this.source.addContext();
-					this.source.addSource("){");
+					if(dattributes.as) {
+						this.parser.error("Attribute `as` can only be used when transpiling es6 mode.");
+					}
+					this.source.addSource(`function(${this.source.getContext()}){`);
 					currentClosing.unshift("}.bind(this))");
 				}
 
