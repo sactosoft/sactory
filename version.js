@@ -1,13 +1,4 @@
-var version = require("./package.json").version;
-var splitted = version.split(".");
+var { version } = require("./package.json");
+var [ major, minor, patch ] = version.split(".").map(v => parseInt(v));
 
-function get(i) {
-	return parseInt(splitted[i]);
-}
-
-module.exports = {
-	version: version,
-	major: get(0),
-	minor: get(1),
-	patch: get(2)
-};
+module.exports = { version, major, minor, patch };
