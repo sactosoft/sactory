@@ -750,8 +750,6 @@ Transpiler.prototype.open = function(){
 				currentClosing.unshift("}");
 			}
 
-			this.options.es6 = true;
-
 			if(tagName == ":bind" || tagName == ":unbind") {
 
 				let str = value => Array.isArray(value) ? value.join(", ") : (value || "");

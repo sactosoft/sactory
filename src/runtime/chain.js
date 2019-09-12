@@ -370,7 +370,7 @@ chain.forms = function(context){
 /**
  * @since 0.60.0
  */
-chain.appendTo = function(context, parent){
+chain.appendTo = function(context, parentNode){
 	if(context.top) {
 		// the data is registered as a child of the bind context only if the `top` property is true,
 		// this is because only the direct children should be removed from the parent when the bind is rolled back.
@@ -384,9 +384,9 @@ chain.appendTo = function(context, parent){
 			context.bind.appendChild(context.element);
 		}
 	}
-	if(context.parentAnchor && context.parentAnchor.parentNode === parent) parent.insertBefore(context.element, context.parentAnchor);
-	else parent.appendChild(context.element);
-	if(context.element["~builder"] && context.element["~builder"].events.append) context.element["~builder"].dispatchEvent("append", {bubbles: false});
+	if(context.parentAnchor && context.parentAnchor.parentNode === parentNode) parentNode.insertBefore(context.element, context.parentAnchor);
+	else parentNode.appendChild(context.element);
+	if(context.element["~builder"] && context.element["~builder"].events.append) context.element["~builder"].dispatchEvent("append", {bubbles: false, detail: {parentNode}});
 };
 
 /**

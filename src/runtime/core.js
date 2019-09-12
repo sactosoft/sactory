@@ -579,7 +579,7 @@ Sactory.prototype.event = function(name, value, bind){
 			if(BuilderPolyfill.contains(element.ownerDocument, element)) {
 				append.call(element, event, element);
 			} else {
-				var parent = this.parentNode;
+				var parent = event.detail.parentNode;
 				while(parent.parentNode) parent = parent.parentNode;
 				parent["~builder"].eventImpl("append", listener, options, bind);
 			}
@@ -844,19 +844,20 @@ if(Object.getOwnPropertyDescriptor(Element.prototype, "classList")) {
 
 }
 
-if(typeof Event == "function") {
+if(typeof CustomEvent == "function") {
 
-	Sactory.prototype.dispatchEvent = function(name, {bubbles, cancelable}){
-		var event = new Event(name, {bubbles, cancelable});
+	Sactory.prototype.dispatchEvent = function(name, {bubbles, cancelable, detail}){
+		var event = new CustomEvent(name, {bubbles, cancelable, detail});
 		this.element.dispatchEvent(event);
 		return event;
 	};
 
 } else {
 
-	Sactory.prototype.dispatchEvent = function(name, {bubbles, cancelable}){
+	Sactory.prototype.dispatchEvent = function(name, {bubbles, cancelable, detail}){
 		var event = document.createEvent("Event");
 		event.initEvent(name, bubbles, cancelable);
+		event.detail = detail;
 		this.element.dispatchEvent(event);
 		return event;
 	};
