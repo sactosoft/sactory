@@ -41,8 +41,6 @@ function Mode(transpiler, parser, source, attributes) {
 	this.parser = parser;
 	this.source = source;
 	this.runtime = transpiler.runtime;
-	this.arguments = transpiler.arguments;
-	this.context = transpiler.context;
 	this.es6 = transpiler.options.es6;
 	this.attributes = attributes;
 }

@@ -68,6 +68,13 @@ Transpiler.prototype.nextId = function(){
 };
 
 /**
+ * @since 0.62.0
+ */
+Transpiler.prototype.nextVar = function(){
+	return String.fromCharCode(0x561 + this.count++ % 39);
+};
+
+/**
  * @since 0.78.0
  */
 Transpiler.prototype.nextVarName = function(){
@@ -93,6 +100,14 @@ Transpiler.prototype.nextLatinVarName = function(){
 		num = Math.floor((num - t) / 36);
 	}
 	return "$_" + s;
+};
+
+/**
+ * @since 0.62.0
+ */
+Transpiler.prototype.warn = function(message, position){
+	if(!position) position = this.parser.position;
+	this.warnings.push({message, position});
 };
 
 /**
@@ -153,7 +168,6 @@ Transpiler.prototype.parseCode = function(input, parentParser){
 	var maybeObservables = mode.maybeObservables ? uniq(mode.maybeObservables) : [];
 	var ret = {
 		source, observables, maybeObservables,
-		toValue: () => observables.length || maybeObservables.length ? `${this.feature("coff")}(${ret.toSpreadValue()})${observables.length ? `.d(${this.arguments}, ${this.context}, ${observables.join(", ")})` : ""}${maybeObservables.length ? `.m(${this.arguments}, ${this.context}, ${maybeObservables.join(", ")})` : ""}` : source,
 		toAttrValue: () => observables.length || maybeObservables.length ? `${this.feature("bo")}(${ret.toSpreadValue()}, [${observables.join(", ")}]${maybeObservables.length ? `, [${maybeObservables.join(", ")}]` : ""})` : source,
 		toSpreadValue: () => this.options.es6 ? `() => ${source}` : `function(){return ${source}}.bind(this)`
 	};
@@ -531,7 +545,7 @@ Transpiler.prototype.open = function(){
 			});
 			// check inheritance
 			if(!noInheritance) {
-				var inheritance = this.inherit.filter(info => info && ((!info.level || info.level.indexOf(level) != -1) && (!info.whitelist || info.whitelist.indexOf(tagName) != -1))).map(info => `${this.inheritance}[${info.index}]`);
+				var inheritance = this.inherit.filter(info => info && ((!info.level || info.level.indexOf(level) != -1) && (!info.whitelist || info.whitelist.indexOf(tagName) != -1))).map(info => info.index);
 				return inheritance.length ? this.feature("inherit") + "(" + ret + ", " + inheritance.join(", ") + ")" : ret;
 			} else {
 				return ret;
@@ -928,11 +942,10 @@ Transpiler.prototype.open = function(){
 				if(!inline) {
 
 					if(currentInheritance) {
-						currentInheritance.index = this.inheritCount++;
-						this.source.push(`${this.inheritance}.push(${options(true)});`);
+						this.source.push(`var ${currentInheritance.index = this.nextVarName()}=${options(true)};`);
 					} else if(currentNamespace) {
-						currentInheritance = {index: this.inheritCount++};
-						this.source.push(`${this.inheritance}.push([,,,,${currentNamespace}]);`);
+						currentInheritance = {index: this.nextVarName()};
+						this.source.push(`var ${currentInheritance.index}=[,,,,${currentNamespace}];`);
 					}
 
 				}
@@ -1052,16 +1065,6 @@ Transpiler.prototype.stringifyAttribute = function(attr){
 };
 
 /**
- * @since 0.129.0
- */
-Transpiler.prototype.makeObservable = function(expr, observables, maybeObservables){
-	var ret = `${this.feature("coff")}(${this.options.es6 ? `() => ${expr}` : `function(){return ${expr}}.bind(this)`})`;
-	if(observables.length) ret += `.d(${this.arguments}, ${this.context}, [${observables.join(", ")}])`;
-	if(maybeObservables.length) ret += `.m(${this.arguments}, ${this.context}, [${maybeObservables.join(", ")}])`;
-	return ret;
-};
-
-/**
  * @since 0.67.0
  */
 Transpiler.prototype.feature = function(name){
@@ -1075,21 +1078,6 @@ Transpiler.prototype.feature = function(name){
 Transpiler.prototype.chainFeature = function(name){
 	this.features["chain." + name] = true;
 	return this.chain + "." + name;
-};
-
-/**
- * @since 0.62.0
- */
-Transpiler.prototype.nextVar = function(){
-	return String.fromCharCode(0x561 + this.count++ % 39);
-};
-
-/**
- * @since 0.62.0
- */
-Transpiler.prototype.warn = function(message, position){
-	if(!position) position = this.parser.position;
-	this.warnings.push({message, position});
 };
 
 /**
@@ -1108,8 +1096,6 @@ Transpiler.prototype.transpile = function(input){
 	this.chain = this.nextVar();
 	this.context0 = this.nextVar();
 	this.context1 = this.nextVar();
-	this.arguments = this.nextVar();
-	this.inheritance = this.nextVar();
 	this.value = this.nextVar();
 	this.className = this.nextVar();
 	this.unit = this.nextVar();
@@ -1121,7 +1107,6 @@ Transpiler.prototype.transpile = function(input){
 	
 	this.tags = [];
 	this.inherit = [];
-	this.inheritCount = 0;
 	this.closing = [];
 	this.modes = [];
 
@@ -1180,7 +1165,6 @@ Transpiler.prototype.transpile = function(input){
 	if(this.options.before) this.before += this.options.before;
 	if(this.options.versionCheck) this.before += `${this.runtime}.check("${v}");`;
 	if(this.source.uses.chain) this.before += `var ${this.chain}=${this.runtime}.chain;`;
-	if(this.inheritCount) this.before += `var ${this.inheritance}=[];`;
 	if(this.source.uses.context) {
 		let data = [];
 		if(this.options.scope) data.push(`element:${this.options.scope}`);
@@ -1215,9 +1199,7 @@ Transpiler.prototype.transpile = function(input){
 			runtime: this.runtime,
 			chain: this.chain,
 			context0: this.context0,
-			context1: this.context1,
-			arguments: this.arguments,
-			inheritance: this.inheritance
+			context1: this.context1
 		},
 		scope: this.options.scope,
 		sequence: this.count,
