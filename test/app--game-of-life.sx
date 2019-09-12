@@ -85,7 +85,7 @@ function stop() {
 		foreach(rows as row) {
 			<tr>
 				foreach(row as cell) {
-					<td ~class:alive=*cell +click={*cell=true} +mouseenter={if(*pressed)*cell=true} />
+					<td ~class:alive=*cell +click={{*cell=true}} +mouseenter={{if(*pressed)*cell=true}} />
 				}
 			</tr>
 		}

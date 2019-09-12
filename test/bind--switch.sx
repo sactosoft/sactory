@@ -1,8 +1,8 @@
 var count = &0;
 
 <:this>
-	<button +click={*count++}>count++</button>
-	<button +click={*count--}>count--</button>
+	<button +click={{*count++}}>count++</button>
+	<button +click={{*count--}}>count--</button>
 	<hr />
 	switch(*count) {
 		case 0:

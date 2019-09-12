@@ -1,7 +1,7 @@
 var value = &["b"];
 
 <:this>
-	<button +click={*value=["b"]}>reset</button>
+	<button +click={{*value=["b"]}}>reset</button>
 	<hr />
 	<select multiple *value=value>
 		<option value="a">A</option>

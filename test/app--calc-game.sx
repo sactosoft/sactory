@@ -56,13 +56,13 @@ document.$$on("keyup:key.backspace", event => remove());
 		<div class="row">
 			foreach(to 3 as j) {
 				var number = i * 3 + j + 1;
-				<button +click={ add(number) }>${number}</button>
+				<button +click={{add(number)}}>${number}</button>
 			}
 		</div>
 	}
 	<div class="row">
 		<button +click=invert>±</button>
-		<button +click={ add(0) }>0</button>
+		<button +click={{add(0)}}>0</button>
 		<button +click=remove>&larr;</button>
 	</div>
 

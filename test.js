@@ -184,9 +184,9 @@ function format(num){
 		<div class="buttons" &margin-top="4px">
 			&bull;&bull;&bull;
 			<button +click=testAll>run all</button>
-			<button +click={window.location.reload()}>reload</button>
-			<button +click={*es6=true} @disabled=*es6>es6</button>
-			<button +click={*es6=false} @disabled=!*es6>es5 (transpiled)</button>
+			<button +click={{window.location.reload()}}>reload</button>
+			<button +click={{*es6=true}} @disabled=*es6>es6</button>
+			<button +click={{*es6=false}} @disabled=!*es6>es5 (transpiled)</button>
 		</div>
 	</div>
 	<table class="container">
@@ -216,8 +216,8 @@ function format(num){
 									<td :ref=outcome>NONE</td>
 									<td class="buttons">
 										<button +click=run>run</button>
-										<button +click={window.open("https://sactory.github.io/sandbox#" + btoa(JSON.stringify({version: "${version}", source: {js: info.source}})))}>edit</button>
-										<button +click={source(info)}>source</button>
+										<button +click={{window.open("https://sactory.github.io/sandbox#" + btoa(JSON.stringify({version: "${version}", source: {js: info.source}})))}}>edit</button>
+										<button +click={{source(info)}}>source</button>
 									</td>
 								}
 							</tr>

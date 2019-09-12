@@ -22,7 +22,7 @@ var remove = id => *data.splice(*data.findIndex(a => a.id == id), 1);
 		foreach(*data as {id, content}) {
 			<tr>
 				<td ~text=content />
-				<td +click={remove(id)}>&times;</td>
+				<td +click={{remove(id)}}>&times;</td>
 			</tr>
 		}
 	</table>

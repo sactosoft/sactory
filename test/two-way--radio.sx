@@ -1,7 +1,7 @@
 var value = &"b";
 
 <:this>
-	<button +click={*value="b"}>reset</button>
+	<button +click={{*value="b"}}>reset</button>
 	<hr />
 	<input value="a" *radio=value /> A
 	<input value="b" *radio=value /> B

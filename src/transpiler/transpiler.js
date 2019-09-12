@@ -353,9 +353,13 @@ Transpiler.prototype.open = function(){
 					this.parser.parseTemplateLiteral = null;
 					var value = this.parser.readAttributeValue();
 					var parsed = this.parseCode(value);
-					if(attr.type == "+") {
-						var source = parsed.source;
+					if(parsed.source.substr(0, 2) == "{{" && parsed.source.slice(-2) == "}}") {
+						let source = parsed.source.slice(1, -1);
+						attr.value = this.options.es6 ? `(event, target) => ${source}` : `function(event, target)${source}.bind(this)`;
+					} else if(attr.type == "+") {
+						let source = parsed.source;
 						if(source.charAt(0) == "{" && source.charAt(source.length - 1) == "}") {
+							this.warn("The `{ ... }` syntax for functions as attribute values is deprecated. Use the `{{ ... }}` syntax instead.");
 							attr.value = this.options.es6 ? `(event, target) => ${source}` : `function(event, target)${source}.bind(this)`;
 						} else {
 							attr.value = source;
