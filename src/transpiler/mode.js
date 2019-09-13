@@ -499,7 +499,7 @@ LogicMode.prototype.parse = function(handle, eof){
 				this.endChainable();
 				this.source.addSource(trimmed);
 				let statement = this.statements.pop();
-				statement.endRef = statement.parts[statement.parts.length - 1].close = this.source.addIsolatedSource("}");
+				statement.endRef = statement.parts[statement.parts.length - 1].close = this.source.addIsolatedSource("}" + statement.end);
 				this.popped.push(statement);
 				this.onStatementEnd(statement);
 			} else {
@@ -515,7 +515,7 @@ LogicMode.prototype.parse = function(handle, eof){
 				this.add("\n");
 				let statement = this.statements.pop();
 				if(!statement.inlineable) this.source.addSource("}");
-				statement.endRef = statement.parts[statement.parts.length - 1].close = this.source.addIsolatedSource("");
+				statement.endRef = statement.parts[statement.parts.length - 1].close = this.source.addIsolatedSource(statement.end);
 				this.popped.push(statement);
 				this.onStatementEnd(statement);
 			} else {
@@ -534,12 +534,7 @@ LogicMode.prototype.onStatementEnd = function(/*statement*/){};
 
 LogicMode.prototype.end = function(){
 	this.popped.forEach(popped => {
-		var bind = !!popped.observables.length || !!popped.maybeObservables.length;
-		if(popped.end.length) {
-			// prepend end if needed
-			popped.endRef.value += popped.end;
-		}
-		if(bind) {
+		if(popped.observables.length || popped.maybeObservables.length) {
 			if(popped.type == "if") {
 				// calculate conditions and remove them from source
 				var conditions = [];
@@ -1002,13 +997,13 @@ SSBMode.prototype.skip = function(){
 };
 
 SSBMode.prototype.start = function(){
-	var args = this.transpiler.className;
+	var args = this.transpiler.value;
 	if(this.attributes.dollar != false) args += ", $";
 	this.add(`${this.transpiler.feature("cabs")}(`);
 	this.source.addContext();
 	this.source.addSource(`, ${this.es6 ? `(${args}) => ` : `function(${args})`}{`);
 	this.add(`var ${this.scopes[0]}=${this.transpiler.feature("root")}();`);
-	if(this.scoped) this.addScope(this.es6 ? `\`.\${${this.transpiler.className}}\`` : `'.' + ${this.transpiler.className}`);
+	if(this.scoped) this.addScope(this.es6 ? `\`.\${${this.transpiler.value}}\`` : `'.' + ${this.transpiler.value}`);
 	else if(this.scope) this.addScope(JSON.stringify("." + this.scope));
 };
 
@@ -1207,7 +1202,7 @@ SSBMode.reparseExprImpl = function(expr, info, transpiler){
 			if(/^[a-zA-Z_$]/.exec(v)) {
 				// it's a variable
 				info.is = true;
-				info.computed += `${transpiler.unit}(${v})`;
+				info.computed += `${transpiler.value}(${v})`;
 			} else {
 				info.computed += v;
 			}
@@ -1224,7 +1219,7 @@ SSBMode.reparseExprImpl = function(expr, info, transpiler){
 SSBMode.reparseExpr = function(expr, transpiler){
 	var info = {
 		runtime: transpiler.runtime,
-		computed: `${transpiler.feature("cu")}(${transpiler.options.es6 ? `${transpiler.unit} =>` : `function(${transpiler.unit}){return`} `,
+		computed: `${transpiler.feature("cu")}(${transpiler.options.es6 ? `${transpiler.value} =>` : `function(${transpiler.value}){return`} `,
 		is: false,
 		op: 0
 	};

@@ -1097,8 +1097,6 @@ Transpiler.prototype.transpile = function(input){
 	this.context0 = this.nextVar();
 	this.context1 = this.nextVar();
 	this.value = this.nextVar();
-	this.className = this.nextVar();
-	this.unit = this.nextVar();
 
 	this.tagNames = {};
 	var features = this.features = {};

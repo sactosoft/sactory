@@ -1,0 +1,7 @@
+<style>
+	foreach(to 12 as i) {
+		.col-${i} {
+			width: calc(100% / ${i});
+		}
+	}
+</style>
