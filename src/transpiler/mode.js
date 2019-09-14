@@ -375,14 +375,14 @@ LogicMode.prototype.parseLogic = function(expected, type, closing){
 					part.maybeObservables.push(...parsed.maybeObservables);
 					return parsed.source;
 				};
-				var skipped = this.parser.skipImpl({});
+				var skipped = this.parser.skipImpl({comments: true});
 				if(this.parser.peek() != "(") this.parser.error("Expected '(' after '" + expected + "'.");
 				var position = this.parser.position;
 				var source = reparse(this.parser.skipEnclosedContent(), this.parser);
 				if(expected == "foreach") {
 					var parser = new Parser(source.slice(1, -1), position);
-					parser.options = {comments: true, strings: true, regexp: true};
-					skipped += parser.skipImpl({comments: true, strings: false});
+					Polyfill.assign(parser.options, {comments: true, strings: true, regexp: true});
+					skipped += parser.skipImpl({comments: true});
 					var expr, from, to;
 					// `from` and `to` need to be reparsed searching for observables as `from` and `to`
 					// are only keywords in this specific context
@@ -436,7 +436,7 @@ LogicMode.prototype.parseLogic = function(expected, type, closing){
 				// without condition
 				part.decl = this.source.addIsolatedSource(expected);
 			}
-			this.source.addSource(this.parser.skipImpl({}));
+			this.source.addSource(this.parser.skipImpl({comments: true}));
 			if(!(statement.inline = part.inline = !this.parser.readIf("{")) || !statement.inlineable) this.source.addSource("{");
 			part.declEnd = this.source.addIsolatedSource("");
 			this.statements.push(statement);
@@ -607,7 +607,7 @@ function SourceCodeMode(transpiler, parser, source, attributes) {
 }
 
 SourceCodeMode.getOptions = function(){
-	return {isDefault: true, code: true, regexp: true};
+	return {isDefault: true, code: true, comments: true, strings: true, regexp: true};
 };
 
 SourceCodeMode.prototype = Object.create(BreakpointMode.prototype);
@@ -710,7 +710,7 @@ SourceCodeMode.prototype.next = function(match){
 		}
 		case "&": {
 			if(this.parser.couldStartRegExp() || this.parser.lastKeywordIn("async")) {
-				let space = this.parser.skipImpl({strings: false});
+				let space = this.parser.skipImpl({comments: true});
 				let coff = true;
 				let tail = this.source.tail();
 				let index;
@@ -741,7 +741,7 @@ SourceCodeMode.prototype.next = function(match){
 					if(popped) {
 						// parentheses do match
 						let start = popped.start;
-						this.add(this.parser.skipImpl({strings: false}));
+						this.add(this.parser.skipImpl({comments: true}));
 						if(this.parser.readIf("=")) {
 							// arrow function, start is before the open parenthesis
 							this.parser.expect(">");
@@ -858,7 +858,7 @@ function HTMLMode(transpiler, parser, source, attributes) {
 }
 
 HTMLMode.getOptions = function(){
-	return {comments: false, strings: false};
+	return {};
 };
 
 HTMLMode.prototype = Object.create(OptionalLogicMode.prototype);
@@ -897,7 +897,7 @@ function ScriptMode(transpiler, parser, source, attributes) {
 }
 
 ScriptMode.getOptions = function(){
-	return {comments: false, strings: false, children: false, tags: ["script"]};
+	return {children: false};
 };
 
 ScriptMode.matchesTag = function(tagName){
@@ -972,7 +972,7 @@ function SSBMode(transpiler, parser, source, attributes) {
 }
 
 SSBMode.getOptions = function(){
-	return {strings: true, children: false};
+	return {whitespaces: /[ \t\r]/, comments: true, strings: true, children: false};
 };
 
 SSBMode.matchesTag = function(tagName){
@@ -1088,7 +1088,6 @@ SSBMode.prototype.parseImpl = function(pre, match, handle, eof){
 					if(current.text) {
 						let column = current.value.indexOf(":");
 						if(column != -1) {
-							let transpiler = this.transpiler;
 							value = this.current.slice(i + 1);
 							value.unshift({text: true, value: current.value.substr(column + 1)});
 							current.value = current.value.substring(0, column);
@@ -1096,7 +1095,7 @@ SSBMode.prototype.parseImpl = function(pre, match, handle, eof){
 							this.lastValue(value => this.add(`${scope}.value(${value}`));
 							this.add(",");
 							this.current = value;
-							this.lastValue(value => this.add(value + ");"), value => SSBMode.reparseExpr(value, transpiler));
+							this.lastValue(value => this.add(value + ");"), value => SSBMode.reparseExpr(value, this.transpiler));
 							break;
 						}
 					}
@@ -1170,9 +1169,9 @@ SSBMode.prototype.chainAfter = function(){
 
 SSBMode.reparseExprImpl = function(expr, info, transpiler){
 	var parser = new Parser(expr);
-	parser.options = {comments: true, strings: true};
+	Polyfill.assign(parser.options, {comments: true, strings: true});
 	function skip() {
-		var skipped = parser.skipImpl({strings: false, comments: true});
+		var skipped = parser.skipImpl({comments: true, strings: false});
 		if(skipped) info.computed += skipped;
 	}
 	function readSign() {
@@ -1236,7 +1235,7 @@ function HTMLCommentMode(transpiler, parser, source, attributes) {
 }
 
 HTMLCommentMode.getOptions = function(){
-	return {comments: false, strings: false, children: false};
+	return {children: false};
 };
 
 HTMLCommentMode.prototype = Object.create(TextExprMode.prototype);

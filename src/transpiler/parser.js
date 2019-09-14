@@ -1,3 +1,5 @@
+var Polyfill = require("../polyfill");
+
 /**
  * @class
  */
@@ -23,6 +25,14 @@ ParserError.prototype = Object.create(Error.prototype, {
 
 ParserError.prototype.name = "ParserError";
 
+const defaultOptions = {
+	whitespaces: /\s/,
+	comments: false,
+	inlineComments: true,
+	strings: false,
+	regexp: false
+};
+
 /**
  * Parses an input without consuming it.
  * @class
@@ -35,7 +45,7 @@ function Parser(input, from) {
 	this.parseTemplateLiteral = null;
 	this.parentheses = [];
 	this.lastParenthesis = undefined;
-	this.options = {};
+	this.options = Polyfill.assign({}, defaultOptions);
 	this.from = from || {};
 }
 
@@ -219,22 +229,23 @@ Parser.prototype.couldStartRegExp = function(){
  * @since 0.19.0
  */
 Parser.prototype.skipImpl = function(options){
+	options = Polyfill.assign({}, defaultOptions, options);
 	var prelast = this.last;
 	var prelastIndex = this.lastIndex;
 	var ret = "";
 	while(!this.eof()) {
 		var next = this.peek();
 		var comment;
-		if(options.whitespaces !== false && /\s/.test(next)) {
+		if(options.whitespaces && options.whitespaces.test(next)) {
 			ret += this.read();
-		} else if(options.comments !== false && next == "/" && ((comment = this.input[this.index + 1]) == "/" && options.inlineComments !== false || comment == "*")) {
+		} else if(options.comments && next == "/" && ((comment = this.input[this.index + 1]) == "/" && options.inlineComments || comment == "*")) {
 			ret += this.read() + this.read() + (comment == "/" ? this.findSequence("\n", false) : this.findSequence("*/", false));
 			this.last = undefined;
-		} else if(options.strings !== false && (next == "\"" || next == "'" || next == "`")) {
+		} else if(options.strings && (next == "\"" || next == "'" || next == "`")) {
 			ret += this.skipString();
 			prelast = this.last;
 			prelastIndex = this.index;
-		} else if(options.regexp === true && next == "/" && this.couldStartRegExp()) {
+		} else if(options.regexp && next == "/" && this.couldStartRegExp()) {
 			ret += this.skipRegExp();
 			prelast = this.last;
 			prelastIndex = this.index;

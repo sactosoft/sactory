@@ -131,7 +131,9 @@ Transpiler.prototype.endMode = function(){
 	var ret = this.modes.pop().parser;
 	ret.end();
 	this.currentMode = this.modes[this.modes.length - 1];
-	if(this.currentMode) this.parser.options = this.currentMode.options;
+	if(this.currentMode) {
+		Polyfill.assign(this.parser.options, this.currentMode.options);
+	}
 	return ret;
 };
 
@@ -278,7 +280,7 @@ Transpiler.prototype.open = function(){
 		var position = this.parser.position;
 		var parser = this.parser;
 		var skipped = "";
-		var skip = () => (skipped = parser.skipImpl({comments: true, strings: false}));
+		var skip = () => (skipped = parser.skipImpl({comments: true}));
 		var create = true; // whether a new element is being created
 		var update = true; // whether the element is being updated, only considered if create is false
 		var append = true; // whether the element should be appended to the current element after its creation
@@ -293,7 +295,6 @@ Transpiler.prototype.open = function(){
 		var iattributes = []; // attributes used at runtime that are created using interpolation syntax
 		var sattributes = []; // variable name of the attributes passed using the spread syntax
 		var newMode = undefined;
-		var currentNamespace = null;
 		var currentInheritance = null;
 		var currentClosing = [];
 		var forms = [];
@@ -470,17 +471,6 @@ Transpiler.prototype.open = function(){
 		if(!next) this.parser.errorAt(position, "Tag was not closed.");
 		parser.index++;
 
-		if(dattributes.namespace) currentNamespace = dattributes.namespace;
-		else if(dattributes.xhtml) currentNamespace = this.runtime + ".NS_XHTML";
-		else if(dattributes.svg) currentNamespace = this.runtime + ".NS_SVG";
-		else if(dattributes.mathml) currentNamespace = this.runtime + ".NS_MATHML";
-		else if(dattributes.xul) currentNamespace = this.runtime + ".NS_XUL";
-		else if(dattributes.xbl) currentNamespace = this.runtime + ".NS_XBL";
-		else if(!computed) {
-			if(tagName == "svg") currentNamespace = this.runtime + ".NS_SVG";
-			else if(tagName == "mathml") currentNamespace = this.runtime + ".NS_MATHML";
-		}
-
 		var options = noInheritance => {
 			var level = ++this.level;
 			var ret = {};
@@ -523,9 +513,6 @@ Transpiler.prototype.open = function(){
 			if(Object.prototype.hasOwnProperty.call(dattributes, "widget")) {
 				ret.widget = dattributes.widget;
 			}
-			if(currentNamespace) {
-				ret.namespace = currentNamespace;
-			}
 			Object.defineProperty(ret, "toString", {
 				enumerable: false,
 				value: function(){
@@ -536,7 +523,7 @@ Transpiler.prototype.open = function(){
 						if(value) str[i] = "[" + value + "]";
 						i++;
 					});
-					["widget", "namespace"].forEach(type => {
+					["widget"].forEach(type => {
 						if(Object.prototype.hasOwnProperty.call(ret, type)) str[i] = ret[type];
 						i++;
 					});
@@ -829,6 +816,11 @@ Transpiler.prototype.open = function(){
 					before.push([this.chainFeature("use"), element]);
 				}
 
+				// new namespace
+				if(dattributes.namespace) {
+					before.push([this.chainFeature("namespace"), dattributes.namespace]);
+				}
+
 				// create or update
 				if(create) {
 					// tagName must be called before options, so it is calculated before attributes
@@ -939,15 +931,8 @@ Transpiler.prototype.open = function(){
 
 				currentClosing.unshift(beforeClosing);
 
-				if(!inline) {
-
-					if(currentInheritance) {
-						this.source.push(`var ${currentInheritance.index = this.nextVarName()}=${options(true)};`);
-					} else if(currentNamespace) {
-						currentInheritance = {index: this.nextVarName()};
-						this.source.push(`var ${currentInheritance.index}=[,,,,${currentNamespace}];`);
-					}
-
+				if(!inline && currentInheritance) {
+					this.source.push(`var ${currentInheritance.index = this.nextVarName()}=${options(true)};`);
 				}
 
 			}

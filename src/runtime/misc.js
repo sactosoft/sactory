@@ -137,18 +137,7 @@ Sactory.unique = function(context, id, fun){
  * @since 0.120.0
  */
 Sactory.inherit = function(target, ...args){
-	// the last two options (widget and namespace) are assigned only if
-	// the target does not have them and the inheritance does
-	for(var i=3; i<5; i++) {
-		if(target[i] === undefined) {
-			args.forEach(arg => {
-				var value = arg[i];
-				if(value !== undefined) target[i] = value;
-			});
-		}
-	}
-	// the first four options are arrays and are merged in reverse so
-	// the more the inherit tag was the less important is
+	// merged in reverse so the first inherit tag is the less important
 	args.reverse().forEach(options => {
 		for(var i=0; i<Math.min(3, options.length); i++) {
 			var option = options[i];

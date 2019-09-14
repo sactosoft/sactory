@@ -88,9 +88,16 @@ chain.clear = function(context){
 };
 
 /**
+ * @since 0.14.0
+ */
+chain.namespace = function(context, namespace){
+	context.namespace = namespace;
+};
+
+/**
  * @since 0.60.0
  */
-chain.updateImpl = function(context, [attrs = [], iattrs, sattrs, widgetCheck, namespace, tagName, tagNameString]){
+chain.updateImpl = function(context, [attrs = [], iattrs, sattrs, widgetCheck, tagName, tagNameString]){
 
 	if(iattrs) {
 		iattrs.forEach(([type, before, names, after, value]) => {
@@ -220,8 +227,10 @@ chain.updateImpl = function(context, [attrs = [], iattrs, sattrs, widgetCheck, n
 			if(slotRegistry.targetSlots[SactoryConst.SL_INPUT]) context.input = slotRegistry.targetSlots[SactoryConst.SL_INPUT].element;
 		} else {
 			var update = element => updatedElement = context.element = context.content = element;
-			if(namespace) {
-				update(context.document.createElementNS(namespace, tagName));
+			if(context.namespace) {
+				update(context.document.createElementNS(context.namespace, tagName));
+			} else if(tagName == "svg") {
+				update(context.document.createElementNS(context.namespace = "http://www.w3.org/2000/svg", tagName));
 			} else {
 				update(context.document.createElement(tagName));
 			}
@@ -284,8 +293,8 @@ chain.update = function(context, options){
  * @since 0.60.0
  */
 chain.create = function(context, tagName, options, tagNameString){
-	options[5] = tagName;
-	options[6] = tagNameString;
+	options[4] = tagName;
+	options[5] = tagNameString;
 	context.anchor = null; // invalidate the current anchor so the children will not use it
 	context.created = true;
 	chain.updateImpl(context, options);
