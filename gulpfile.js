@@ -18,8 +18,8 @@ var debugExp = /\/\* debug: ([\s\S]*?)\*\//g;
 
 function make(filename, className, declare, sources) {
 
-	var header = `var toString=function(){return Object.toString().replace(/Object/,'${className}').replace(/native/,'sactory');};${className}.toString=toString.toString=toString;` +
-		`Object.defineProperty(${className},'VERSION',{value:'${version}'});` +
+	var header = `var toString=function(){return Object.toString().replace(/Object/,'${className}').replace(/native/,'sactory')};` +
+		`${className}.toString=toString.toString=toString;Object.defineProperty(${className},'VERSION',{value:'${version}'});` +
 		`Object.defineProperty(${className},'BUILT',{value:'${new Date().toISOString()}'});`;
 	var reserved = [className, "Widget", "Builder", "Bind", "Observable", "Subscription", "Array", "Color", "RGBColor", "HSLColor", "Parser", "ParserError"];
 

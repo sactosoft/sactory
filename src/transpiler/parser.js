@@ -162,7 +162,9 @@ Parser.prototype.expectSequence = function(seq){
  * @since 0.57.0
  */
 Parser.prototype.lastKeywordAt = function(index, value){
-	return this.input.charAt(index) === value.charAt(value.length - 1) && this.input.substring(index - value.length + 1, index + 1) == value && !/[a-zA-Z0-9_$.]/.test(this.input.charAt(index - value.length));
+	return this.input.charAt(index) === value.charAt(value.length - 1)
+		&& this.input.substring(index - value.length + 1, index + 1) == value
+		&& !/[a-zA-Z0-9_$.]/.test(this.input.charAt(index - value.length));
 };
 
 /**
@@ -203,7 +205,8 @@ Parser.prototype.lastKeywordIn = function(){
  */
 Parser.prototype.lastKeywordIsPlusMinus = function(){
 	if(this.last == "+" || this.last == "-") {
-		return this.input.charAt(this.lastIndex - 1) != this.last || !/[a-zA-Z0-9_$]\s*$/.test(this.input.substring(0, this.lastIndex - 1));
+		return this.input.charAt(this.lastIndex - 1) != this.last
+			|| !/[a-zA-Z0-9_$]\s*$/.test(this.input.substring(0, this.lastIndex - 1));
 	} else {
 		return false;
 	}
@@ -214,11 +217,12 @@ Parser.prototype.lastKeywordIsPlusMinus = function(){
  * @since 0.50.0
  */
 Parser.prototype.couldStartRegExp = function(){
-	return this.last === undefined || !this.last.match(/^[a-zA-Z0-9_$'"`)\].+-]$/) ||
-		this.lastKeywordIn("return", "throw", "typeof", "do", "in", "instanceof", "new", "delete", "else") ||
-		this.last == ")" && this.lastParenthesis && this.lastKeywordAtIn(this.lastParenthesis.lastIndex, "if", "else", "for", "while", "with") ||
-		/\n/.test(this.input.substring(this.lastIndex, this.index)) && this.lastKeywordIn("++", "--", "break", "continue") ||
-		this.lastKeywordIsPlusMinus();
+	return this.last === undefined
+		|| !this.last.match(/^[a-zA-Z0-9_$'"`)\].+-]$/)
+		|| this.lastKeywordIn("return", "throw", "typeof", "do", "in", "instanceof", "new", "delete", "else")
+		|| this.last == ")" && this.lastParenthesis && this.lastKeywordAtIn(this.lastParenthesis.lastIndex, "if", "else", "for", "while", "with")
+		|| /\n/.test(this.input.substring(this.lastIndex, this.index)) && this.lastKeywordIn("++", "--", "break", "continue")
+		|| this.lastKeywordIsPlusMinus();
 };
 
 /**
@@ -276,10 +280,18 @@ Parser.prototype.skipEscapableContent = function(message){
 	while(!this.eof()) {
 		var result = this.find(search, false, false);
 		ret += result.pre;
-		if(!result.match) this.error("Could not find end of " + message() + " started at line " + start.line + " column " + start.column);
-		else if(result.match == "\\") ret += "\\" + this.read(); // skip escaped character
-		else if(result.match == "$" && this.peek() == "{"){ var e = this.skipEnclosedContent().slice(1, -1); ret += "${" + (typeof this.parseTemplateLiteral == "function" ? this.parseTemplateLiteral(e, this) : e) + "}"; }
-		else break;
+		if(!result.match) {
+			this.error(`Could not find end of ${message()} started at line ${start.line} column ${start.column}`);
+		} else if(result.match == "\\") {
+			// skip escaped character
+			ret += "\\" + this.read();
+		} else if(result.match == "$" && this.peek() == "{") {
+			const f = this.parseTemplateLiteral;
+			const enclosed = this.skipEnclosedContent().slice(1, -1);
+			ret += "${" + (typeof f == "function" ? f(enclosed, this) : enclosed) + "}";
+		} else {
+			break;
+		}
 	}
 	return ret + type;
 };
@@ -349,7 +361,8 @@ Parser.prototype.skipEnclosedContent = function(trim){
  * @param {boolean=} force - Whether to throw an error if none of the characters in `search` could be found.
  * @param {boolean=} skip - Whether to call {@link skip} or search the whole input.
  * @returns An object with the data before the match (`pre` property) and the match (`match` property).
- * @throws {ParserError} When a string or a comment is not closed or force is true and none of the given characters could be found.
+ * @throws {ParserError} When a string or a comment is not closed or force is true and none
+ *                       of the given characters could be found.
  */
 Parser.prototype.find = function(search, force, skip){
 	var ret = "";
@@ -390,7 +403,8 @@ Parser.prototype.findSequence = function(sequence, force){
 
 /**
  * Reads from the given regular expression.
- * @param {RegExp} regex - The regular expression that will be executed against the current input. The start of string caret (^) is not inserted automatically.
+ * @param {RegExp} regex - The regular expression that will be executed against the current input.
+ *                         The start of string caret (^) is not inserted automatically.
  * @param {boolean=} force - Indicates whether to return false or throw an error when a result could not be found.
  * @param {function=} message - Optional function lazily evaluated that returns a custom error message.
  * @throws {ParserError} When the force param is true and a result could not be found.

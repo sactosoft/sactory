@@ -247,57 +247,6 @@ Sactory.ready = function(callback){
 Object.defineProperty(Sactory, "isDebug", {
 	value: true
 });
-
-var debugTitle;
-var debugging = false;
-
-var help = "Available commands:\n\
-  bind: Show a map of the whole binding system.\n\
-  help: Show this message.\n\
-"
-
-Object.defineProperty(Sactory, "debug", {
-	get: function(){
-		if(!debugging) {
-			debugging = true;
-			Object.defineProperty(window, "bind", {
-				get: function(){
-					function make(bind) {
-						return {
-							elements: bind.elements,
-							subscriptions: bind.subscriptions,
-							children: bind.children.map(make)
-						};
-					}
-					return make(factory);
-				}
-			});
-			Object.defineProperty(window, "help", {
-				get: function(){
-					console.log(help);
-				}
-			});
-			debugTitle.textContent = box + help + "\n";
-			console.log(help);
-		}
-	}
-});
-
-var box = "\n\n\
-╭─╴ ╭─╮ ╭─╴ ─┬─ ╭─╮ ╭─╮ ╷ ╷ \n\
-╰─╮ ├─┤ │    │  │ │ ├┬╯ ╰┬╯ \n\
-╶─╯ ╵ ╵ ╰─╴  ╵  ╰─╯ ╵╰   ╵  \n\
-";
-
-if(typeof window == "object") {
-	for(var i=26-Sactory.VERSION.length; i>0; i--) {
-		box += " ";
-	}
-	box += "v" + Sactory.VERSION + "\n\n";
-	Sactory.ready(function(){
-		document.insertBefore(debugTitle = document.createComment(box + "Type Sactory.debug in the\nconsole to start debugging.\n\n"), document.documentElement);
-	});
-}
 */
 
 module.exports = Sactory;

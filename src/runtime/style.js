@@ -102,8 +102,11 @@ Sactory.convertStyle = function(root){
 				if(selector.charAt(0) == "@") {
 					var oret = ret;
 					ret = [];
-					if(selector.substr(1, 5) == "media" || selector.substr(1, 8) == "document") compile(selectors, Sactory.select({content: ret}, selectors.join(",")).content, value.value);
-					else compile([], ret, value.value);
+					if(selector.substr(1, 5) == "media" || selector.substr(1, 8) == "document") {
+						compile(selectors, Sactory.select({content: ret}, selectors.join(",")).content, value.value);
+					} else {
+						compile([], ret, value.value);
+					}
 					oret.push({selector: selector, value: ret});
 					ret = oret;
 				} else {
@@ -242,10 +245,11 @@ RGBColor.prototype.toHSL = function(){
 
 };
 
-var multiply = number => Math.round(number * 255);
+const multiply = number => Math.round(number * 255);
+const pad = number => Polyfill.padStart.call(number.toString(16), 2, "0");
 
 RGBColor.prototype.toHexString = function(){
-	return "#" + [this.r, this.g, this.b].map(multiply).map(a => Polyfill.padStart.call(a.toString(16), 2, "0")).join("");
+	return "#" + [this.r, this.g, this.b].map(multiply).map(pad).join("");
 };
 
 RGBColor.prototype.toRGBString = function(){
@@ -346,6 +350,8 @@ HSLColor.from = function(color){
 	else return HSLColor.from(parseColor(color));
 };
 
+const percentage = number => number.slice(0, -1) / 100;
+
 /*
  * @since 0.100.0
  */
@@ -353,20 +359,20 @@ function parseColor(color) {
 	if(color.charAt(0) == "#") {
 		return RGBColor.fromHexString(color.substr(1));
 	} else {
-		var p = color.indexOf("(");
+		const p = color.indexOf("(");
 		if(p > 0) {
-			var type = color.substring(0, p);
-			var values = color.slice(p + 1, -1).split(",");
-			var alpha = values.length > 3 ? +values[3] : undefined;
+			const type = color.substring(0, p);
+			const [a, b, c, d] = color.slice(p + 1, -1).split(",");
+			const alpha = d ? +d : undefined;
 			switch(type) {
 				case "rgb":
 				case "rgba":
-					return new RGBColor(values[0] / 255, values[1] / 255, values[2] / 255, alpha);
+					return new RGBColor(a / 255, b / 255, c / 255, alpha);
 				case "hsl":
 				case "hsla":
-					return new HSLColor(values[0] / 360, values[1].slice(0, -1) / 100, values[2].slice(0, -1) / 100, alpha);
+					return new HSLColor(a / 360, percentage(b), percentage(c), alpha);
 				default:
-					throw new Error("Unknown color format '" + type + "'");
+					throw new Error(`Unknown color format '${type}'`);
 			}
 		} else {
 			return parseTextualColor(color);

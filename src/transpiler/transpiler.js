@@ -114,7 +114,8 @@ Transpiler.prototype.warn = function(message, position){
  * @since 0.16.0
  */
 Transpiler.prototype.startMode = function(mode, attributes){
-	var currentParser = startMode(mode, this, this.parser, this.source, attributes, this.currentMode && this.currentMode.parser);
+	var currentParser = startMode(mode, this, this.parser, this.source, attributes,
+		this.currentMode && this.currentMode.parser);
 	this.currentMode = {
 		name: modeRegistry[mode].name,
 		parser: currentParser,
@@ -223,7 +224,7 @@ Transpiler.prototype.close = function(tagName){
 		// closing a tag, not called as EOF
 		var closeInfo = this.tags.pop();
 		if(closeInfo.tagName && closeInfo.tagName != tagName) {
-			this.parser.errorAt(closeInfo.position, "Tag `" + closeInfo.tagName + "` is not closed properly (used `</" + tagName + ">` instead of `</" + closeInfo.tagName + ">`).");
+			this.parser.errorAt(closeInfo.position, `Tag '${closeInfo.tagName}' is not closed properly (used '</${tagName}>' instead of '</${closeInfo.tagName}>').`);
 		}
 		if(closeInfo.mode) {
 			var mode = this.endMode();
@@ -252,7 +253,7 @@ Transpiler.prototype.open = function(){
 		this.parser.index++;
 		var rest = this.parser.input.substr(this.parser.index);
 		if(Polyfill.startsWith.call(rest, "COMMENT ")) {
-			this.warn("The `<!COMMENT ...>` tag is deprecated. Use `<!// ...` or `<!/* ... */>` instead.");
+			this.warn("The '<!COMMENT ...>' tag is deprecated. Use '<!// ...' or '<!/* ... */>' instead.");
 			this.parser.index += 8;
 			this.source.push("/*" + this.parser.findSequence(">", true).slice(0, -1) + "*/");
 		} else {
@@ -275,7 +276,7 @@ Transpiler.prototype.open = function(){
 			}
 		}
 	} else if(this.currentMode.options.children === false && this.parser.peek() != "#") {
-		throw new Error("Mode " + this.currentMode.name + " cannot have children");
+		throw new Error(`Mode '${this.currentMode.name}' cannot have children.`);
 	} else {
 		var position = this.parser.position;
 		var parser = this.parser;
@@ -330,18 +331,27 @@ Transpiler.prototype.open = function(){
 			};
 			if(this.isSpreadAttribute()) {
 				//TODO assert not optional nor negated
-				sattributes.push({type: attr.type, expr: this.parser.readSingleExpression(false, true), space: skipped});
+				sattributes.push({
+					type: attr.type,
+					expr: this.parser.readSingleExpression(false, true),
+					space: skipped
+				});
 				skip();
 			} else {
 				var content = this.parseAttributeName(false);
 				if(this.parser.readIf("{")) {
-					if(attr.type == ":" || attr.type == "*") this.parser.error("Cannot interpolate this type of attribute.");
+					if(attr.type == ":" || attr.type == "*") {
+						this.parser.error("Cannot interpolate this type of attribute.");
+					}
 					attr.before = content;
 					attr.inner = [];
 					do {
 						var curr, before = skip();
 						if(this.isSpreadAttribute()) {
-							attr.inner.push(curr = {spread: true, expr: this.parser.readSingleExpression(false, true)});
+							attr.inner.push(curr = {
+								spread: true,
+								expr: this.parser.readSingleExpression(false, true)
+							});
 						} else {
 							curr = this.parseAttributeName(true);
 							this.compileAttributeParts(curr);
@@ -350,7 +360,9 @@ Transpiler.prototype.open = function(){
 						curr.beforeValue = before;
 						curr.afterValue = skip();
 					} while((next = this.parser.read()) == ",");
-					if(next != "}") this.parser.error("Expected '}' after interpolated attributes list.");
+					if(next != "}") {
+						this.parser.error("Expected '}' after interpolated attributes list.");
+					}
 					attr.after = this.parseAttributeName(false);
 					this.compileAttributeParts(attr.before);
 					this.compileAttributeParts(attr.after);
@@ -374,7 +386,7 @@ Transpiler.prototype.open = function(){
 					} else if(attr.type == "+") {
 						let source = parsed.source;
 						if(source.charAt(0) == "{" && source.charAt(source.length - 1) == "}") {
-							this.warn("The `{ ... }` syntax for functions as attribute values is deprecated. Use the `{{ ... }}` syntax instead.");
+							this.warn("The '{ ... }' syntax for functions as attribute values is deprecated. Use the '{{ ... }}' syntax instead.");
 							attr.value = this.options.es6 ? `(event, target) => ${source}` : `function(event, target)${source}.bind(this)`;
 						} else {
 							attr.value = source;
@@ -406,24 +418,28 @@ Transpiler.prototype.open = function(){
 							} else {
 								dattributes[attr.name] = attr.value;
 							}
-							rattributes.push({spacer: `${attr.beforeName}/*${attr.name}${attr.afterName || ""}=${attr.beforeValue || ""}${attr.value}*/`});
+							rattributes.push({
+								spacer: `${attr.beforeName}/*${attr.name}${attr.afterName || ""}=${attr.beforeValue || ""}${attr.value}*/`
+							});
 							break;
 						case "*": {
 							let add = false;
 							let temp;
 							let start = attr.parts[0];
-							if(!start || start.computed) this.parser.error("First part of bind attributes cannot be computed.");
+							if(!start || start.computed) {
+								this.parser.error("First part of bind attributes cannot be computed.");
+							}
 							let column = start.name.indexOf(":");
 							if(column == -1) column = start.name.length;
 							let name = start.name.substring(0, column);
 							switch(name) {
 								case "next":
 								case "prev":
-									this.warn("Attributes `*next` and `*prev` are deprecated. Use `~next` and `~prev` instead.");
+									this.warn("Attributes '*next' and '*prev' are deprecated. Use '~next' and '~prev' instead.");
 									break;
 								case "show":
 								case "hide":
-									this.warn("Attributes `*show` and `*hide` are deprecated. Use `~show` and `~hide` instead.");
+									this.warn("Attributes '*show' and '*hide' are deprecated. Use '~show' and '~hide' instead.");
 									break;
 								case "number":
 									start.name += ":number";
@@ -440,10 +456,17 @@ Transpiler.prototype.open = function(){
 									temp = name;
 								case "form":
 								case "value":
-									if(!Object.prototype.hasOwnProperty.call(attr, "value")) this.parser.error("Value for form attribute is required.");
-									if(column == start.name.length || column == start.name.length - 1) attr.parts.shift();
-									else start.name = start.name.substr(column + 1);
-									if(start.name.charAt(0) == ":") start.name = ":" + start.name;
+									if(!Object.prototype.hasOwnProperty.call(attr, "value")) {
+										this.parser.error("Value for form attribute is required.");
+									}
+									if(column == start.name.length || column == start.name.length - 1) {
+										attr.parts.shift();
+									} else {
+										start.name = start.name.substr(column + 1);
+									}
+									if(start.name.charAt(0) == ":") {
+										start.name = ":" + start.name;
+									}
 									this.compileAttributeParts(attr);
 									forms.push({
 										info: this.stringifyAttribute(attr),
@@ -532,8 +555,9 @@ Transpiler.prototype.open = function(){
 			});
 			// check inheritance
 			if(!noInheritance) {
-				var inheritance = this.inherit.filter(info => info && ((!info.level || info.level.indexOf(level) != -1) && (!info.whitelist || info.whitelist.indexOf(tagName) != -1))).map(info => info.index);
-				return inheritance.length ? this.feature("inherit") + "(" + ret + ", " + inheritance.join(", ") + ")" : ret;
+				var inheritance = this.inherit.filter(info => info && ((!info.level || info.level.indexOf(level) != -1)
+					&& (!info.whitelist || info.whitelist.indexOf(tagName) != -1))).map(info => info.index);
+				return inheritance.length ? this.feature("inherit") + `(${ret}, ${inheritance.join(", ")})` : ret;
 			} else {
 				return ret;
 			}
@@ -548,9 +572,7 @@ Transpiler.prototype.open = function(){
 		else if(dattributes.body) parent = `${this.runtime}.body(${this.source.getContext()})`;
 		else if(dattributes.parent) parent = dattributes.parent;
 
-		if(parent == "\"\"" || dattributes.orphan) {
-			// an empty string and null have the same behaviour but null is faster as it avoids the query selector controls when appending
-			parent = undefined;
+		if(dattributes.orphan) {
 			append = false;
 		}
 
@@ -608,16 +630,6 @@ Transpiler.prototype.open = function(){
 								value: "arguments[0]"
 							});
 							break;
-						case "fragment":
-							this.warn("Tag `<:fragment />` is deprecated. Use `<#document-fragment />` instead.");
-							computed = true;
-							tagName = `${this.runtime}.widgets["document-fragment"]`;
-							break;
-						case "shadow":
-							this.warn("Tag `<:shadow />` is deprecated. Use `<#shadow-root />` instead.");
-							computed = true;
-							tagName = `${this.runtime}.widgets["shadow-root"]`;
-							break;
 						case "use":
 							element = arg;
 							create = append = false;
@@ -656,9 +668,13 @@ Transpiler.prototype.open = function(){
 						case "inherit": {
 							let c = currentInheritance = {};
 							if(dattributes.level || dattributes.depth) {
-								if(!dattributes.level) c.level = [1];
-								else if(dattributes.level instanceof Array) c.level = dattributes.level.map(function(a){ return parseInt(a); });
-								else c.level = [parseInt(dattributes.level)];
+								if(!dattributes.level) {
+									c.level = [1];
+								} else if(dattributes.level instanceof Array) {
+									c.level = dattributes.level.map(level => parseInt(level));
+								} else {
+									c.level = [parseInt(dattributes.level)];
+								}
 								if(dattributes.depth) {
 									let depth = parseInt(dattributes.depth);
 									if(isNaN(depth)) this.parser.error("Depth is not a valid number.");
@@ -675,10 +691,7 @@ Transpiler.prototype.open = function(){
 								}
 							}
 							if(dattributes.whitelist) {
-								c.whitelist = dattributes.whitelist instanceof Array ? dattributes.whitelist : [dattributes.whitelist];
-								c.whitelist = c.whitelist.map(function(a){
-									return JSON.parse(a);
-								});
+								c.whitelist = [].concat(dattributes.whitelist).map(type => JSON.parse(type));
 							}
 							create = update = append = false;
 							break;
@@ -770,7 +783,7 @@ Transpiler.prototype.open = function(){
 					currentClosing.unshift("})");
 				} else {
 					if(dattributes.as) {
-						this.parser.error("Attribute `as` can only be used when transpiling es6 mode.");
+						this.parser.error("Attribute `as` can only be used when transpiling in es6 mode.");
 					}
 					this.source.addSource(`function(${this.source.getContext()}){`);
 					currentClosing.unshift("}.bind(this))");
@@ -817,7 +830,7 @@ Transpiler.prototype.open = function(){
 				}
 
 				// new namespace
-				if(dattributes.namespace) {
+				if(Object.prototype.hasOwnProperty.call(dattributes, "namespace")) {
 					before.push([this.chainFeature("namespace"), dattributes.namespace]);
 				}
 
@@ -1095,7 +1108,8 @@ Transpiler.prototype.transpile = function(input){
 
 	this.level = 0;
 	
-	this.startMode(this.options.mode && modeNames[this.options.mode] || defaultMode, this.options.modeAttributes || {}).start();
+	this.startMode(this.options.mode && modeNames[this.options.mode] || defaultMode,
+		this.options.modeAttributes || {}).start();
 	
 	var open = Transpiler.prototype.open.bind(this);
 	var close = Transpiler.prototype.close.bind(this);

@@ -142,11 +142,12 @@ TextExprMode.prototype.addSpace = function(space){
  * Parses and adds the current text to the chain.
  */
 TextExprMode.prototype.addCurrent = function(){
-	if(this.attributes.trimmed && this.current.length == 1 && this.current[0].text && /^\s*$/.test(this.current[0].value)) {
+	const first = this.current[0];
+	if(this.attributes.trimmed && first && first.text && /^\s*$/.test(first.value)) {
 		// just whitespace
-		this.addSpace(this.current[0].value);
+		this.addSpace(first.value);
 	} else {
-		var expr = this.current.filter(c => !c.text || c.value.length);
+		const expr = this.current.filter(c => !c.text || c.value.length);
 		if(expr.length) {
 			// create joined
 			var joined = this.es6 ?
@@ -261,7 +262,8 @@ TextExprMode.prototype.parseImpl = function(pre, match, handle, eof){
 		case "$":
 		case "#":
 			if(pre.slice(-1) == "\\") {
-				this.current[this.current.length - 1].value = this.current[this.current.length - 1].value.slice(0, -1) + match;
+				const last = this.current[this.current.length - 1];
+				last.value = last.value.slice(0, -1) + match;
 				break;
 			} else if(this.parser.peek() == "{") {
 				var expr = this.parseCode("skipEnclosedContent", true);
@@ -328,9 +330,12 @@ LogicMode.prototype.getLineText = function(){
 LogicMode.prototype.parseLogic = function(expected, type, closing){
 	var line;
 	if(
-		this.parser.input.substr(this.parser.index, expected.length - 1) == expected.substr(1) && // when the expected keyword is found
-		!/\S/.test(line = this.getLineText()) && // and when it is at the start of line
-		!/[a-zA-Z0-9_$]/.test(this.parser.input.charAt(this.parser.index + expected.length - 1)) // and when it is an exact keyword
+		// when the expected keyword is found
+		this.parser.input.substr(this.parser.index, expected.length - 1) == expected.substr(1)
+		// and when it is at the start of line
+		&& !/\S/.test(line = this.getLineText())
+		// and when it is an exact keyword
+		&& !/[a-zA-Z0-9_$]/.test(this.parser.input.charAt(this.parser.index + expected.length - 1))
 	) {
 		this.parser.index += expected.length - 1;
 		var trimmed = this.trimEnd();
@@ -342,7 +347,8 @@ LogicMode.prototype.parseLogic = function(expected, type, closing){
 			var end = this.parser.find(closing || ["=", ";"], true, {comments: true, strings: false});
 			this.add(expected + end.pre + end.match); // add declaration (e.g. `var a =` or `var a;`)
 			if(end.match == "=") {
-				this.add(this.transpiler.parseCode(this.parser.readExpression()).source); // add the value/body of the variable
+				// add the value/body of the variable
+				this.add(this.transpiler.parseCode(this.parser.readExpression()).source);
 				if(this.parser.readIf(";")) this.add(";");
 			}
 		} else {
@@ -437,7 +443,9 @@ LogicMode.prototype.parseLogic = function(expected, type, closing){
 				part.decl = this.source.addIsolatedSource(expected);
 			}
 			this.source.addSource(this.parser.skipImpl({comments: true}));
-			if(!(statement.inline = part.inline = !this.parser.readIf("{")) || !statement.inlineable) this.source.addSource("{");
+			if(!(statement.inline = part.inline = !this.parser.readIf("{")) || !statement.inlineable) {
+				this.source.addSource("{");
+			}
 			part.declEnd = this.source.addIsolatedSource("");
 			this.statements.push(statement);
 			this.onStatementStart(statement);
@@ -499,7 +507,8 @@ LogicMode.prototype.parse = function(handle, eof){
 				this.endChainable();
 				this.source.addSource(trimmed);
 				let statement = this.statements.pop();
-				statement.endRef = statement.parts[statement.parts.length - 1].close = this.source.addIsolatedSource("}" + statement.end);
+				const source = this.source.addIsolatedSource("}" + statement.end);
+				statement.endRef = statement.parts[statement.parts.length - 1].close = source;
 				this.popped.push(statement);
 				this.onStatementEnd(statement);
 			} else {
@@ -515,7 +524,8 @@ LogicMode.prototype.parse = function(handle, eof){
 				this.add("\n");
 				let statement = this.statements.pop();
 				if(!statement.inlineable) this.source.addSource("}");
-				statement.endRef = statement.parts[statement.parts.length - 1].close = this.source.addIsolatedSource(statement.end);
+				const source = this.source.addIsolatedSource(statement.end);
+				statement.endRef = statement.parts[statement.parts.length - 1].close = source;
 				this.popped.push(statement);
 				this.onStatementEnd(statement);
 			} else {
@@ -672,7 +682,8 @@ SourceCodeMode.prototype.next = function(match){
 			this.restoreIndex("{");
 			if(!this.attributes.inAttr && last == ")" && !this.parser.lastKeywordAtIn(this.parser.lastParenthesis.lastIndex, "if", "for", "while", "switch", "catch", "with")) {
 				// new function declaration
-				this.source.startFunction(this.parser.input.substring(this.parser.lastParenthesis.start, this.parser.lastParenthesis.end - 1));
+				const lp = this.parser.lastParenthesis;
+				this.source.startFunction(this.parser.input.substring(lp.start, lp.end - 1));
 			} else {
 				// loop/conditional statement
 				this.source.startScope();
@@ -715,12 +726,13 @@ SourceCodeMode.prototype.next = function(match){
 				let tail = this.source.tail();
 				let index;
 				let previous = () => {
+					const length = tail.value.length;
 					var beforeSpace = index;
-					while(index < tail.value.length && /\s/.test(tail.value.charAt(tail.value.length - index - 1))) {
+					while(index < length && /\s/.test(tail.value.charAt(length - index - 1))) {
 						index++;
 					}
 					var prevStart = index;
-					while(index < tail.value.length && /[a-zA-Z0-9_$]/.test(tail.value.charAt(tail.value.length - index - 1))) {
+					while(index < length && /[a-zA-Z0-9_$]/.test(tail.value.charAt(length - index - 1))) {
 						index++;
 					}
 					if(prevStart == index) {
@@ -821,7 +833,10 @@ SourceCodeMode.prototype.next = function(match){
 			} else {
 				// just a multiplication or exponentiation
 				this.restoreIndex("*");
-				if(this.parser.readIf("*")) this.restoreIndex("*"); // exponentiation, skip to avoid trying to treat it as observable
+				if(this.parser.readIf("*")) {
+					// exponentiation, skip to avoid trying to treat it as observable
+					this.restoreIndex("*");
+				}
 			}
 			break;
 		case "^":
@@ -923,7 +938,8 @@ ScriptMode.prototype.handle = function(){
 ScriptMode.prototype.parseImpl = function(pre, match/*, handle, eof*/){
 	if(match == "#") {
 		if(pre.slice(-1) == "\\") {
-			this.current[this.current.length - 1].value = this.current[this.current.length - 1].value.slice(0, -1) + match;
+			const curr = this.current[this.current.length - 1];
+			curr.value = curr.value.slice(0, -1) + match;
 		} else if(this.parser.peek() == "{") {
 			var expr = this.parseCode("skipEnclosedContent", true);
 			expr.source = `${this.transpiler.feature("stringify")}(${expr.source})`;
@@ -1095,7 +1111,10 @@ SSBMode.prototype.parseImpl = function(pre, match, handle, eof){
 							this.lastValue(value => this.add(`${scope}.value(${value}`));
 							this.add(",");
 							this.current = value;
-							this.lastValue(value => this.add(value + ");"), value => SSBMode.reparseExpr(value, this.transpiler));
+							this.lastValue(
+								value => this.add(value + ");"),
+								value => SSBMode.reparseExpr(value, this.transpiler)
+							);
 							break;
 						}
 					}

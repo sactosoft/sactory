@@ -52,7 +52,8 @@ chain.use = function(context, element){
  * @since 0.128.0
  */
 chain.query = function(context, selector, on){
-	chain.use(context, (on || context.parentElement || context.document || document)[context.all ? "querySelectorAll" : "querySelector"](selector));
+	var element = on || context.parentElement || context.document || document;
+	chain.use(context, element[context.all ? "querySelectorAll" : "querySelector"](selector));
 };
 
 /**
@@ -207,13 +208,16 @@ chain.updateImpl = function(context, [attrs = [], iattrs, sattrs, widgetCheck, t
 			var newContext = SactoryContext.newContext(context, {element: null, anchor: null, registry: slotRegistry});
 			if(widget.prototype && widget.prototype.render) {
 				var instance = Widget.newInstance(widget, newContext, widgetArgs);
-				registry.widgets.main = registry.widgets.named[ref.name] = instance; // register here so the widget can access its children when rendering
+				// register here so the widget can access its children when rendering
+				registry.widgets.main = registry.widgets.named[ref.name] = instance;
 				var element = Widget.render(widget, instance, newContext, widgetArgs);
 				element["~builder"].widget = element["~builder"].widgets[ref.name] = instance;
 				context.element = element;
 			} else {
 				context.element = widget.call(ref.parentWidget, widgetArgs, widgetArgs, newContext);
-				if(!(context.element instanceof Node)) throw new Error("The widget did not return an instance of 'Node', returned '" + context.element + "' instead.");
+				if(!(context.element instanceof Node)) {
+					throw new Error(`The widget did not return an instance of 'Node', returned '${context.element}' instead.`);
+				}
 			}
 			if(slotRegistry.targetSlots[SactoryConst.SL_CONTENT]) {
 				var content = slotRegistry.targetSlots[SactoryConst.SL_CONTENT];
@@ -223,8 +227,12 @@ chain.updateImpl = function(context, [attrs = [], iattrs, sattrs, widgetCheck, t
 				context.content = context.element;
 			}
 			updatedElement = context.element;
-			if(slotRegistry.targetSlots[SactoryConst.SL_CONTAINER]) updatedElement = context.container = slotRegistry.targetSlots[SactoryConst.SL_CONTAINER].element;
-			if(slotRegistry.targetSlots[SactoryConst.SL_INPUT]) context.input = slotRegistry.targetSlots[SactoryConst.SL_INPUT].element;
+			if(slotRegistry.targetSlots[SactoryConst.SL_CONTAINER]) {
+				updatedElement = context.container = slotRegistry.targetSlots[SactoryConst.SL_CONTAINER].element;
+			}
+			if(slotRegistry.targetSlots[SactoryConst.SL_INPUT]) {
+				context.input = slotRegistry.targetSlots[SactoryConst.SL_INPUT].element;
+			}
 		} else {
 			var update = element => updatedElement = context.element = context.content = element;
 			if(context.namespace) {
@@ -258,7 +266,9 @@ chain.updateImpl = function(context, [attrs = [], iattrs, sattrs, widgetCheck, t
 		var newContext = SactoryContext.newContext(context, {anchor: null, registry: slotRegistry});
 		if(widget.prototype && widget.prototype.render) {
 			var {instance, element} = Widget.newInstanceRender(widget, newContext, args);
-			if(element !== updatedElement) throw new Error("The widget did not return the given element, hence does not support extension.");
+			if(element !== updatedElement) {
+				throw new Error("The widget did not return the given element, hence does not support extension.");
+			}
 			if(ref.name) registry.widgets.named[ref.name] = updatedElement["~builder"].widgets[ref.name] = instance;
 		} else if(ref.parentWidget) {
 			widget.call(ref.parentWidget, args, args, newContext);
@@ -352,7 +362,12 @@ chain.html = function(context, html){
  */
 chain.mixin = function(context, data){
 	if(data instanceof Node) {
-		chain.appendTo({element: data, top: context.top, bind: context.bind, parentAnchor: context.anchor}, SactoryContext.currentElement(context));
+		chain.appendTo({
+			element: data,
+			top: context.top,
+			bind: context.bind,
+			parentAnchor: context.anchor
+		}, SactoryContext.currentElement(context));
 	} else if(data) {
 		chain.html(context, data);
 	}
@@ -362,7 +377,11 @@ chain.mixin = function(context, data){
  * @since 0.60.0
  */
 chain.body = function(context, fun){
-	fun(SactoryContext.newContext(context, {slot: context.element, element: context.content || context.element || context.parentElement, top: context.top && !context.created}));
+	fun(SactoryContext.newContext(context, {
+		slot: context.element,
+		element: context.content || context.element || context.parentElement,
+		top: context.top && !context.created
+	}));
 };
 
 /**
@@ -393,9 +412,14 @@ chain.appendTo = function(context, parentNode){
 			context.bind.appendChild(context.element);
 		}
 	}
-	if(context.parentAnchor && context.parentAnchor.parentNode === parentNode) parentNode.insertBefore(context.element, context.parentAnchor);
-	else parentNode.appendChild(context.element);
-	if(context.element["~builder"] && context.element["~builder"].events.append) context.element["~builder"].dispatchEvent("append", {bubbles: false, detail: {parentNode}});
+	if(context.parentAnchor && context.parentAnchor.parentNode === parentNode) {
+		parentNode.insertBefore(context.element, context.parentAnchor);
+	} else {
+		parentNode.appendChild(context.element);
+	}
+	if(context.element["~builder"] && context.element["~builder"].events.append) {
+		context.element["~builder"].dispatchEvent("append", {bubbles: false, detail: {parentNode}});
+	}
 };
 
 /**

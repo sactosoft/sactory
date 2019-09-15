@@ -86,7 +86,8 @@ Generated.prototype.injectFunctionContext = function(scope){
 				}
 			});
 		}
-		scope.data.value = `var ${this.transpiler["context" + scope.context]}=${this.transpiler.runtime}.cfa(${this.transpiler["context" + scope.prevContext]}, arguments, ${count});`;
+		const context = type => this.transpiler["context" + type];
+		scope.data.value = `var ${context(scope.context)}=${this.transpiler.runtime}.cfa(${context(scope.prevContext)}, arguments, ${count});`;
 	}
 };
 

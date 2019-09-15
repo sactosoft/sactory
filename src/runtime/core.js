@@ -379,22 +379,30 @@ Sactory.prototype.event = function(name, value, bind){
 					break;
 				case "trusted":
 					listener = function(event){
-						if(event.isTrusted) return prev.apply(this, arguments);
+						if(event.isTrusted) {
+							return prev.apply(this, arguments);
+						}
 					};
 					break;
 				case "!trusted":
 					listener = function(event){
-						if(!event.isTrusted) return prev.apply(this, arguments);
+						if(!event.isTrusted) {
+							return prev.apply(this, arguments);
+						}
 					};
 					break;
 				case "self":
 					listener = function(event){
-						if(event.target === this) return prev.apply(this, arguments);
+						if(event.target === this) {
+							return prev.apply(this, arguments);
+						}
 					};
 					break;
 				case "!self":
 					listener = function(event){
-						if(event.target !== this) return prev.apply(this, arguments);
+						if(event.target !== this) {
+							return prev.apply(this, arguments);
+						}
 					};
 					break;
 				case "alt":
@@ -402,7 +410,9 @@ Sactory.prototype.event = function(name, value, bind){
 				case "meta":
 				case "shift":
 					listener = function(event){
-						if(event[mod + "Key"]) return prev.apply(this, arguments);
+						if(event[mod + "Key"]) {
+							return prev.apply(this, arguments);
+						}
 					};
 					break;
 				case "!alt":
@@ -411,7 +421,9 @@ Sactory.prototype.event = function(name, value, bind){
 				case "!shift":
 					mod = mod.substr(1);
 					listener = function(event){
-						if(!event[mod + "Key"]) return prev.apply(this, arguments);
+						if(!event[mod + "Key"]) {
+							return prev.apply(this, arguments);
+						}
 					};
 					break;
 				default:
@@ -423,36 +435,45 @@ Sactory.prototype.event = function(name, value, bind){
 						case "key":
 							keys = dot.slice(1).map(ret => {
 								ret = ret.toLowerCase();
-								if(Object.prototype.hasOwnProperty.call(SactoryConfig.config.event.aliases, ret)) ret = SactoryConfig.config.event.aliases[ret];
+								if(Object.prototype.hasOwnProperty.call(SactoryConfig.config.event.aliases, ret)) {
+									ret = SactoryConfig.config.event.aliases[ret];
+								}
 								var separated = ret.split("-");
 								if(separated.length == 2) {
-									var range;
-									if(separated[0].length == 1 && separated[1].length == 1) {
-										range = [separated[0].toUpperCase().charCodeAt(0), separated[1].toUpperCase().charCodeAt(0)];
-									} else if(separated[0].charAt(0) == "f" && separated[1].charAt(0) == "f") {
-										range = [111 + parseInt(separated[0].substr(1)), 111 + parseInt(separated[1].substr(1))];
+									const [a, b] = separated;
+									let parser;
+									if(a.length == 1 && b.length == 1) {
+										parser = value => value.toUpperCase().charCodeAt(0);
+									} else if(a.charAt(0) == "f" && b.charAt(0) == "f") {
+										parser = value => 111 + parseInt(value.substr(1));
 									}
-									if(range) {
+									if(parser) {
+										const from = parser(a);
+										const to = parser(b);
 										return function(event){
 											var code = event.keyCode || event.which;
-											return code >= range[0] && code <= range[1];
+											return code >= from && code <= to;
 										};
 									}
 								}
-								if(ret != "-") ret = ret.replace(/-/g, "");
+								if(ret != "-") {
+									ret = ret.replace(/-/g, "");
+								}
 								return function(event){
 									return event.key.toLowerCase() == ret;
 								};
 							});
 							if(positive) {
 								listener = function(event){
-									for(var i in keys) {
-										if(keys[i](event)) return prev.apply(this, arguments);
+									for(let i in keys) {
+										if(keys[i](event)) {
+											return prev.apply(this, arguments);
+										}
 									}
 								};
 							} else {
 								listener = function(event){
-									for(var i in keys) {
+									for(let i in keys) {
 										if(keys[i](event)) return;
 									}
 									return prev.apply(this, arguments);
@@ -463,11 +484,15 @@ Sactory.prototype.event = function(name, value, bind){
 							keys = dot.slice(1).map(a => a.toLowerCase().replace(/-/g, ""));
 							if(positive) {
 								listener = function(event){
-									if(keys.indexOf(event.code.toLowerCase()) != -1) return prev.apply(this, arguments);
+									if(keys.indexOf(event.code.toLowerCase()) != -1) {
+										return prev.apply(this, arguments);
+									}
 								};
 							} else {
 								listener = function(event){
-									if(keys.indexOf(event.code.toLowerCase()) == -1) return prev.apply(this, arguments);
+									if(keys.indexOf(event.code.toLowerCase()) == -1) {
+										return prev.apply(this, arguments);
+									}
 								};
 							}
 							break;
@@ -476,16 +501,20 @@ Sactory.prototype.event = function(name, value, bind){
 							keys = dot.slice(1).map(a => parseInt(a));
 							if(positive) {
 								listener = function(event){
-									if(keys.indexOf(event.keyCode || event.which) != -1) return prev.apply(this, arguments);
+									if(keys.indexOf(event.keyCode || event.which) != -1) {
+										return prev.apply(this, arguments);
+									}
 								};
 							} else {
 								listener = function(event){
-									if(keys.indexOf(event.keyCode || event.which) == -1) return prev.apply(this, arguments);
+									if(keys.indexOf(event.keyCode || event.which) == -1) {
+										return prev.apply(this, arguments);
+									}
 								};
 							}
 							break;
 						case "button":
-							var buttons = dot.slice(1).map(function(a){
+							var buttons = dot.slice(1).map(a => {
 								switch(a) {
 									case "main":
 									case "left":
@@ -509,16 +538,20 @@ Sactory.prototype.event = function(name, value, bind){
 							});
 							if(positive) {
 								listener = function(event){
-									if(buttons.indexOf(event.button) != -1) return prev.apply(this, arguments);
+									if(buttons.indexOf(event.button) != -1) {
+										return prev.apply(this, arguments);
+									}
 								};
 							} else {
 								listener = function(event){
-									if(buttons.indexOf(event.button) == -1) return prev.apply(this, arguments);
+									if(buttons.indexOf(event.button) == -1) {
+										return prev.apply(this, arguments);
+									}
 								};
 							}
 							break;
 						case "location":
-							var locations = dot.slice(1).map(function(a){
+							var locations = dot.slice(1).map(a => {
 								switch(a) {
 									case "standard": return 0;
 									case "left": return 1;
@@ -529,11 +562,15 @@ Sactory.prototype.event = function(name, value, bind){
 							});
 							if(positive) {
 								listener = function(event){
-									if(locations.indexOf(event.location) != -1) return prev.apply(this, arguments);
+									if(locations.indexOf(event.location) != -1) {
+										return prev.apply(this, arguments);
+									}
 								};
 							} else {
 								listener = function(event){
-									if(locations.indexOf(event.location) == -1) return prev.apply(this, arguments);
+									if(locations.indexOf(event.location) == -1) {
+										return prev.apply(this, arguments);
+									}
 								};
 							}
 							break;
@@ -670,8 +707,10 @@ Sactory.prototype.form = function({bind}, info, value, update){
 	if(select) {
 		if(this.element.multiple) {
 			// select multiple, returns an array
-			get = callback => callback(Array.prototype.map.call(BuilderPolyfill.selectedOptions(this.element), option => option.value));
-			set = value => Array.prototype.forEach.call(this.element.options, option => option.selected = value.indexOf(option.value) != -1);
+			get = callback => callback(Array.prototype.map.call(BuilderPolyfill.selectedOptions(this.element),
+				option => option.value));
+			set = value => Array.prototype.forEach.call(this.element.options,
+				option => option.selected = value.indexOf(option.value) != -1);
 		} else {
 			// normal select, just get and set the element's value
 			get = callback => callback(this.element.value);

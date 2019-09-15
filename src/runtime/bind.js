@@ -37,7 +37,6 @@ Bind.prototype.rollback = function(){
 	}
 	if(this.elements.length) {
 		this.elements.forEach(element => {
-			//if(element["~builder"] && element["~builder"].events.remove && element["~builder"].dispatchEvent("remove", {bubbles: false, cancelable: true}).defaultPrevented) return;
 			if(element.parentNode) element.parentNode.removeChild(element);
 		});
 		this.elements = [];
@@ -255,9 +254,10 @@ Sactory.bindEach = function(context, target, getter, fun){
 	function remove(bind) {
 		bind.rollback();
 	}
+	var makeAnchor = anchor => (context.element ? Sactory.anchor({element: context.element, anchor}) : null);
 	function updateAll() {
 		getter().forEach((value, index, array) => {
-			add("push", new Bind(currentBind, "bindEach." + index), context.element ? Sactory.anchor({element: context.element, anchor: lastAnchor}) : null, value, index, array);
+			add("push", new Bind(currentBind, "bindEach." + index), makeAnchor(lastAnchor), value, index, array);
 		});
 	}
 	currentBind.subscribe(target.subscribe((array, _, type, data) => {
@@ -277,7 +277,8 @@ Sactory.bindEach = function(context, target, getter, fun){
 				break;
 			case SactoryConst.OUT_ARRAY_PUSH:
 				Array.prototype.forEach.call(data, (value, i) => {
-					add("push", new Bind(currentBind, "bindEach.push"), context.element ? Sactory.anchor({element: context.element, anchor: lastAnchor}) : null, value, array.length - data.length + i, array);
+					add("push", new Bind(currentBind), makeAnchor(lastAnchor),
+						value, array.length - data.length + i, array);
 				});
 				break;
 			case SactoryConst.OUT_ARRAY_POP:
@@ -286,7 +287,8 @@ Sactory.bindEach = function(context, target, getter, fun){
 				break;
 			case SactoryConst.OUT_ARRAY_UNSHIFT:
 				Array.prototype.forEach.call(data, value => {
-					add("unshift", new Bind(currentBind, "bindEach.unshift"), context.element ? Sactory.anchor({element: context.element, anchor: firstAnchor.nextSibling}) : null, value, 0, array);
+					add("unshift", new Bind(currentBind, "bindEach.unshift"),
+						makeAnchor(firstAnchor.nextSibling), value, 0, array);
 				});
 				break;
 			case SactoryConst.OUT_ARRAY_SHIFT:
@@ -309,7 +311,7 @@ Sactory.bindEach = function(context, target, getter, fun){
 				});
 				args.forEach((bind, i) => {
 					if(anchorTo) {
-						bind.anchor = Sactory.anchor({element: context.element, anchor: anchorTo});
+						bind.anchor = makeAnchor(anchorTo);
 						bind.appendChild(bind.anchor);
 					}
 					fun(SactoryContext.newBindContext(context, bind, bind.anchor), bind.value, i + startIndex, array);
