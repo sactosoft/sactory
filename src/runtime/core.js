@@ -177,7 +177,7 @@ Sactory.prototype.styleImpl = function(values){
 	document.head.appendChild(node);
 };
 	
-Sactory.prototype.text = function(value, {top, bind, anchor}){
+Sactory.prototype.text = function(value, {top, bind, anchor, document}){
 	var textNode;
 	var use = value => {
 		textNode = document.createTextNode("");
@@ -201,7 +201,7 @@ Sactory.prototype.text = function(value, {top, bind, anchor}){
 /**
  * @since 0.63.0
  */
-Sactory.prototype.html = function(value, {top, bind, anchor}){
+Sactory.prototype.html = function(value, {top, bind, anchor, document}){
 	var children, container = document.createElement("div");
 	var parse = (value, anchor) => {
 		container.innerHTML = value;

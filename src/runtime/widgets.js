@@ -1,5 +1,5 @@
 var SactoryObservable = require("./observable");
-var SactoryWidget = require("./widget");
+var { Sactory: SactoryWidget } = require("./widget");
 var counter = require("./counter");
 
 var Sactory = {};

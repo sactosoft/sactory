@@ -89,9 +89,13 @@ Sactory.check = function(version, warn){
 /**
  * @since 0.139.0
  */
-Sactory.document = function(context){
-	return context.document || document;
-};
+Sactory.document = typeof document != "undefined" ?
+	function(context){
+		return context.document || document;
+	} :
+	function(context){
+		return context.document;
+	};
 
 /**
  * @since 0.139.0

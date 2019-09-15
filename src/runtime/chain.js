@@ -377,9 +377,10 @@ chain.mixin = function(context, data){
  * @since 0.60.0
  */
 chain.body = function(context, fun){
+	const element = context.content || context.element || context.parentElement;
 	fun(SactoryContext.newContext(context, {
 		slot: context.element,
-		element: context.content || context.element || context.parentElement,
+		element, document: context.document || element.ownerDocument,
 		top: context.top && !context.created
 	}));
 };

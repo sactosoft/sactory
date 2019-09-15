@@ -2,6 +2,8 @@ var Polyfill = require("../polyfill");
 
 var Sactory = {};
 
+const globalDocument = typeof document != "undefined" ? document : undefined;
+
 /**
  * @since 0.132.0
  */
@@ -30,13 +32,13 @@ Sactory.newContext = function(context, newContext){
  * @since 0.128.0
  */
 Sactory.newChainContext = function(context){
-	return (({element, namespace, top, bind, anchor, registry, selector}) => ({
+	return (({element, namespace, top, bind, anchor, registry, selector, document}) => ({
 		__context: true,
 		namespace,
 		top, bind, anchor, registry, selector,
 		parentElement: element,
 		parentAnchor: anchor,
-		document: element ? element.ownerDocument : document
+		document: document || element && element.ownerDocument || globalDocument
 	}))(context);
 };
 

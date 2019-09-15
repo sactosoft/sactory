@@ -38,7 +38,7 @@ function Transpiler(options) {
 	}
 	// calculate environments
 	if(!Array.isArray(this.options.env)) this.options.env = [this.options.env];
-	if(this.options.env.length == 1 && this.options.env[0] == "none") {
+	if(!this.options.sandboxed && this.options.env.length == 1 && this.options.env[0] == "none") {
 		this.nextVar = Transpiler.prototype.nextVarName.bind(this);
 	} else {
 		this.options.env.forEach(env => {
@@ -57,7 +57,9 @@ function Transpiler(options) {
  * @since 0.128.0
  */
 Transpiler.transpile = function(options, source){
-	return new Transpiler(options).transpile(source);
+	const result = new Transpiler(options).transpile(source);
+	result.toString = () => result.source.all;
+	return result;
 };
 
 /**

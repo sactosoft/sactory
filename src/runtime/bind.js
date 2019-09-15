@@ -72,7 +72,7 @@ Bind.prototype.addRollback = function(fun){
 	this.rollbacks.push(fun);
 };
 
-var factory = new Bind(null, Sactory);
+const factory = new Bind(null, Sactory);
 
 /**
  * @since 0.45.0
