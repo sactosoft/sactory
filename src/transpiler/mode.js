@@ -649,7 +649,7 @@ SourceCodeMode.prototype.addObservable = function(observables, maybeObservables,
 		this.add(`${name}.value`);
 		if(observables) observables.push(name);
 	}
-	this.parser.last = ")";
+	this.parser.last = "]"; // see issue#57
 	this.parser.lastIndex = this.parser.index - 1;
 };
 
@@ -699,10 +699,10 @@ SourceCodeMode.prototype.next = function(match){
 				if(Polyfill.startsWith.call(input, "context")) {
 					this.parser.index += 7;
 					this.source.addContext();
-					this.parser.last = ")";
+					this.parser.last = "t";
 					return;
 				}
-				let functions = ["on", "subscribe", "depend", "rollback", "bind", "unbind"];
+				const functions = ["on", "subscribe", "depend", "rollback", "bind", "unbind"];
 				for(let i in functions) {
 					let fname = functions[i];
 					if(Polyfill.startsWith.call(input, fname + "(")) {
@@ -816,8 +816,8 @@ SourceCodeMode.prototype.next = function(match){
 					}
 				}
 				this.transpiler.updateTemplateLiteralParser();
-				this.parser.last = ")";
-				this.parser.lastIndex = this.parser.index;
+				this.parser.last = "]"; // see issue#57
+				this.parser.lastIndex = this.parser.index - 1;
 			} else {
 				// bitwise or boolean comparator
 				this.restoreIndex("&");
