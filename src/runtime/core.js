@@ -692,7 +692,7 @@ Sactory.prototype[Const.BUILDER_TYPE_ON] = function({bind}, name, value){
 /**
  * @since 0.46.0
  */
-Sactory.prototype.form = function({bind}, info, value, update){
+Sactory.prototype.bind = function({bind}, type, info, value, update){
 	var isObservable = SactoryObservable.isObservable(value);
 	if(SactoryMisc.isBuilderObservable(value)) {
 		isObservable = true;
@@ -703,6 +703,10 @@ Sactory.prototype.form = function({bind}, info, value, update){
 	var updateType = SactoryConst.OUT_FORM_RANGE_START + Math.floor(Math.random() * SactoryConst.OUT_FORM_RANGE_LENGTH);
 	var select = this.element.tagName.toUpperCase() == "SELECT";
 	var get, set, converters = [];
+	// set the type if needed
+	if(type && type != "value") {
+		this.element.type = type;
+	}
 	// calculate property name and default converter
 	if(select) {
 		if(this.element.multiple) {

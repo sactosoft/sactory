@@ -387,11 +387,28 @@ chain.body = function(context, fun){
 /**
  * @since 0.82.0
  */
-chain.forms = function(context){
+chain.bind = function(context){
 	var element = context.input || context.content;
-	Array.prototype.slice.call(arguments, 1).forEach(([info, value, update, type]) => {
-		if(type) element.type = type;
-		element["~builder"].form(context, info, value, update);
+	Array.prototype.slice.call(arguments, 1).forEach(([type, info, value, update]) => {
+		// look for widget's custom binding in registry
+		const widget = context.registry.widgets.main;
+		if(widget) {
+			const proto = Object.getPrototypeOf(widget);
+			if(proto.bind$) {
+				// all of them
+				widget.bind$(type, {info, value, update}, context);
+				return;
+			} else {
+				let fun = proto["bind$" + type] || proto["bind$" + dehyphenate(type)];
+				if(fun) {
+					// handling a specific type
+					fun.call(widget, {info, value, update}, context);
+					return;
+				}
+			}
+		}
+		// fallback to default element's bind handler
+		element["~builder"].bind(context, type, info, value, update);
 	});
 };
 

@@ -441,21 +441,7 @@ Transpiler.prototype.open = function(){
 								case "hide":
 									this.warn("Attributes '*show' and '*hide' are deprecated. Use '~show' and '~hide' instead.");
 									break;
-								case "number":
-									start.name += ":number";
-								case "checkbox":
-								case "color":
-								case "date":
-								case "email":
-								case "file":
-								case "password":
-								case "radio":
-								case "range":
-								case "text":
-								case "time":
-									temp = name;
-								case "form":
-								case "value":
+								default:
 									if(!Object.prototype.hasOwnProperty.call(attr, "value")) {
 										this.parser.error("Value for form attribute is required.");
 									}
@@ -469,14 +455,12 @@ Transpiler.prototype.open = function(){
 									}
 									this.compileAttributeParts(attr);
 									forms.push({
+										type: name,
 										info: this.stringifyAttribute(attr),
 										value: attr.value,
-										type: temp,
 										ref: attr.sourceValue || attr.value
 									});
 									break;
-								default:
-									this.parser.error("Unknown bind attribute '" + name + "'.");
 							}
 							if(add) this.compileAttributeParts(attr);
 							else break;
@@ -868,15 +852,12 @@ Transpiler.prototype.open = function(){
 
 				// apply forms
 				if(forms.length) {
-					after.push([this.chainFeature("forms"), forms.map(({info, value, type, ref}) => {
-						let data = [info, value];
+					after.push([this.chainFeature("bind"), forms.map(({type, info, value, ref}) => {
+						let data = [`"${type}"`, info, value];
 						if(this.options.es6) {
 							data.push(`${this.value} => {${ref}=${this.value}}`);
 						} else {
 							data.push(`function(${this.value}){${ref}=${this.value}}.bind(this)`);
-						}
-						if(type) {
-							data.push(`"${type}"`);
 						}
 						return `[${data.join(", ")}]`;
 					}).join(", ")]);

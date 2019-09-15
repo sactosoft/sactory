@@ -702,7 +702,7 @@ SourceCodeMode.prototype.next = function(match){
 					this.parser.last = "t";
 					return;
 				}
-				const functions = ["on", "subscribe", "depend", "rollback", "bind", "unbind"];
+				const functions = ["on", "subscribe", "depend", "rollback", "bind", "unbind", "bindInput"];
 				for(let i in functions) {
 					let fname = functions[i];
 					if(Polyfill.startsWith.call(input, fname + "(")) {
@@ -1107,9 +1107,11 @@ SSBMode.prototype.parseImpl = function(pre, match, handle, eof){
 							value = this.current.slice(i + 1);
 							value.unshift({text: true, value: current.value.substr(column + 1)});
 							current.value = current.value.substring(0, column);
+							// add key
 							this.current = this.current.slice(0, i + 1);
 							this.lastValue(value => this.add(`${scope}.value(${value}`));
 							this.add(",");
+							// add value
 							this.current = value;
 							this.lastValue(
 								value => this.add(value + ");"),
