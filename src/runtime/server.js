@@ -1,6 +1,7 @@
 // init global variables
 require("../dom");
 
+var Const = require("../const");
 var Builder = require("./core");
 var counter = require("./counter");
 var Sactory = require("./widgets");
@@ -26,19 +27,22 @@ function document(arg0, arg1, context) {
 }
 
 /**
- * @since 0.141.0
+ * @since 0.142.0
  */
-function app({name = "App", src, runtime = "Sactory"}, arg1, context) {
+function app({name = "App", src, runtime = "Sactory", args}, arg1, context) {
 	const id = counter.nextPrefix();
 	const script1 = context.document.createElement("script");
 	script1.setAttribute("src", src);
 	const script2 = context.document.createElement("script");
-	script2.textContent = `window.addEventListener("load",function(){var e=document.querySelector("#${id}");${runtime}.chain({element: e.parentNode, anchor: e.nextSibling}, [${runtime}.chain.create, ${name}, []], [${runtime}.chain.append])})`;
+	const data = [];
+	for(let key in args) {
+		data.push(`[${Const.BUILDER_TYPE_CREATE_WIDGET}, "${key}", ${JSON.stringify(args[key])}]`);
+	}
+	script2.textContent = `window.addEventListener("load",function(){var e=document.querySelector("#${id}");${runtime}.chain({element: e.parentNode, anchor: e.nextSibling}, [${runtime}.chain.create, ${name}, [[${data.join(", ")}]]], [${runtime}.chain.append])})`;
 	script2.setAttribute("id", id);
 	const fragment = context.document.createDocumentFragment();
-	fragment.appendChild(script1);
-	fragment.appendChild(script2);
-	return fragment;
+	context.document.head.appendChild(script1);
+	return script2;
 }
 
 Object.defineProperty(Sactory.widgets, "document", {value: document});
