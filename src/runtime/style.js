@@ -151,7 +151,8 @@ Sactory.convertStyle = function(root){
 Sactory.compileAndBindStyle = Sactory.cabs = function({element, bind, selector}, fun, observables, maybe){
 	var className = element["~builder"].scopedClassName = counter.nextPrefix();
 	var conv = selector ? value => [{selector, value}] : value => value;
-	var observable = SactoryObservable.coff(() => element.textContent = Sactory.convertStyle(conv(fun(className, Sactory.css))));
+	var observable = SactoryObservable.coff(() =>
+		element.textContent = Sactory.convertStyle(conv(fun(className, Sactory.css))));
 	observable.addDependencies(observables, bind);
 	observable.addMaybeDependencies(maybe, bind);
 };

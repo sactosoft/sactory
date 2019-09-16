@@ -29,6 +29,13 @@ Counter.prototype.nextPrefix = function(){
 	return SactoryConfig.config.prefix + this.nextId();
 };
 
-var counter = new Counter(0);
+const counter = new Counter((() => {
+	let ret;
+	if(typeof document != "undefined" && document.documentElement && document.documentElement.dataset.sactory) {
+		ret = +document.documentElement.dataset.sactory;
+		document.documentElement.removeAttribute("data-sactory");
+	}
+	return ret || 0;
+})());
 
 module.exports = counter;

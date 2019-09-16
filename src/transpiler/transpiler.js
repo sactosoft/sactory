@@ -426,7 +426,6 @@ Transpiler.prototype.open = function(){
 							break;
 						case "*": {
 							let add = false;
-							let temp;
 							let start = attr.parts[0];
 							if(!start || start.computed) {
 								this.parser.error("First part of bind attributes cannot be computed.");

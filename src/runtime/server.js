@@ -23,7 +23,12 @@ Object.defineProperty(Node.prototype, "~builder", {
  * @since 0.134.0
  */
 function document(arg0, arg1, context) {
-	return context.document = new HTMLDocument();
+	const ret = context.document = new HTMLDocument();
+	ret.render = function(){
+		this.documentElement.dataset.sactory = counter.nextId();
+		return HTMLDocument.prototype.render.apply(this, arguments);
+	};
+	return ret;
 }
 
 /**
@@ -40,7 +45,6 @@ function app({name = "App", src, runtime = "Sactory", args}, arg1, context) {
 	}
 	script2.textContent = `window.addEventListener("load",function(){var e=document.querySelector("#${id}");${runtime}.chain({element: e.parentNode, anchor: e.nextSibling}, [${runtime}.chain.create, ${name}, [[${data.join(", ")}]]], [${runtime}.chain.append])})`;
 	script2.setAttribute("id", id);
-	const fragment = context.document.createDocumentFragment();
 	context.document.head.appendChild(script1);
 	return script2;
 }

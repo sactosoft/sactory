@@ -1,5 +1,6 @@
 var Polyfill = require("../polyfill");
 var Const = require("../const");
+var { dehyphenate } = require("../util");
 var SactoryConst = require("./const");
 var SactoryContext = require("./context");
 var SactoryMisc = require("./misc");
