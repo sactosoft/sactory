@@ -1,0 +1,4 @@
+<:this>
+	if no parenthesis is found, expression should not start;
+	else in the same style, should only start when another if/else if condition precedes it;
+</:this>

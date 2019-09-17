@@ -335,15 +335,14 @@ LogicMode.prototype.parseLogic = function(expected, type, closing){
 		// and when it is an exact keyword
 		&& !/[a-zA-Z0-9_$]/.test(this.parser.input.charAt(this.parser.index + expected.length - 1))
 	) {
+		const trimmed = this.trimEnd();
+		const index = this.parser.index;
 		this.parser.index += expected.length - 1;
-		var trimmed = this.trimEnd();
-		this.endChainable();
-		this.add(trimmed);
 		if(type === 0) {
 			// variable
 			this.endChainable(); // variable declarations cannot be chained
 			var end = this.parser.find(closing || ["=", ";"], true, {comments: true, strings: false});
-			this.add(expected + end.pre + end.match); // add declaration (e.g. `var a =` or `var a;`)
+			this.add(trimmed + expected + end.pre + end.match); // add declaration (e.g. `var a =` or `var a;`)
 			if(end.match == "=") {
 				// add the value/body of the variable
 				this.add(this.transpiler.parseCode(this.parser.readExpression()).source);
@@ -351,26 +350,46 @@ LogicMode.prototype.parseLogic = function(expected, type, closing){
 			}
 		} else {
 			// statement
-			var statement = Polyfill.startsWith.call(expected, "else") ? this.popped.pop() : {
-				type: expected,
-				startRef: this.source.addIsolatedSource(""),
-				context: this.source.getContext(),
-				observables: [],
-				maybeObservables: [],
-				inlineable: true,
-				end: "",
-				parts: [],
-				ref: {}
-			};
-			var part = {
+			let statement, part;
+			if(Polyfill.startsWith.call(expected, "else")) {
+				if(this.popped.length) {
+					statement = this.popped.pop();
+				} else {
+					// not a statement, restore trimmed and index
+					this.parser.index = index;
+					this.pushText(trimmed);
+					return false;
+				}
+			} else {
+				statement = {
+					type: expected,
+					startRef: this.source.addIsolatedSource(""),
+					context: this.source.getContext(),
+					observables: [],
+					maybeObservables: [],
+					inlineable: true,
+					end: "",
+					parts: [],
+					ref: {}
+				};
+			}
+			statement.parts.push(part = {
 				type: expected,
 				observables: [],
 				maybeObservables: [],
 				declStart: this.source.addIsolatedSource("")
-			};
-			statement.parts.push(part);
+			});
 			if(type === 1) {
 				// with condition (e.g. `statement(condition)`)
+				var skipped = this.parser.skipImpl({comments: true});
+				if(this.parser.peek() != "(") {
+					// restore skipped code and fail to start the statement
+					this.parser.index = index;
+					this.pushText(trimmed);
+					return false;
+				}
+				this.endChainable();
+				this.add(trimmed);
 				var reparse = (source, parser) => {
 					var parsed = this.transpiler.parseCode(source, parser);
 					statement.observables.push(...parsed.observables);
@@ -379,8 +398,6 @@ LogicMode.prototype.parseLogic = function(expected, type, closing){
 					part.maybeObservables.push(...parsed.maybeObservables);
 					return parsed.source;
 				};
-				var skipped = this.parser.skipImpl({comments: true});
-				if(this.parser.peek() != "(") this.parser.error("Expected '(' after '" + expected + "'.");
 				var position = this.parser.position;
 				var source = reparse(this.parser.skipEnclosedContent(), this.parser);
 				if(expected == "foreach") {
@@ -438,6 +455,8 @@ LogicMode.prototype.parseLogic = function(expected, type, closing){
 				}
 			} else {
 				// without condition
+				this.endChainable();
+				this.add(trimmed);
 				part.decl = this.source.addIsolatedSource(expected);
 			}
 			this.source.addSource(this.parser.skipImpl({comments: true}));
