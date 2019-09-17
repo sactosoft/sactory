@@ -142,8 +142,8 @@ TextExprMode.prototype.addSpace = function(space){
  * Parses and adds the current text to the chain.
  */
 TextExprMode.prototype.addCurrent = function(){
-	const first = this.current[0];
-	if(this.attributes.trimmed && first && first.text && /^\s*$/.test(first.value)) {
+	let first;
+	if(this.attributes.trimmed && this.current.length == 1 && (first = this.current[0]).text && /^\s*$/.test(first.value)) {
 		// just whitespace
 		this.addSpace(first.value);
 	} else {
@@ -193,9 +193,7 @@ TextExprMode.prototype.endChain = function(){
 		}
 	});
 	if(!empty) {
-		this.source.addSource(`${this.transpiler.chain}(`);
-		this.source.addContext();
-		this.source.addSource(`${source});`);
+		this.source.addSource(`${this.transpiler.chain}(${this.source.getContext()}${source});`);
 	} else {
 		this.source.addSource(source);
 	}
