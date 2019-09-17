@@ -226,6 +226,13 @@ Observable.prototype.nowrap = function(){
 };
 
 /**
+ * @since 0.142.0
+ */
+Observable.prototype.always = function(){
+	Object.defineProperty(this, "shouldUpdate", {value: () => true});
+};
+
+/**
  * @since 0.129.0
  */
 Observable.prototype.async = function(){

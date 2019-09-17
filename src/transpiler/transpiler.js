@@ -294,6 +294,7 @@ Transpiler.prototype.open = function(){
 		var all;
 		var arg;
 		var dattributes = {}; // attributes used to give directives to the transpiler, not used at runtime
+		var dattributesspacer = []; // string representation of the compile-time attributes, used to maintain spacing
 		var rattributes = []; // attributes used at runtime to modify the element
 		var iattributes = []; // attributes used at runtime that are created using interpolation syntax
 		var sattributes = []; // variable name of the attributes passed using the spread syntax
@@ -420,9 +421,7 @@ Transpiler.prototype.open = function(){
 							} else {
 								dattributes[attr.name] = attr.value;
 							}
-							rattributes.push({
-								spacer: `${attr.beforeName}/*${attr.name}${attr.afterName || ""}=${attr.beforeValue || ""}${attr.value}*/`
-							});
+							dattributesspacer.push(`${attr.beforeName}/*${attr.name}${attr.afterName || ""}=${attr.beforeValue || ""}${attr.value}*/`);
 							break;
 						case "*": {
 							let add = false;
@@ -479,11 +478,11 @@ Transpiler.prototype.open = function(){
 		if(!next) this.parser.errorAt(position, "Tag was not closed.");
 		parser.index++;
 
-		var options = noInheritance => {
-			var level = ++this.level;
-			var ret = {};
+		const options = noInheritance => {
+			const level = ++this.level;
+			const data = {};
 			if(rattributes.length) {
-				ret.attrs = rattributes.map(attribute => attribute.spacer ||
+				data.attrs = rattributes.map(attribute => attribute.spacer ||
 					(`${attribute.beforeName || ""}[${mapAttributeType(attribute.type)}, ` +
 					`${attribute.computed ? attribute.name : `"${attribute.name || ""}"`}${attribute.afterName || ""}, ` +
 					(attribute.beforeValue || "") + attribute.value +
@@ -492,10 +491,10 @@ Transpiler.prototype.open = function(){
 			}
 			if(iattributes.length) {
 				var s = this.stringifyAttribute;
-				ret.iattrs = iattributes.map(attribute => {
+				data.iattrs = iattributes.map(attribute => {
 					var prev = {};
 					return `[${mapAttributeType(attribute.type)},${attribute.beforeName}${s(attribute.before)}, ${attribute.inner.map((attribute, i) => {
-						var ret = attribute.beforeValue;
+						let ret = attribute.beforeValue;
 						if(i == 0) {
 							if(attribute.spread) {
 								ret += `${attribute.expr}.concat(`;
@@ -516,33 +515,28 @@ Transpiler.prototype.open = function(){
 				});
 			}
 			if(sattributes.length) {
-				ret.spread = sattributes.map(({space, type, expr}) => `${space}[${mapAttributeType(type)}, ${expr}]`).join(", ");
+				data.spread = sattributes.map(({space, type, expr}) => `${space}[${mapAttributeType(type)}, ${expr}]`).join(", ");
 			}
 			if(Object.prototype.hasOwnProperty.call(dattributes, "widget")) {
-				ret.widget = dattributes.widget;
+				data.widget = dattributes.widget;
 			}
-			Object.defineProperty(ret, "toString", {
-				enumerable: false,
-				value: function(){
-					var str = [];
-					var i = 0;
-					["attrs", "iattrs", "spread"].forEach(type => {
-						var value = ret[type];
-						if(value) str[i] = "[" + value + "]";
-						i++;
-					});
-					["widget"].forEach(type => {
-						if(Object.prototype.hasOwnProperty.call(ret, type)) str[i] = ret[type];
-						i++;
-					});
-					return "[" + str.join(",") + "]";
-				}
+			let str = [];
+			let i = 0;
+			["attrs", "iattrs", "spread"].forEach(type => {
+				var value = data[type];
+				if(value) str[i] = "[" + value + "]";
+				i++;
 			});
+			["widget"].forEach(type => {
+				if(Object.prototype.hasOwnProperty.call(data, type)) str[i] = data[type];
+				i++;
+			});
+			let ret = `${dattributesspacer.join("")}[${str.join(",")}]`;
 			// check inheritance
 			if(!noInheritance) {
 				var inheritance = this.inherit.filter(info => info && ((!info.level || info.level.indexOf(level) != -1)
 					&& (!info.whitelist || info.whitelist.indexOf(tagName) != -1))).map(info => info.index);
-				return inheritance.length ? this.feature("inherit") + `(${ret}, ${inheritance.join(", ")})` : ret;
+				return inheritance.length ? `${this.feature("inherit")}(${ret}, ${inheritance.join(", ")})` : ret;
 			} else {
 				return ret;
 			}
