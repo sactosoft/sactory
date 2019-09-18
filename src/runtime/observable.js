@@ -49,13 +49,14 @@ Observable.prototype.addDependencies = function(dependencies, bind){
 		subscriptions.forEach(subscription => bind.subscribe(subscription));
 	}
 	this._dependencies += dependencies.length;
+	return subscriptions;
 };
 
 /**
  * @since 0.129.0
  */
 Observable.prototype.addMaybeDependencies = function(dependencies, bind){
-	this.addDependencies(dependencies.filter(Sactory.isObservable), bind);
+	return this.addDependencies(dependencies.filter(Sactory.isObservable), bind);
 };
 
 /**
@@ -94,8 +95,8 @@ Observable.prototype.$$subscribe = function(context, callback, type){
 /**
  * @since 0.132.0
  */
-Observable.prototype.$$depend = function(context, dependencies){
-	this.addMaybeDependencies(dependencies, context && context.bind);
+Observable.prototype.$$depend = function(context, ...dependencies){
+	return this.addMaybeDependencies(dependencies, context && context.bind);
 };
 
 /**
