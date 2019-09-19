@@ -318,20 +318,20 @@ LogicMode.prototype.getLineText = function(){
 	var last = this.current[this.current.length - 1];
 	if(last.text) {
 		var index = last.value.lastIndexOf("\n");
-		if(index > 0) return last.value.substr(index);
-		else return last.value;
-	} else {
-		return "";
+		if(index != -1) {
+			return last.value.substr(index);
+		}
 	}
+	return false;
 };
 
 LogicMode.prototype.parseLogic = function(expected, type, closing){
-	var line;
+	let line;
 	if(
 		// when the expected keyword is found
 		this.parser.input.substr(this.parser.index, expected.length - 1) == expected.substr(1)
 		// and when it is at the start of line
-		&& !/\S/.test(line = this.getLineText())
+		&& (line = this.getLineText()) && !/\S/.test(line)
 		// and when it is an exact keyword
 		&& !/[a-zA-Z0-9_$]/.test(this.parser.input.charAt(this.parser.index + expected.length - 1))
 	) {
