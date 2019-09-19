@@ -58,6 +58,7 @@ var xmlImpl = typeof document != "undefined" && document.implementation ?
  * @since 0.134.0
  */
 function text(value, arg1, context) {
+	context.anchor = context.parentAnchor;
 	context.element["~builder"].text(value, context);
 	return context.element;
 }
@@ -66,6 +67,7 @@ function text(value, arg1, context) {
  * @since 0.134.0
  */
 function html(value, arg1, context) {
+	context.anchor = context.parentAnchor;
 	context.element["~builder"].html(value, context);
 	return context.element;
 }

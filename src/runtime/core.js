@@ -193,9 +193,14 @@ Sactory.prototype.text = function(value, {top, bind, anchor, document}){
 	} else {
 		textNode = document.createTextNode(value);
 	}
-	if(anchor && anchor.parentNode === this.element) this.element.insertBefore(textNode, anchor);
-	else this.element.appendChild(textNode);
-	if(top) bind.appendChild(textNode);
+	if(anchor && anchor.parentNode === this.element) {
+		this.element.insertBefore(textNode, anchor);
+	} else {
+		this.element.appendChild(textNode);
+	}
+	if(top) {
+		bind.appendChild(textNode);
+	}
 };
 
 /**
@@ -207,9 +212,14 @@ Sactory.prototype.html = function(value, {top, bind, anchor, document}){
 		container.innerHTML = value;
 		children = Array.prototype.slice.call(container.childNodes, 0);
 		children.forEach(child => {
-			if(anchor && anchor.parentNode === this.element) this.element.insertBefore(child, anchor);
-			else this.element.appendChild(child);
-			if(top) bind.appendChild(child);
+			if(anchor && anchor.parentNode === this.element) {
+				this.element.insertBefore(child, anchor);
+			} else {
+				this.element.appendChild(child);
+			}
+			if(top) {
+				bind.appendChild(child);
+			}
 		});
 	};
 	var use = value => {
