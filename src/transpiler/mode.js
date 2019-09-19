@@ -1041,7 +1041,7 @@ SSBMode.prototype.start = function(){
 };
 
 SSBMode.prototype.find = function(){
-	return this.parser.find(["$", "<", "v", "c", "l", "i", "e", "f", "{", "}", ";"], false, false);
+	return this.parser.find(["$", "<", "v", "c", "l", "i", "e", "f", "{", "}", "\"", "'", ";"], false, false);
 };
 
 SSBMode.prototype.lastValue = function(callback, parser){
@@ -1105,6 +1105,12 @@ SSBMode.prototype.parseImpl = function(pre, match, handle, eof){
 				single: match == "<"
 			});
 			this.inExpr = false;
+			break;
+		case "\"":
+		case "'":
+			// skip string
+			this.parser.index--;
+			this.pushText(this.parser.skipString());
 			break;
 		case ";": {
 			let scope = this.scopes[this.scopes.length - 1];

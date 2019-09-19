@@ -182,7 +182,7 @@ Sactory.css = {};
 /**
  * @since 0.94.0
  */
-Sactory.css.quote = function(value){
+Sactory.quote = function(value){
 	return JSON.stringify(value + "");
 };
 
