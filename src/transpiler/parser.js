@@ -90,7 +90,7 @@ Parser.prototype.errorAt = function(position, message){
 	var end = endIndex == -1 ? this.input.length : position.index + endIndex;
 	message += "\n" + this.input.substring(start, end) + "\n";
 	for(var i=start; i<end; i++) message += i == position.index ? "^" : (this.input.charAt(i) == "\t" ? "\t" : " ");
-	throw new ParserError("Line " + (position.line + 1) + ", Column " + position.column + ": " + message);
+	throw new ParserError(`Line ${position.line + 1}, Column ${position.column}: ${message}`);
 };
 
 /**
@@ -137,7 +137,7 @@ Parser.prototype.expect = function(c){
 	var curr = this.input[this.index++];
 	if(curr !== c) {
 		this.index--;
-		this.error("Expected '" + c + "' but got '" + curr + "'.");
+		this.error(`Expected \`${c}\` but got \`${curr}\`.`);
 	}
 };
 
@@ -150,7 +150,7 @@ Parser.prototype.expect = function(c){
  */
 Parser.prototype.expectSequence = function(seq){
 	if(seq != this.input.substr(this.index, seq.length)) {
-		this.error("Expected '" + seq + "'.");
+		this.error(`Expected \`${seq}\`.`);
 	} else {
 		this.index += seq.length;
 	}
@@ -238,8 +238,8 @@ Parser.prototype.skipImpl = function(options){
 	var prelastIndex = this.lastIndex;
 	var ret = "";
 	while(!this.eof()) {
-		var next = this.peek();
-		var comment;
+		let next = this.peek();
+		let comment;
 		if(options.whitespaces && options.whitespaces.test(next)) {
 			ret += this.read();
 		} else if(options.comments && next == "/" && ((comment = this.input[this.index + 1]) == "/" && options.inlineComments || comment == "*")) {
@@ -338,7 +338,7 @@ Parser.prototype.skipRegExp = function(){
 Parser.prototype.skipEnclosedContent = function(trim){
 	this.lastEnclosureIndex = this.index;
 	var par = {"}": "{", "]": "[", ")": "("};
-	var ret = this.read();
+	var ret = this.last = this.read();
 	var count = {"{": 0, "[": 0, "(": 0};
 	while(!this.eof()) {
 		var result = this.find(["{", "}", "[", "]", "(", ")"], true, {comments: true, strings: true, regexp: true});
@@ -367,8 +367,10 @@ Parser.prototype.skipEnclosedContent = function(trim){
 Parser.prototype.find = function(search, force, skip){
 	var ret = "";
 	while(!this.eof()) {
-		if(skip) ret += typeof skip == "object" ? this.skipImpl(skip) : this.skip();
-		var next = this.input[this.index++];
+		if(skip) {
+			ret += typeof skip == "object" ? this.skipImpl(skip) : this.skip();
+		}
+		let next = this.input[this.index++];
 		if(search.indexOf(next) != -1) {
 			return {pre: ret, match: next};
 		} else {
@@ -377,7 +379,13 @@ Parser.prototype.find = function(search, force, skip){
 			this.lastIndex = this.index - 1;
 		}
 	}
-	if(force && this.eof()) this.error("Expected " + search.join(", ") + " but none found.");
+	if(force && this.eof()) {
+		if(search.length == 1) {
+			this.error(`Expected \`${search[0]}\` but not found.`);
+		} else {
+			this.error(`Expected one of ${search.map(value => "`" + value + "`").join(", ")}, but not found.`);
+		}
+	}
 	return {pre: ret};
 };
 
@@ -393,7 +401,7 @@ Parser.prototype.find = function(search, force, skip){
 Parser.prototype.findSequence = function(sequence, force){
 	var index = this.input.substr(this.index).indexOf(sequence);
 	if(index == -1) {
-		if(force) this.error("Could not find sequence '" + sequence + "'.");
+		if(force) this.error(`Could not find sequence \`${sequence}\`.`);
 		else index = this.input.length;
 	}
 	var ret = this.input.substr(this.index, index + sequence.length);
@@ -416,7 +424,7 @@ Parser.prototype.readImpl = function(regex, force, message){
 		this.index += match[0].length;
 		return match[0];
 	} else if(force) {
-		this.error(message && message() || ("Regular expression '" + regex + "' could not be satisfied."));
+		this.error(message && message() || (`Regular expression \`${regex}\` could not be satisfied.`));
 	} else {
 		return false;
 	}
@@ -515,7 +523,7 @@ Parser.prototype.readQueryExpr = function(){
  */
 Parser.prototype.readSingleExpression = function(skip, force){
 	var ret = this.readImpl(/^([-+~!]*((new|delete|typeof)\s+)?(&|\*\??|\^\??)?)/) || "";
-	if(skip) ret += this.skipImpl({strings: false});
+	if(skip) ret += this.skipImpl({comments: true});
 	var peek = this.peek();
 	if(peek == "\"" || peek == "'" || peek == "`") {
 		ret += this.skipString();
@@ -529,15 +537,16 @@ Parser.prototype.readSingleExpression = function(skip, force){
 			ret: ret,
 			index: this.index
 		};
-		if(skip) ret += this.skipImpl({strings: false});
+		if(skip) ret += this.skipImpl({comments: true});
 		var expr = this.readImpl(/^(\.([*^]\??)?#?[a-zA-Z0-9_$]+)/, false);
 		if(expr) {
 			ret += expr;
-			if(skip) ret += this.skipImpl({strings: false});
+			if(skip) ret += this.skipImpl({comments: true});
 		}
 		peek = this.peek();
-		if(peek == "{" || peek == "[" || peek == "(") ret += this.skipEnclosedContent();
-		else if(!expr) {
+		if(peek == "{" || peek == "[" || peek == "(") {
+			ret += this.skipEnclosedContent();
+		} else if(!expr) {
 			ret = before.ret;
 			this.index = before.index;
 			break;
@@ -556,14 +565,14 @@ Parser.prototype.readSingleExpression = function(skip, force){
  * @since 0.49.0
  */
 Parser.prototype.readExpression = function(){
-	var ret = this.skipImpl({strings: false});
+	var ret = this.skipImpl({comments: true});
 	var expr;
 	if(expr = this.readSingleExpression(true)) {
-		ret += expr + this.skipImpl({strings: false});
+		ret += expr + this.skipImpl({comments: true});
 		while(!this.eof() && (expr = this.readImpl(/^(\*\*|&&?|\|\|?|\^|=>|==?=?|!==?|<<|>>>?|\?|:|[+*/%<>-]=?|in(stanceof)?\s)/, false))) {
-			ret += expr + this.skipImpl({strings: false});
+			ret += expr + this.skipImpl({comments: true});
 			if(!(expr = this.readSingleExpression(true)).trim()) this.error("Could not find a valid expression.");
-			ret += expr + this.skipImpl({strings: false});
+			ret += expr + this.skipImpl({comments: true});
 		}
 	}
 	if(!ret.trim().length) this.error("Could not find a valid expression.");

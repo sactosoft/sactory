@@ -341,7 +341,7 @@ LogicMode.prototype.parseLogic = function(expected, type, closing){
 		if(type === 0) {
 			// variable
 			this.endChainable(); // variable declarations cannot be chained
-			var end = this.parser.find(closing || ["=", ";"], true, {comments: true, strings: false});
+			var end = this.parser.find(closing || ["=", ";"], true, {comments: true});
 			this.add(trimmed + expected + end.pre + end.match); // add declaration (e.g. `var a =` or `var a;`)
 			if(end.match == "=") {
 				// add the value/body of the variable
