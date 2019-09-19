@@ -2,7 +2,7 @@
 require("../dom");
 
 var version = require("../../version");
-var Const = require("../const");
+var Attr = require("../attr");
 var Polyfill = require("../polyfill");
 var { hash, now, uniq } = require("./util");
 var Parser = require("./parser");
@@ -11,13 +11,13 @@ var { modeRegistry, modeNames, defaultMode, startMode } = require("./mode");
 
 function mapAttributeType(type) {
 	switch(type) {
-		case "": return Const.BUILDER_TYPE_NONE;
-		case "@": return Const.BUILDER_TYPE_PROP;
-		case "&": return Const.BUILDER_TYPE_STYLE;
-		case "+": return Const.BUILDER_TYPE_ON;
-		case "$": return Const.BUILDER_TYPE_CREATE_WIDGET;
-		case "~": return Const.BUILDER_TYPE_UPDATE_WIDGET;
-		case "$$": return Const.BUILDER_TYPE_EXTEND_WIDGET;
+		case "": return Attr.NONE;
+		case "@": return Attr.PROP;
+		case "&": return Attr.STYLE;
+		case "+": return Attr.EVENT;
+		case "$": return Attr.WIDGET;
+		case "~": return Attr.UPDATE_WIDGET;
+		case "$$": return Attr.EXTEND_WIDGET;
 	}
 }
 
@@ -295,9 +295,7 @@ Transpiler.prototype.open = function(){
 		var arg;
 		var dattributes = {}; // attributes used to give directives to the transpiler, not used at runtime
 		var dattributesspacer = []; // string representation of the compile-time attributes, used to maintain spacing
-		var rattributes = []; // attributes used at runtime to modify the element
-		var iattributes = []; // attributes used at runtime that are created using interpolation syntax
-		var sattributes = []; // variable name of the attributes passed using the spread syntax
+		var attributes = [];
 		var newMode = undefined;
 		var currentInheritance = null;
 		var currentClosing = [];
@@ -334,11 +332,11 @@ Transpiler.prototype.open = function(){
 			};
 			if(this.isSpreadAttribute()) {
 				//TODO assert not optional nor negated
-				sattributes.push({
+				attributes.push({type: Attr.SPREAD, attr: {
 					type: attr.type,
 					expr: this.parser.readSingleExpression(false, true),
 					space: skipped
-				});
+				}});
 				skip();
 			} else {
 				var content = this.parseAttributeName(false);
@@ -404,7 +402,7 @@ Transpiler.prototype.open = function(){
 					if(!Object.prototype.hasOwnProperty.call(attr, "value")) {
 						attr.value = this.getDefaultAttributeValue(attr);
 					}
-					iattributes.push(attr);
+					attributes.push({type: Attr.INTERPOLATED, attr});
 				} else {
 					this.compileAttributeParts(attr);
 					switch(attr.type) {
@@ -424,7 +422,6 @@ Transpiler.prototype.open = function(){
 							dattributesspacer.push(`${attr.beforeName}/*${attr.name}${attr.afterName || ""}=${attr.beforeValue || ""}${attr.value}*/`);
 							break;
 						case "*": {
-							let add = false;
 							let start = attr.parts[0];
 							if(!start || start.computed) {
 								this.parser.error("First part of bind attributes cannot be computed.");
@@ -462,14 +459,13 @@ Transpiler.prototype.open = function(){
 									});
 									break;
 							}
-							if(add) this.compileAttributeParts(attr);
-							else break;
+							break;
 						}
 						default:
 							if(!Object.prototype.hasOwnProperty.call(attr, "value")) {
 								attr.value = this.getDefaultAttributeValue(attr);
 							}
-							rattributes.push(attr);
+							attributes.push({type: Attr.NORMAL, attr});
 					}
 				}
 			}
@@ -480,63 +476,56 @@ Transpiler.prototype.open = function(){
 
 		const options = noInheritance => {
 			const level = ++this.level;
-			const data = {};
-			if(rattributes.length) {
-				data.attrs = rattributes.map(attribute => attribute.spacer ||
-					(`${attribute.beforeName || ""}[${mapAttributeType(attribute.type)}, ` +
-					`${attribute.computed ? attribute.name : `"${attribute.name || ""}"`}${attribute.afterName || ""}, ` +
-					(attribute.beforeValue || "") + attribute.value +
-					(attribute.optional ? ", 1" : "") + "]")
-				).join(",");
-			}
-			if(iattributes.length) {
-				var s = this.stringifyAttribute;
-				data.iattrs = iattributes.map(attribute => {
-					var prev = {};
-					return `[${mapAttributeType(attribute.type)},${attribute.beforeName}${s(attribute.before)}, ${attribute.inner.map((attribute, i) => {
-						let ret = attribute.beforeValue;
-						if(i == 0) {
+			const ret = `${dattributesspacer.join("")}[${attributes.map(({type, attr}) => {
+				let ret = `[${type << 3 | mapAttributeType(attr.type)},`;
+				if(type == Attr.NORMAL) {
+					ret += `${attr.beforeName || ""}${attr.computed ? attr.name : `"${attr.name || ""}"`}` +
+						`${attr.afterName || ""}, ${attr.beforeValue || ""}${attr.value}${attr.optional ? ", 1" : ""}`;
+				} else if(type == Attr.INTERPOLATED) {
+					ret += `${attr.beforeName}${this.stringifyAttribute(attr.before)}, `;
+					if(this.options.es6) {
+						ret += `[${attr.inner.map(attribute => {
 							if(attribute.spread) {
-								ret += `${attribute.expr}.concat(`;
+								return `...${attribute.expr}`;
 							} else {
-								ret += `Array(${s(attribute)}`;
+								return this.stringifyAttribute(attribute);
 							}
-						} else {
-							if(attribute.spread) {
-								ret += `).concat(${attribute.expr}).concat(`;
+						}).join(", ")}]`;
+					} else {
+						let prev = {};
+						ret += attr.inner.map((attribute, i) => {
+							let ret = attribute.beforeValue;
+							if(i == 0) {
+								if(attribute.spread) {
+									ret += `${attribute.expr}.concat(`;
+								} else {
+									ret += `Array(${this.stringifyAttribute(attribute)}`;
+								}
 							} else {
-								if(!prev.spread) ret += ", ";
-								ret += s(attribute);
+								if(attribute.spread) {
+									ret += `).concat(${attribute.expr}`;
+								} else {
+									//if(prev.spread) ret += ").concat(";
+									if(!prev.spread) ret += ", ";
+									ret += this.stringifyAttribute(attribute);
+								}
 							}
-						}
-						prev = attribute;
-						return ret + attribute.afterValue;
-					}).join("")}), ${s(attribute.after)},${attribute.beforeValue || ""}${attribute.value}]`;
-				});
-			}
-			if(sattributes.length) {
-				data.spread = sattributes.map(({space, type, expr}) => `${space}[${mapAttributeType(type)}, ${expr}]`).join(", ");
-			}
-			if(Object.prototype.hasOwnProperty.call(dattributes, "widget")) {
-				data.widget = dattributes.widget;
-			}
-			let str = [];
-			let i = 0;
-			["attrs", "iattrs", "spread"].forEach(type => {
-				var value = data[type];
-				if(value) str[i] = "[" + value + "]";
-				i++;
-			});
-			["widget"].forEach(type => {
-				if(Object.prototype.hasOwnProperty.call(data, type)) str[i] = data[type];
-				i++;
-			});
-			let ret = `${dattributesspacer.join("")}[${str.join(",")}]`;
+							prev = attribute;
+							return ret + attribute.afterValue;
+						}).join("");
+						ret += ")";
+					}
+					ret += `, ${this.stringifyAttribute(attr.after)}, ${attr.beforeValue || ""}${attr.value}`;
+				} else { // == Attr.SPREAD
+					ret += `${attr.space}${attr.expr}`;
+				}
+				return ret + "]";
+			}).join(", ")}${Object.prototype.hasOwnProperty.call(dattributes, "widget") ? `, ${dattributes.widget}` : ""}]`;
 			// check inheritance
 			if(!noInheritance) {
 				var inheritance = this.inherit.filter(info => info && ((!info.level || info.level.indexOf(level) != -1)
 					&& (!info.whitelist || info.whitelist.indexOf(tagName) != -1))).map(info => info.index);
-				return inheritance.length ? `${this.feature("inherit")}(${ret}, ${inheritance.join(", ")})` : ret;
+				return inheritance.length ? `${inheritance.map(i => `(${i}).concat`).join("")}(${ret})` : ret;
 			} else {
 				return ret;
 			}
@@ -603,11 +592,11 @@ Transpiler.prototype.open = function(){
 						case "super":
 							computed = true;
 							tagName = "super.render" + (arg ? "$" + arg : "") + ".bind(this)";
-							rattributes.unshift({
+							attributes.unshift({type: Attr.NORMAL, attr: {
 								type: "$",
 								name: "",
 								value: "arguments[0]"
-							});
+							}});
 							break;
 						case "use":
 							element = arg;
@@ -721,16 +710,16 @@ Transpiler.prototype.open = function(){
 		if(newMode !== undefined) {
 
 			// every attribute is parsed as JSON, expect an empty string (default value) which is converter to true
-			let attributes = {};
+			let nattributes = {};
 			for(let key in dattributes) {
 				try {
 					let value = JSON.parse(dattributes[key]);
-					attributes[key] = value === "" ? true : value;
+					nattributes[key] = value === "" ? true : value;
 				} catch(e) {
 					// invalid values are ignored
 				}
 			}
-			this.startMode(newMode, attributes);
+			this.startMode(newMode, nattributes);
 
 		}
 
@@ -816,10 +805,12 @@ Transpiler.prototype.open = function(){
 				// create or update
 				if(create) {
 					// tagName must be called before options, so it is calculated before attributes
-					let data = [this.chainFeature(optional ? "createIf" : "create"), 0, options()];
+					let data = [this.chainFeature(optional ? "createIf" : "create"), 0, 0, options()];
 					if(computed/* || this.options.widgets && this.options.widgets.indexOf(tagName) != -1*/) {
 						data[1] = tagName;
-						if(tagNameString) data.push(JSON.stringify(tagNameString));
+						if(tagNameString) {
+							data[2] = JSON.stringify(tagNameString);
+						}
 					} else {
 						data[1] = `"${tagName}"`;
 					}

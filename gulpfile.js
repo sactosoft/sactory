@@ -81,16 +81,16 @@ function makeImpl(filename, className, declare, debug, sources) {
 
 }
 
-function make(filename, className, declare, debug, sources) {
+/*function make(filename, className, declare, debug, sources) {
 	return es.merge(
 		makeImpl(filename, className, declare, false, sources),
 		makeImpl(filename + ".debug", className, declare, true, sources.concat(debug))
 	).pipe(nop());
-}
+}*/
 
 gulp.task("dist:sactory", () => makeImpl("sactory", "Sactory", false, false, [
 	"polyfill",
-	"const",
+	"attr",
 	"util",
 	"runtime/config", // must be first
 	"runtime/bind",
@@ -114,7 +114,7 @@ gulp.task("dist:sactory-observable", () => makeImpl("sactory-observable", "Sacto
 
 gulp.task("dist:transpiler", () => makeImpl("transpiler", "Transpiler", false, false, [
 	"polyfill",
-	"const",
+	"attr",
 	"transpiler/util",
 	"transpiler/parser",
 	"transpiler/generated",

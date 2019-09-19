@@ -1,5 +1,5 @@
 var Polyfill = require("../polyfill");
-var Const = require("../const");
+var Attr = require("../attr");
 var { dehyphenate } = require("../util");
 var SactoryConst = require("./const");
 var SactoryContext = require("./context");
@@ -99,100 +99,106 @@ chain.namespace = function(context, namespace){
 /**
  * @since 0.60.0
  */
-chain.updateImpl = function(context, [attrs = [], iattrs, sattrs, widgetCheck, tagName, tagNameString]){
-
-	if(iattrs) {
-		iattrs.forEach(([type, before, names, after, value]) => {
-			names.forEach(name => attrs.push([type, before + name + after, value]));
-		});
-	}
-
-	if(sattrs) {
-		sattrs.forEach(([type, values]) => {
-			for(var key in values) {
-				attrs.push([type, key, values[key]]);
-			}
-		});
-	}
+chain.updateImpl = function(context, tagName, tagNameString, attrs = [], widgetCheck = true){
 	
-	var args = [];
-	var widgetArgs = {};
-	var widgetExt = [];
-	var widgetExtRef = {};
+	let args = [];
+	let widgetArgs = {};
+	let widgetExt = [];
+	let widgetExtRef = {};
 
-	// filter out optional arguments
-	attrs.forEach(([type, name, value, optional]) => {
-		if(!optional || value !== undefined) {
-			if(type >= Const.BUILDER_TYPE_CREATE_WIDGET) {
-				var obj;
-				if(SactoryMisc.isBuilderObservable(value)) {
-					value = value.use(context.bind);
-				}
-				if(type >= Const.BUILDER_TYPE_UPDATE_WIDGET) {
-					if(typeof name[0] == "function") {
-						var widget = name[0];
-						name = name.slice(1).toString().substr(1); // assuming the first character is a column
-						if(name.length) {
-							widgetExt.push({
-								widget,
-								args: obj = {}
-							});
-						} else {
-							widgetExt.push({
-								widget,
-								args: value
-							});
-							return;
-						}
+	const add = (type, name, value) => {
+		if(type >= Attr.WIDGET) {
+			var obj;
+			if(SactoryMisc.isBuilderObservable(value)) {
+				value = value.use(context.bind);
+			}
+			if(type >= Attr.UPDATE_WIDGET) {
+				if(typeof name[0] == "function") {
+					var widget = name[0];
+					name = name.slice(1).toString().substr(1); // assuming the first character is a column
+					if(name.length) {
+						widgetExt.push({
+							widget,
+							args: obj = {}
+						});
 					} else {
-						name = name.toString();
-						var col = name.indexOf(":");
-						if(col == -1) {
-							widgetExt.push({
-								name, 
-								args: widgetExtRef[name] = value
-							});
-							return;
-						} else {
-							var key = name.substring(0, col);
-							if(type == Const.BUILDER_TYPE_UPDATE_WIDGET) {
-								widgetExt.push({
-									name: key,
-									args: obj = {}
-								});
-							} else if(!Object.prototype.hasOwnProperty.call(widgetExtRef, key)) {
-								widgetExt.push({
-									name: key,
-									args: obj = widgetExtRef[key] = {}
-								});
-							} else {
-								obj = widgetExtRef[key];
-							}
-							name = name.substr(col + 1);
-						}
+						widgetExt.push({
+							widget,
+							args: value
+						});
+						return;
 					}
 				} else {
 					name = name.toString();
-					if(name.length) {
-						obj = widgetArgs;
-					} else {
-						widgetArgs = value;
+					var col = name.indexOf(":");
+					if(col == -1) {
+						widgetExt.push({
+							name, 
+							args: widgetExtRef[name] = value
+						});
 						return;
+					} else {
+						var key = name.substring(0, col);
+						if(type == Attr.UPDATE_WIDGET) {
+							widgetExt.push({
+								name: key,
+								args: obj = {}
+							});
+						} else if(!Object.prototype.hasOwnProperty.call(widgetExtRef, key)) {
+							widgetExt.push({
+								name: key,
+								args: obj = widgetExtRef[key] = {}
+							});
+						} else {
+							obj = widgetExtRef[key];
+						}
+						name = name.substr(col + 1);
 					}
-				}
-				var splitted = name.split(".");
-				if(splitted.length > 1) {
-					for(var i=0; i<splitted.length-1; i++) {
-						var k = splitted[i];
-						if(typeof obj[k] != "object") obj[k] = {};
-						obj = obj[k];
-					}
-					obj[splitted[splitted.length - 1]] = value;
-				} else {
-					obj[name] = value;
 				}
 			} else {
-				args.push({type, name, value});
+				name = name.toString();
+				if(name.length) {
+					obj = widgetArgs;
+				} else {
+					widgetArgs = value;
+					return;
+				}
+			}
+			var splitted = name.split(".");
+			if(splitted.length > 1) {
+				for(var i=0; i<splitted.length-1; i++) {
+					var k = splitted[i];
+					if(typeof obj[k] != "object") obj[k] = {};
+					obj = obj[k];
+				}
+				obj[splitted[splitted.length - 1]] = value;
+			} else {
+				obj[name] = value;
+			}
+		} else {
+			args.push({type, name, value});
+		}
+	};
+
+	attrs.forEach(([type, ...args]) => {
+		const v = type >> 3;
+		const t = type & 0b111;
+		if(v == Attr.NORMAL) {
+			const [name, value, optional] = args;
+			if(!optional || value !== undefined) {
+				add(t, name, value);
+			}
+		} else if(v == Attr.INTERPOLATED) {
+			const [before, inner, after, value] = args;
+			if(before || after) {
+				inner.forEach(name => add(t, before + name + after, value));
+			} else {
+				inner.forEach(name => add(t, name, value));
+			}
+		} else { // == Attr.SPREAD
+			const [values] = args;
+			for(let name in values) {
+				add(t, name, values[name]);
 			}
 		}
 	});
@@ -292,33 +298,31 @@ chain.updateImpl = function(context, [attrs = [], iattrs, sattrs, widgetCheck, t
 /**
  * @since 0.128.0
  */
-chain.update = function(context, options){
+chain.update = function(context, attrs, widgetCheck){
 	if(!context.element) {
 		// only update if not previously updated
 		context.element = context.parentElement;
 	}
-	chain.updateImpl(context, options);
+	chain.updateImpl(context, null, null, attrs, widgetCheck);
 };
 
 /**
  * @since 0.60.0
  */
-chain.create = function(context, tagName, options, tagNameString){
-	options[4] = tagName;
-	options[5] = tagNameString;
+chain.create = function(context, tagName, tagNameString, attrs, widgetCheck){
 	context.anchor = null; // invalidate the current anchor so the children will not use it
 	context.created = true;
-	chain.updateImpl(context, options);
+	chain.updateImpl(context, tagName, tagNameString, attrs, widgetCheck);
 };
 
 /**
  * @since 0.128.0
  */
-chain.createIf = function(context, tagName, options, tagNameString){
+chain.createIf = function(context, tagName, tagNameString, attrs, widgetCheck){
 	if(context.parentElement) {
-		chain.update(context, options);
+		chain.update(context, attrs, widgetCheck);
 	} else {
-		chain.create(context, tagName, options, tagNameString);
+		chain.create(context, tagName, tagNameString, attrs, widgetCheck);
 	}
 };
 

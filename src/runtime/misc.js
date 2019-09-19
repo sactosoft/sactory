@@ -3,7 +3,7 @@ var SactoryObservable = require("./observable");
 
 var Sactory = {};
 
-function Attr(args) {
+function AttrValue(args) {
 	this.args = args;
 	this.length = args.length;
 	for(var i in args) {
@@ -11,15 +11,15 @@ function Attr(args) {
 	}
 }
 
-Attr.prototype.get = function(index){
+AttrValue.prototype.get = function(index){
 	return this.args[index];
 };
 
-Attr.prototype.slice = function(){
-	return new Attr(Array.prototype.slice.apply(this.args, arguments));
+AttrValue.prototype.slice = function(){
+	return new AttrValue(Array.prototype.slice.apply(this.args, arguments));
 };
 
-Attr.prototype.split = function(separator){
+AttrValue.prototype.split = function(separator){
 	var ret = [];
 	var curr;
 	var push = value => {
@@ -47,14 +47,14 @@ Attr.prototype.split = function(separator){
 			}
 		}
 	});
-	return ret.map(a => new Attr(a));
+	return ret.map(a => new AttrValue(a));
 };
 
-Attr.prototype.toValue = function(){
+AttrValue.prototype.toValue = function(){
 	return this.args.length == 1 ? this.args[0] : this.toString();
 };
 
-Attr.prototype.toString = function(){
+AttrValue.prototype.toString = function(){
 	return this.args.join("");
 };
 
@@ -172,7 +172,7 @@ Sactory.$$bindInput = function(context, element, type, {info, value, update}){
  * @since 0.127.0
  */
 Sactory.attr = function(...args){
-	return new Attr(args);
+	return new AttrValue(args);
 };
 
 /**

@@ -1,7 +1,7 @@
 // init global variables
 require("../dom");
 
-var Const = require("../const");
+var Attr = require("../attr");
 var Builder = require("./core");
 var counter = require("./counter");
 var Sactory = require("./widgets");
@@ -41,9 +41,9 @@ function app({name = "App", src, runtime = "Sactory", args}, arg1, context) {
 	const script2 = context.document.createElement("script");
 	const data = [];
 	for(let key in args) {
-		data.push(`[${Const.BUILDER_TYPE_CREATE_WIDGET}, "${key}", ${JSON.stringify(args[key])}]`);
+		data.push(`[${Attr.WIDGET}, "${key}", ${JSON.stringify(args[key])}]`);
 	}
-	script2.textContent = `window.addEventListener("load",function(){var e=document.querySelector("#${id}");${runtime}.chain({element: e.parentNode, anchor: e.nextSibling}, [${runtime}.chain.create, ${name}, [[${data.join(", ")}]]], [${runtime}.chain.append])})`;
+	script2.textContent = `window.addEventListener("load",function(){var e=document.querySelector("#${id}");${runtime}.chain({element: e.parentNode, anchor: e.nextSibling}, [${runtime}.chain.create, ${name}, 0, [${data.join(", ")}]], [${runtime}.chain.append])})`;
 	script2.setAttribute("id", id);
 	context.document.head.appendChild(script1);
 	return script2;

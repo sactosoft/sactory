@@ -1,5 +1,5 @@
 var Polyfill = require("../polyfill");
-var Const = require("../const");
+var Attr = require("../attr");
 var { hyphenate } = require("../util");
 
 var SactoryBind = require("./bind");
@@ -669,21 +669,21 @@ if(SactoryConfig.config.ie) {
 /**
  * @since 0.69.0
  */
-Sactory.prototype[Const.BUILDER_TYPE_NONE] = function({bind}, name, value){
+Sactory.prototype[Attr.NONE] = function({bind}, name, value){
 	this.attr(name.toString(), value, bind);
 };
 
 /**
  * @since 0.63.0
  */
-Sactory.prototype[Const.BUILDER_TYPE_PROP] = function({bind}, name, value){
+Sactory.prototype[Attr.PROP] = function({bind}, name, value){
 	this.prop(name.toString(), value, bind);
 };
 
 /**
  * @since 0.121.0
  */
-Sactory.prototype[Const.BUILDER_TYPE_STYLE] = function({bind}, name, value){
+Sactory.prototype[Attr.STYLE] = function({bind}, name, value){
 	name = name.toString();
 	if(/[!a-z-]/.test(name.charAt(0))) {
 		this.style(name, value, bind);
@@ -695,7 +695,7 @@ Sactory.prototype[Const.BUILDER_TYPE_STYLE] = function({bind}, name, value){
 /**
  * @since 0.69.0
  */
-Sactory.prototype[Const.BUILDER_TYPE_ON] = function({bind}, name, value){
+Sactory.prototype[Attr.EVENT] = function({bind}, name, value){
 	this.event(name, value, bind);
 };
 
