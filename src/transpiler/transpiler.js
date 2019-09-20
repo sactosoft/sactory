@@ -362,7 +362,7 @@ Transpiler.prototype.open = function(){
 						curr.afterValue = skip();
 					} while((next = this.parser.read()) == ",");
 					if(next != "}") {
-						this.parser.error("Expected '}' after interpolated attributes list.");
+						this.parser.error("Expected `}` after interpolated attributes list.");
 					}
 					attr.after = this.parseAttributeName(false);
 					this.compileAttributeParts(attr.before);
@@ -387,7 +387,7 @@ Transpiler.prototype.open = function(){
 					} else if(attr.type == "+") {
 						let source = parsed.source;
 						if(source.charAt(0) == "{" && source.charAt(source.length - 1) == "}") {
-							this.warn("The '{ ... }' syntax for functions as attribute values is deprecated. Use the '{{ ... }}' syntax instead.");
+							this.warn("The `{ ... }` syntax for functions as attribute values is deprecated. Use the `{{ ... }}` syntax instead.");
 							attr.value = this.options.es6 ? `(event, target) => ${source}` : `function(event, target)${source}.bind(this)`;
 						} else {
 							attr.value = source;
@@ -432,11 +432,11 @@ Transpiler.prototype.open = function(){
 							switch(name) {
 								case "next":
 								case "prev":
-									this.warn("Attributes '*next' and '*prev' are deprecated. Use '~next' and '~prev' instead.");
+									this.warn("Attributes `*next` and `*prev` are deprecated. Use `~next` and `~prev` instead.");
 									break;
 								case "show":
 								case "hide":
-									this.warn("Attributes '*show' and '*hide' are deprecated. Use '~show' and '~hide' instead.");
+									this.warn("Attributes `*show` and `*hide` are deprecated. Use `~show` and `~hide` instead.");
 									break;
 								default:
 									if(!Object.prototype.hasOwnProperty.call(attr, "value")) {
@@ -517,7 +517,21 @@ Transpiler.prototype.open = function(){
 					}
 					ret += `, ${this.stringifyAttribute(attr.after)}, ${attr.beforeValue || ""}${attr.value}`;
 				} else { // == Attr.SPREAD
-					ret += `${attr.space}${attr.expr}`;
+					let curr, parser = new Parser(attr.expr.slice(1, -1));
+					let expr = "";
+					while((curr = parser.find([","], false, {comments: true, strings: true, regexp: true})).pre) {
+						const match = curr.pre.match(/^(\s*)this(\s*)\.(\s*)([a-zA-Z0-9_$]+)(\s*)$/);
+						if(match) {
+							const [, before, beforeDot, afterDot, key, after] = match;
+							expr += `${before}${key}: this${beforeDot}.${afterDot}${key}${after}`;
+						} else {
+							expr += curr.pre;
+						}
+						if(curr.match) {
+							expr += curr.match;
+						}
+					}
+					ret += `${attr.space}{${expr}}`;
 				}
 				return ret + "]";
 			}).join(", ")}${Object.prototype.hasOwnProperty.call(dattributes, "widget") ? `, ${dattributes.widget}` : ""}]`;
