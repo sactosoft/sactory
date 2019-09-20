@@ -43,10 +43,12 @@ Sactory.newChainContext = function(context){
 };
 
 /**
+ * Creates a new context based on another context, replacing bind, anchor and element, which
+ * is always set to the anchor's parent.
  * @since 0.138.0
  */
 Sactory.newBindContext = function(context, bind, anchor){
-	return Sactory.newContext(context, {bind, anchor, top: true});
+	return Sactory.newContext(context, {element: anchor.parentNode, top: true, bind, anchor});
 };
 
 /**
