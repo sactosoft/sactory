@@ -394,7 +394,7 @@ Parser.prototype.find = function(search, force, skip){
  * current index to the end of the match.
  * @param {string} sequence - The sequence to find.
  * @param {boolean=} force - Whether to throw an error if no match can be found or return an empty string.
- * @returns The data between the current index and the match (the matched sequence is not included).
+ * @returns The data between the current index and the match (the matched sequence is included).
  * @throws {ParserError} When force is true and no match could be found.
  * @since 0.16.0
  */

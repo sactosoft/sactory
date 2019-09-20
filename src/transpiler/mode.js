@@ -1023,7 +1023,7 @@ function SSBMode(transpiler, parser, source, attributes) {
 }
 
 SSBMode.getOptions = function(){
-	return {whitespaces: /[ \t\r]/, comments: true, strings: true, children: false};
+	return {children: false};
 };
 
 SSBMode.matchesTag = function(tagName){
@@ -1059,30 +1059,54 @@ SSBMode.prototype.start = function(){
 };
 
 SSBMode.prototype.find = function(){
-	return this.parser.find(["$", "<", "v", "c", "l", "i", "f", "{", "}", "\"", "'", ";"], false, false);
+	return this.parser.find(["$", "<", "v", "c", "l", "i", "f", "{", "}", "/", "\"", "'", ";"], false, false);
 };
 
 SSBMode.prototype.lastValue = function(callback, parser){
-	let end;
-	if(this.current.length) {
-		if(this.current[0].text) {
-			// trim start
-			let value = this.current[0].value;
-			let trimmed = Polyfill.trimStart.call(value);
-			this.add(value.substring(0, value.length - trimmed.length));
-			this.current[0].value = trimmed;
+	let end = "";
+	while(this.current.length) {
+		const curr = this.current[0];
+		if(curr.comment) {
+			// just add the comment to the source code
+			this.add(curr.value);
+			this.current.shift();
+		} else if(curr.text) {
+			// add data trimmed before text
+			const trimmed = Polyfill.trimStart.call(curr.value);
+			this.add(curr.value.substring(0, curr.value.length - trimmed.length));
+			if(trimmed.length == 0) {
+				// it was whitespace
+				this.current.shift();
+			} else {
+				curr.value = trimmed;
+				break;
+			}
+		} else {
+			break;
 		}
-		if(this.current[this.current.length - 1].text) {
+	}
+	while(this.current.length) {
+		const curr = this.current[this.current.length - 1];
+		if(curr.comment) {
+			end = curr.value + end;
+			this.current.pop();
+		} else if(curr.text) {
 			// trim end
-			let value = this.current[this.current.length - 1].value;
-			let trimmed = Polyfill.trimEnd.call(value);
-			end = value.substr(trimmed.length);
-			this.current[this.current.length - 1].value = trimmed;
+			const trimmed = Polyfill.trimEnd.call(curr.value);
+			end = curr.value.substr(trimmed.length) + end;
+			if(trimmed.length == 0) {
+				this.current.pop();
+			} else {
+				curr.value = trimmed;
+				break;
+			}
+		} else {
+			break;
 		}
 	}
 	// create filtered array and add observables to mode's dependencies
 	let filtered = this.current.filter(part => {
-		if(part.text) {
+		if(part.text || part.comment) {
 			return part.value.length;
 		} else {
 			this.observables.push(...part.value.observables);
@@ -1094,12 +1118,28 @@ SSBMode.prototype.lastValue = function(callback, parser){
 		filtered.push({text: true, value: ""});
 	}
 	if(this.es6) {
-		callback("`" + filtered.map(part => part.text ? part.value.replace(/(`|\$|\\)/gm, "\\$1") : `\${${parser ? parser(part.value.source) : part.value.source}}`).join("") + "`");
+		callback("`" + filtered.map(part => {
+			if(part.text) {
+				return part.value.replace(/(`|\$|\\)/gm, "\\$1");
+			} else if(part.comment) {
+				return `\${""${part.value}}`;
+			} else {
+				return `\${${parser ? parser(part.value.source) : part.value.source}}`;
+			}
+		}).join("") + "`");
 	} else {
 		if(!filtered[0].text) {
 			filtered.unshift({text: true, value: ""});
 		}
-		callback(filtered.map(part => part.text ? stringify(part.value) : (parser ? parser(part.value.source) : `(${part.value.source})`)).join(" + "));
+		callback(filtered.map(part => {
+			if(part.text) {
+				return stringify(part.value);
+			} else if(part.comment) {
+				return part.value;
+			} else {
+				return (parser ? parser(part.value.source) : `(${part.value.source})`);
+			}
+		}).join(" + "));
 	}
 	if(end) this.add(end);
 	this.current = [];
@@ -1124,6 +1164,21 @@ SSBMode.prototype.parseImpl = function(pre, match, handle, eof){
 			});
 			this.inExpr = false;
 			break;
+		case "/":
+			if(this.parser.readIf("/")) {
+				// only valid on start of the line
+				const last = this.current[this.current.length - 1];
+				if(!last || last.comment || last.text && /(^|\n)[ \t]*$/.test(last.value)) {
+					this.current.push({comment: true, value: "//" + this.parser.findSequence("\n", false)});
+				} else {
+					this.pushText("//");
+				}
+			} else if(this.parser.readIf("*")) {
+				this.current.push({comment: true, value: `/*${this.parser.findSequence("*/", true)}`});
+			} else {
+				this.pushText("/");
+			}
+			break;
 		case "\"":
 		case "'":
 			// skip string
@@ -1132,17 +1187,24 @@ SSBMode.prototype.parseImpl = function(pre, match, handle, eof){
 			break;
 		case ";": {
 			let scope = this.scopes[this.scopes.length - 1];
-			let filtered = this.current.filter(c => !c.text || c.value.trim().length);
+			let filtered = this.current.filter(c => !c.comment && (!c.text || c.value.trim().length));
 			if(filtered.length == 1 && !filtered[0].text && Polyfill.startsWith.call(filtered[0].value.source, "...")) {
+				//TODO space/comments before are ignored
 				this.add(`${scope}.spread(${filtered[0].value.source.substr(3)});`);
 				let curr;
-				while((curr = this.current.pop()).text) this.add(curr.value);
+				while((curr = this.current.pop()).text || curr.comment) {
+					this.add(curr.value);
+				}
 				this.current = [];
 			} else {
-				let value;
+				let value, first = true;
 				for(let i=0; i<this.current.length; i++) {
 					let current = this.current[i];
 					if(current.text) {
+						if(!first && current.value.charAt(0) == "@") {
+							// must be a stat, do not bother to search for a value
+							break;
+						}
 						let column = current.value.indexOf(":");
 						if(column != -1) {
 							value = this.current.slice(i + 1);
@@ -1160,6 +1222,9 @@ SSBMode.prototype.parseImpl = function(pre, match, handle, eof){
 							);
 							break;
 						}
+					}
+					if(!current.comment) {
+						first = false;
 					}
 				}
 				if(!value) {
@@ -1210,6 +1275,21 @@ SSBMode.prototype.addFinalCurrent = function(){
 	while(this.current.length) {
 		this.add(this.current.shift().value);
 	}
+};
+
+SSBMode.prototype.addCurrent = function(){
+	this.current.forEach(curr => {
+		if(curr.comment) {
+			this.add(curr.value);
+		} else if(curr.text) {
+			// assert whitespace
+			if(!/^\s*$/.test(curr.value)) this.parser.error(`Statement \`${curr.value}\` not closed.`);
+			this.add(curr.value);
+		} else {
+			//TODO error
+		}
+	});
+	this.current = [];
 };
 
 SSBMode.prototype.end = function(){
