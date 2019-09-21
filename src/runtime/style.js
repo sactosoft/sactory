@@ -10,7 +10,7 @@ var Sactory = {};
  * @class
  * @since 0.143.0
  */
-function SactoryZ(root, sroot, tree, selectors = [], absolute = false) {
+function Builder(root, sroot, tree, selectors = [], absolute = false) {
 	this.root = root;
 	this.sroot = sroot;
 	this.tree = tree;
@@ -18,7 +18,7 @@ function SactoryZ(root, sroot, tree, selectors = [], absolute = false) {
 	this.absolute = absolute;
 }
 
-SactoryZ.prototype.select = function(selector){
+Builder.prototype.select = function(selector){
 	if(selector.charAt(0) == "@") {
 		// special case for at-rule selectors
 		let sroot = [];
@@ -28,7 +28,7 @@ SactoryZ.prototype.select = function(selector){
 			tree = [];
 			sroot.push({selector: this.selectors.join(", "), tree});
 		}
-		return new SactoryZ(this.root, sroot, tree, this.selectors, selector.substr(1, 9) == "keyframes");
+		return new Builder(this.root, sroot, tree, this.selectors, selector.substr(1, 9) == "keyframes");
 	} else {
 		let selectors = [];
 		selector.split(",").map(s => s.trim()).forEach(selector => {
@@ -46,19 +46,19 @@ SactoryZ.prototype.select = function(selector){
 		});
 		let tree = [];
 		this.sroot.push({selector: selectors.join(", "), tree});
-		return new SactoryZ(this.root, this.sroot, tree, selectors);
+		return new Builder(this.root, this.sroot, tree, selectors);
 	}
 };
 
-SactoryZ.prototype.value = function(key, value){
+Builder.prototype.value = function(key, value){
 	key.split(",").map(key => this.tree.push({key: key.trim(), value}));
 };
 
-SactoryZ.prototype.stat = function(stat){
+Builder.prototype.stat = function(stat){
 	this.root.push({stat});
 };
 
-SactoryZ.prototype.spread = function(values){
+Builder.prototype.spread = function(values){
 	for(let key in values) {
 		this.value(key, values[key]);
 	}
@@ -67,12 +67,12 @@ SactoryZ.prototype.spread = function(values){
 /**
  * @since 0.143.0
  */
-SactoryZ.minify = function(tree){
+Builder.minify = function(tree){
 	let ret = "";
 	tree.forEach(part => {
 		if(part.selector) {
 			if(part.tree.length) {
-				ret += part.selector + "{" + SactoryZ.minify(part.tree) + "}";
+				ret += part.selector + "{" + Builder.minify(part.tree) + "}";
 			}
 		} else if(part.stat) {
 			ret += part.stat + ";";
@@ -86,13 +86,13 @@ SactoryZ.minify = function(tree){
 /**
  * @since 0.143.0
  */
-SactoryZ.prettify = function(tree, curr, indent){
+Builder.prettify = function(tree, curr, indent){
 	let ret = "";
 	tree.forEach(part => {
 		if(part.selector) {
 			const {selector, tree} = part;
 			if(tree.length) {
-				ret += curr + selector + " {\n" + SactoryZ.prettify(tree, curr + indent, indent) + curr + "}\n";
+				ret += curr + selector + " {\n" + Builder.prettify(tree, curr + indent, indent) + curr + "}\n";
 			}
 		} else if(part.stat) {
 			ret += curr + part.stat + ";\n";
@@ -158,8 +158,8 @@ Sactory.cabs = function({element, bind, selector}, scope, fun, observables, mayb
 			root.push({tree, selector});
 			selectors.push(selector);
 		}
-		fun(new SactoryZ(root, root, tree, selectors), Sactory.css);
-		element.textContent = SactoryZ.minify(root);
+		fun(new Builder(root, root, tree, selectors), Sactory.css);
+		element.textContent = Builder.minify(root);
 	};
 	observables.push(...maybe.filter(SactoryObservable.isObservable));
 	if(observables.length) {

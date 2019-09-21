@@ -239,7 +239,7 @@ TextExprMode.prototype.pushExpr = function(value){
 TextExprMode.prototype.trimEnd = function(){
 	var ret = "";
 	var end = this.current[this.current.length - 1];
-	if(end.text) {
+	if(end && end.text) {
 		var trimmed = Polyfill.trimEnd.call(end.value);
 		ret = end.value.substr(trimmed.length);
 		end.value = trimmed;
@@ -316,7 +316,7 @@ LogicMode.prototype = Object.create(TextExprMode.prototype);
 
 LogicMode.prototype.getLineText = function(){
 	var last = this.current[this.current.length - 1];
-	if(last.text) {
+	if(last && last.text) {
 		var index = last.value.lastIndexOf("\n");
 		if(index != -1) {
 			return last.value.substr(index);
@@ -484,8 +484,10 @@ LogicMode.prototype.find = function(){
 };
 
 LogicMode.prototype.parse = function(handle, eof){
-	var result = this.find();
-	this.pushText(result.pre);
+	const result = this.find();
+	if(result.pre.length) {
+		this.pushText(result.pre);
+	}
 	switch(result.match) {
 		case "c":
 			if(!this.parseLogic("const", 0) && !this.parseLogic("case", 0, [":"])) this.pushText("c");
@@ -514,7 +516,7 @@ LogicMode.prototype.parse = function(handle, eof){
 		case "s":
 			if(!this.parseLogic("switch", 1)) this.pushText("s");
 			break;
-		case "}": {
+		case "}":
 			if(result.pre.slice(-1) == "\\") {
 				let curr = this.current[this.current.length - 1];
 				curr.value = curr.value.slice(0, -1) + "}";
@@ -524,15 +526,13 @@ LogicMode.prototype.parse = function(handle, eof){
 				this.pushText("}");
 			}
 			break;
-		}
-		case "\n": {
+		case "\n":
 			if(this.statements.length && this.statements[this.statements.length - 1].inline) {
 				this.closeStatement(true);
 			} else {
 				this.pushText("\n");
 			}
 			break;
-		}
 		default:
 			this.parseImpl(result.pre, result.match, handle, eof);
 	}
@@ -561,12 +561,14 @@ LogicMode.prototype.closeStatement = function(inline){
 		for(let i=0; i<part.following.length; i++) {
 			let [expected, type, following] = part.following[i];
 			if(following) following = part.following;
-			if(this.parser.readIf(expected.charAt(0)) && this.parseIf(expected, false)) {
-				if(this.parseStatement(statement, trimmed, expected, type, following)) {
-					return;
+			if(this.parser.readIf(expected.charAt(0))) {
+				if(this.parseIf(expected, false)) {
+					if(this.parseStatement(statement, trimmed, expected, type, following)) {
+						return;
+					}
+				} else {
+					this.parser.index--;
 				}
-			} else {
-				this.parser.index--;
 			}
 		}
 		this.pushText(trimmed);
