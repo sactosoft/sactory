@@ -476,7 +476,7 @@ Transpiler.prototype.open = function(){
 
 		const options = noInheritance => {
 			const level = ++this.level;
-			const ret = `${dattributesspacer.join("")}[${attributes.map(({type, attr}) => {
+			const ret = `${attributes.map(({type, attr}) => {
 				let ret = `[${type << 3 | mapAttributeType(attr.type)},`;
 				if(type == Attr.NORMAL) {
 					ret += `${attr.beforeName || ""}${attr.computed ? attr.name : `"${attr.name || ""}"`}` +
@@ -534,15 +534,20 @@ Transpiler.prototype.open = function(){
 					ret += `${attr.space}{${expr}}`;
 				}
 				return ret + "]";
-			}).join(", ")}${Object.prototype.hasOwnProperty.call(dattributes, "widget") ? `, ${dattributes.widget}` : ""}]`;
+			}).join(", ")}${Object.prototype.hasOwnProperty.call(dattributes, "widget") ? `, ${+dattributes.widget}` : ""}]`;
 			// check inheritance
 			if(!noInheritance) {
-				var inheritance = this.inherit.filter(info => info && ((!info.level || info.level.indexOf(level) != -1)
+				const inheritance = this.inherit.filter(info => info && ((!info.level || info.level.indexOf(level) != -1)
 					&& (!info.whitelist || info.whitelist.indexOf(tagName) != -1))).map(info => info.index);
-				return inheritance.length ? `${inheritance.map(i => `(${i}).concat`).join("")}(${ret})` : ret;
-			} else {
-				return ret;
+				if(inheritance.length) {
+					if(this.options.es6) {
+						return `[${inheritance.map(i => `...${i}, `).join("")}${dattributesspacer.join("")}${ret}`;
+					} else {
+						return `${inheritance.map(i => `(${i}).concat`).join("")}([${dattributesspacer.join("")}${ret})`;
+					}
+				}
 			}
+			return `${dattributesspacer.join("")}[${ret}`;
 		};
 
 		if(dattributes.this) parent = "this";
@@ -926,7 +931,7 @@ Transpiler.prototype.open = function(){
 				currentClosing.unshift(beforeClosing);
 
 				if(!inline && currentInheritance) {
-					this.source.push(`var ${currentInheritance.index = this.nextVarName()}=${options(true)};`);
+					this.source.push(`${this.options.es6 ? "const" : "var"} ${currentInheritance.index = this.nextVarName()}=${options(true)};`);
 				}
 
 			}

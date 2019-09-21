@@ -6,37 +6,100 @@ var colors = require("../json/colors.json");
 
 var Sactory = {};
 
-function SelectorHolder() {
-	this.content = [];
+/**
+ * @class
+ * @since 0.143.0
+ */
+function SactoryZ(root, sroot, tree, selectors = [], absolute = false) {
+	this.root = root;
+	this.sroot = sroot;
+	this.tree = tree;
+	this.selectors = selectors;
+	this.absolute = absolute;
 }
 
-SelectorHolder.prototype.value = function(key, value){
-	this.content.push({key, value});
+SactoryZ.prototype.select = function(selector){
+	if(selector.charAt(0) == "@") {
+		// special case for at-rule selectors
+		let sroot = [];
+		let tree = sroot;
+		this.root.push({selector, tree: sroot});
+		if(this.selectors.length) {
+			tree = [];
+			sroot.push({selector: this.selectors.join(", "), tree});
+		}
+		return new SactoryZ(this.root, sroot, tree, this.selectors, selector.substr(1, 9) == "keyframes");
+	} else {
+		let selectors = [];
+		selector.split(",").map(s => s.trim()).forEach(selector => {
+			if(selector.indexOf("&") != -1) {
+				// replace &s with current selectors
+				this.selectors.forEach(s => selectors.push(selector.replace(/&/g, s)));
+			} else {
+				// prepend with current selectors
+				if(this.selectors.length && !this.absolute) {
+					this.selectors.forEach(s => selectors.push(s + " " + selector));
+				} else {
+					selectors.push(selector);
+				}
+			}
+		});
+		let tree = [];
+		this.sroot.push({selector: selectors.join(", "), tree});
+		return new SactoryZ(this.root, this.sroot, tree, selectors);
+	}
 };
 
-SelectorHolder.prototype.stat = function(stat){
-	this.content.push({key: stat});
+SactoryZ.prototype.value = function(key, value){
+	key.split(",").map(key => this.tree.push({key: key.trim(), value}));
 };
 
-SelectorHolder.prototype.spread = function(props){
-	for(var key in props) {
-		this.value(key, props[key]);
+SactoryZ.prototype.stat = function(stat){
+	this.root.push({stat});
+};
+
+SactoryZ.prototype.spread = function(values){
+	for(let key in values) {
+		this.value(key, values[key]);
 	}
 };
 
 /**
- * @since 0.99.0
+ * @since 0.143.0
  */
-Sactory.root = function(){
-	return new SelectorHolder();
+SactoryZ.minify = function(tree){
+	let ret = "";
+	tree.forEach(part => {
+		if(part.selector) {
+			if(part.tree.length) {
+				ret += part.selector + "{" + SactoryZ.minify(part.tree) + "}";
+			}
+		} else if(part.stat) {
+			ret += part.stat + ";";
+		} else {
+			ret += part.key + ":" + part.value + ";";
+		}
+	});
+	return ret;
 };
 
 /**
- * @since 0.99.0
+ * @since 0.143.0
  */
-Sactory.select = function(parent, selector){
-	var ret = new SelectorHolder();
-	parent.content.push({selector: selector, value: ret.content});
+SactoryZ.prettify = function(tree, curr, indent){
+	let ret = "";
+	tree.forEach(part => {
+		if(part.selector) {
+			const {selector, tree} = part;
+			if(tree.length) {
+				ret += curr + selector + " {\n" + SactoryZ.prettify(tree, curr + indent, indent) + curr + "}\n";
+			}
+		} else if(part.stat) {
+			ret += curr + part.stat + ";\n";
+		} else {
+			ret += curr + part.key + ": " + part.value + ";\n";
+		}
+	});
 	return ret;
 };
 
@@ -69,92 +132,42 @@ Sactory.computeUnit = Sactory.cu = function(fun){
 	return typeof value == "number" ? Math.round(value * 10000) / 10000 + unit : value;
 };
 
-Sactory.compileStyle = function(root) {
-	var ret = "";
-	function compile(array) {
-		array.forEach(function(item){
-			if(item.plain) {
-				if(!item.value) {
-					ret += item.selector + ";";
-				} else {
-					ret += item.selector + ":" + item.value + ";";
-				}
-			} else if(item.value.length) {
-				ret += item.selector + "{";
-				compile(item.value);
-				ret += "}";
-			}
-		});
-	}
-	compile(root);
-	return ret;
-};
-
-/**
- * Converts an object in SSB format to minified CSS.
- * @since 0.19.0
- */
-Sactory.convertStyle = function(root){
-	var ret = [];
-	function compile(selectors, curr, obj) {
-		obj.forEach(function(value){
-			if(value.selector) {
-				var selector = value.selector;
-				if(selector.charAt(0) == "@") {
-					var oret = ret;
-					ret = [];
-					if(selector.substr(1, 5) == "media" || selector.substr(1, 8) == "document") {
-						compile(selectors, Sactory.select({content: ret}, selectors.join(",")).content, value.value);
-					} else {
-						compile([], ret, value.value);
-					}
-					oret.push({selector: selector, value: ret});
-					ret = oret;
-				} else {
-					var ns = [];
-					if(selectors.length) {
-						selector.split(",").map(function(s2){
-							var prefix = s2.indexOf("&") != -1;
-							selectors.forEach(function(s1){
-								if(prefix) ns.push(s2.trim().replace(/&/g, s1));
-								else ns.push(s1 + " " + s2.trim());
-							});
-						});
-					} else {
-						ns = selector.split(",").map(function(s){
-							return s.trim();
-						});
-					}
-					compile(ns, Sactory.select({content: ret}, ns.join(",")).content, value.value);
-				}
-			} else {
-				if(value.key.charAt(0) == "@") {
-					ret.push({plain: true, selector: value.key, value: value.value});
-				} else {
-					value.key.split(",").forEach(function(key){
-						curr.push({plain: true, selector: key.trim(), value: value.value});
-					});
-				}
-			}
-		});
-	}
-	compile([], ret, root);
-	return Sactory.compileStyle(ret);
-};
-
 /**
  * Compiles a SSB object and recompiles it each time an observable in
  * the given list changes. Also subscribes to the current bind context
  * if present.
  * @since 0.49.0
  */
-Sactory.compileAndBindStyle = Sactory.cabs = function({element, bind, selector}, fun, observables, maybe){
-	var className = element["~builder"].scopedClassName = counter.nextPrefix();
-	var conv = selector ? value => [{selector, value}] : value => value;
-	var observable = SactoryObservable.coff(() =>
-		element.textContent = Sactory.convertStyle(conv(fun(className, Sactory.css))));
-	observable.addDependencies(observables, bind);
-	observable.addMaybeDependencies(maybe, bind);
+Sactory.cabs = function({element, bind, selector}, scope, fun, observables, maybe){
+	if(!selector) {
+		if(scope == 1) {
+			// assign a selector at runtime
+			const className = element["~builder"].scopedClassName = counter.nextPrefix();
+			selector = "." + className;
+		} else if(scope) {
+			// given by the :scope attribute
+			selector = scope;
+		}
+	}
+	const compile = () => {
+		let root = [];
+		let tree = root;
+		let selectors = [];
+		if(selector) {
+			tree = [];
+			root.push({tree, selector});
+			selectors.push(selector);
+		}
+		fun(new SactoryZ(root, root, tree, selectors), Sactory.css);
+		element.textContent = SactoryZ.minify(root);
+	};
+	observables.push(...maybe.filter(SactoryObservable.isObservable));
+	if(observables.length) {
+		var observable = SactoryObservable.coff(compile);
+		observable.addDependencies(observables, bind);
+	} else {
+		compile();
+	}
 };
 
 /**

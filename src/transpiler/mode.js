@@ -1016,9 +1016,9 @@ function SSBMode(transpiler, parser, source, attributes) {
 	this.observables = [];
 	this.maybeObservables = [];
 	this.expr = [];
-	this.scopes = [transpiler.nextVarName()];
-	this.scope = attributes.scope;
-	this.scoped = attributes.scoped && transpiler.nextId();
+	this.scopes = [transpiler.value];
+	this.scope = attributes.scope && JSON.stringify(attributes.scope);
+	this.scoped = !!attributes.scoped;
 	this.inExpr = false;
 }
 
@@ -1034,7 +1034,7 @@ SSBMode.prototype = Object.create(LogicMode.prototype);
 
 SSBMode.prototype.addScope = function(selector){
 	var scope = this.transpiler.nextVarName();
-	this.add(`var ${scope}=${this.transpiler.feature("select")}(${this.scopes[this.scopes.length - 1]}, ${selector});`);
+	this.add(`${this.es6 ? "const" : "var"} ${scope}=${this.scopes[this.scopes.length - 1]}.select(${selector});`);
 	this.scopes.push(scope);
 };
 
@@ -1048,14 +1048,10 @@ SSBMode.prototype.skip = function(){
 };
 
 SSBMode.prototype.start = function(){
-	var args = this.transpiler.value;
-	if(this.attributes.dollar != false) args += ", $";
-	this.add(`${this.transpiler.feature("cabs")}(`);
-	this.source.addContext();
-	this.source.addSource(`, ${this.es6 ? `(${args}) => ` : `function(${args})`}{`);
-	this.add(`var ${this.scopes[0]}=${this.transpiler.feature("root")}();`);
-	if(this.scoped) this.addScope(this.es6 ? `\`.\${${this.transpiler.value}}\`` : `'.' + ${this.transpiler.value}`);
-	else if(this.scope) this.addScope(JSON.stringify("." + this.scope));
+	let args = [this.transpiler.value];
+	if(this.attributes.dollar != false) args.push("$");
+	this.source.addSource(`${this.transpiler.feature("cabs")}(${this.source.getContext()}, ${this.scope || +this.scoped}`);
+	this.source.addSource(`, ${this.es6 ? `(${args.join(", ")}) => ` : `function(${args.join(", ")})`}{`);
 };
 
 SSBMode.prototype.find = function(){
@@ -1302,7 +1298,7 @@ SSBMode.prototype.end = function(){
 		}
 	});
 	// add return statement
-	this.add(`return ${this.scopes[0]}.content}${this.es6 ? "" : ".bind(this)"}, [${uniq(this.observables).join(", ")}], [${this.maybeObservables.join(", ")}])`);
+	this.add(`}${this.es6 ? "" : ".bind(this)"}, [${uniq(this.observables).join(", ")}], [${this.maybeObservables.join(", ")}])`);
 };
 
 SSBMode.prototype.chainAfter = function(){
