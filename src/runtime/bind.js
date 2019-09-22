@@ -1,6 +1,6 @@
 var SactoryContext = require("./context");
 var SactoryConst = require("./const");
-var SactoryMisc = require("./core");
+var SactoryMisc = require("./misc");
 var SactoryObservable = require("./observable");
 
 var Sactory = {};

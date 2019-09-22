@@ -1,3 +1,4 @@
+var SactoryConst = require("./const");
 var SactoryObservable = require("./observable");
 var { Sactory: SactoryWidget } = require("./widget");
 var counter = require("./counter");
@@ -46,7 +47,8 @@ function shadowRoot({mode = "open"}, arg1, context) {
  */
 function xml({namespace, root, name}, arg1, {registry}) {
 	var ret = xmlImpl(namespace, root || name || "xml");
-	registry.add(null, "", ret.firstElementChild);
+	registry.add(null, SactoryConst.SL_CONTENT, ret.firstElementChild);
+	registry.add(null, SactoryConst.SL_CONTAINER, ret.firstElementChild);
 	return ret;
 }
 
