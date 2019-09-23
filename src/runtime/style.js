@@ -417,6 +417,22 @@ function random(T, alpha) {
 	return new T(Math.random(), Math.random(), Math.random(), alpha ? Math.random() : undefined);
 }
 
+function addRemove(parser, key){
+	return function(color, type, value){
+		color = parser(color);
+		color[key] = Math.min(1, Math.max(0, (function(a, b){
+			switch(type) {
+				case "sum": case "add": return a + +b;
+				case "subtract": case "remove": return a - b;
+				case "multiply": return a * b;
+				case "divide": return a / b;
+				default: return +type;
+			}
+		})(color[key], value)));
+		return color;
+	};
+};
+
 /**
  * Converts a color of any type to RGB, removing the alpha channel if present.
  * If no parameters are given, a random color is returned.
@@ -476,6 +492,41 @@ Sactory.css.hsla = function(color, alpha){
 		return random(HSLColor, true);
 	}
 };
+
+/**
+ * @since 0.143.0
+ */
+Sactory.css.red = addRemove(RGBColor.from, "r");
+
+/**
+ * @since 0.143.0
+ */
+Sactory.css.green = addRemove(RGBColor.from, "g");
+
+/**
+ * @since 0.143.0
+ */
+Sactory.css.blue = addRemove(RGBColor.from, "b");
+
+/**
+ * @since 0.143.0
+ */
+Sactory.css.hue = addRemove(HSLColor.from, "h");
+
+/**
+ * @since 0.143.0
+ */
+Sactory.css.saturation = addRemove(HSLColor.from, "s");
+
+/**
+ * @since 0.143.0
+ */
+Sactory.css.lightness = addRemove(HSLColor.from, "l");
+
+/**
+ * @since 0.143.0
+ */
+Sactory.css.alpha = addRemove(parseColor, "a");
 
 /**
  * @since 0.38.0
