@@ -1244,7 +1244,7 @@ SSBMode.prototype.parseImpl = function(pre, match, handle, eof){
 
 SSBMode.prototype.parse = function(handle, eof){
 	if(!this.inExpr) {
-		this.add(this.parser.skip());
+		this.pushText(this.parser.skip());
 		this.inExpr = true;
 	}
 	LogicMode.prototype.parse.call(this, handle, eof);
@@ -1284,7 +1284,7 @@ SSBMode.prototype.addCurrent = function(){
 			if(!/^\s*$/.test(curr.value)) this.parser.error(`Statement \`${curr.value}\` not closed.`);
 			this.add(curr.value);
 		} else {
-			//TODO error
+			this.parser.error("Statement `${" + curr.value.source + "}` not closed.");
 		}
 	});
 	this.current = [];
