@@ -431,7 +431,7 @@ function addRemove(parser, key){
 		})(color[key], value)));
 		return color;
 	};
-};
+}
 
 /**
  * Converts a color of any type to RGB, removing the alpha channel if present.

@@ -675,18 +675,20 @@ SourceCodeMode.prototype.handleParenthesis = function(match){
 	this.restoreIndex(match);
 };
 
-SourceCodeMode.prototype.addObservable = function(observables, maybeObservables, name){
+SourceCodeMode.prototype.addObservable = function(observables, maybeObservables, name, wrap){
 	if(name.length) {
-		var tail = this.source.tail();
+		const tail = this.source.tail();
 		tail.value = tail.value.slice(0, -name.length);
 	}
-	var maybe = !!this.parser.readIf("?");
+	const maybe = !!this.parser.readIf("?");
 	if(this.parser.peek() == "(") {
 		name += this.parseCodeToSource("skipEnclosedContent");
 	} else {
 		name += this.parseCodeToSource("readVarName", true);
 	}
-	if(maybe) {
+	if(wrap) {
+		this.source.addSource(`${this.transpiler.value}.${maybe ? "m" : "d"}(${name})`);
+	} else if(maybe) {
 		this.source.addSource(`${this.transpiler.feature("value")}(${name})`);
 		if(maybeObservables) maybeObservables.push(name);
 	} else {
@@ -828,7 +830,7 @@ SourceCodeMode.prototype.next = function(match){
 				}  else {
 					// from variable
 					let parsed = this.transpiler.parseCode(this.parser.readSingleExpression(true));
-					this.add(`${space}(${this.transpiler.feature("cofv")}(${parsed.source}))`);
+					this.add(`${space}${this.transpiler.feature("cofv")}(${parsed.source})`);
 					coff = false;
 				}
 				if(coff) {
@@ -843,20 +845,21 @@ SourceCodeMode.prototype.next = function(match){
 							break;
 						}
 					}
-					tail.value = `${tail.value.slice(0, -beforeIndex)}${this.transpiler.feature("coff")}(${tail.value.substr(-afterIndex)}`;
 					// add expression
-					let parsed = this.transpiler.parseCode(this.parser.readExpression());
-					this.source.addSource(`${parsed.source})`);
+					const parsed = this.transpiler.parseCode(this.parser.readExpression());
+					if(parsed.wrapped) {
+						const decl = this.es6 ? `${this.transpiler.value} => ` : `function(${this.transpiler.value}){return `;
+						tail.value = `${tail.value.slice(0, -beforeIndex)}${this.transpiler.feature("cofr")}(${decl}${tail.value.substr(-afterIndex)}`;
+					} else {
+						tail.value = `${tail.value.slice(0, -beforeIndex)}${this.transpiler.feature("coff")}(${tail.value.substr(-afterIndex)}`;
+					}
+					this.source.addSource(`${parsed.source}${parsed.wrapped && !this.es6 ? "}.bind(this)" : ""})`);
 					if(mods.async) this.source.addSource(".async()");
 					if(parsed.observables.length) {
-						this.source.addSource(".d(");
-						this.source.addContext();
-						this.source.addSource(`, ${uniq(parsed.observables).join(", ")})`);
+						this.source.addSource(`.d(${uniq(parsed.observables).join(", ")})`);
 					}
 					if(parsed.maybeObservables.length) {
-						this.source.addSource(".m(");
-						this.source.addContext();
-						this.source.addSource(`, ${uniq(parsed.maybeObservables).join(", ")})`);
+						this.source.addSource(`.m(${uniq(parsed.maybeObservables).join(", ")})`);
 					}
 				}
 				this.transpiler.updateTemplateLiteralParser();
@@ -871,9 +874,17 @@ SourceCodeMode.prototype.next = function(match){
 		}
 		case "*":
 			if(this.parser.couldStartRegExp()) {
-				this.addObservable(this.observables, this.maybeObservables, "");
+				if(this.parser.readIf("*")) {
+					this.addObservable(null, null, "", this.wrapped = true);
+				} else {
+					this.addObservable(this.observables, this.maybeObservables, "", false);
+				}
 			} else if(this.parser.last == ".") {
-				this.addObservable(this.observables, this.maybeObservables, this.lookBehind());
+				if(this.parser.readIf("*")) {
+					this.addObservable(null, null, this.lookBehind(), this.wrapped = true);
+				} else {
+					this.addObservable(this.observables, this.maybeObservables, this.lookBehind(), false);
+				}
 			} else {
 				// just a multiplication or exponentiation
 				this.restoreIndex("*");

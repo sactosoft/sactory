@@ -173,6 +173,7 @@ Transpiler.prototype.parseCode = function(input, parentParser){
 	var maybeObservables = mode.maybeObservables ? uniq(mode.maybeObservables) : [];
 	var ret = {
 		source, observables, maybeObservables,
+		wrapped: !!mode.wrapped,
 		toAttrValue: () => observables.length || maybeObservables.length ? `${this.feature("bo")}(${ret.toSpreadValue()}, [${observables.join(", ")}]${maybeObservables.length ? `, [${maybeObservables.join(", ")}]` : ""})` : source,
 		toSpreadValue: () => this.options.es6 ? `() => ${source}` : `function(){return ${source}}.bind(this)`
 	};
@@ -537,8 +538,10 @@ Transpiler.prototype.open = function(){
 			}).join(", ")}${Object.prototype.hasOwnProperty.call(dattributes, "widget") ? `, ${+dattributes.widget}` : ""}]`;
 			// check inheritance
 			if(!noInheritance) {
-				const inheritance = this.inherit.filter(info => info && ((!info.level || info.level.indexOf(level) != -1)
-					&& (!info.whitelist || info.whitelist.indexOf(tagName) != -1))).map(info => info.index);
+				const inheritance = this.inherit.filter(info => info
+					&& ((!info.level || info.level.indexOf(level) != -1)
+					&& (!info.whitelist || info.whitelist.indexOf(tagName) != -1))
+				).map(info => info.index);
 				if(inheritance.length) {
 					if(this.options.es6) {
 						return `[${inheritance.map(i => `...${i}, `).join("")}${dattributesspacer.join("")}${ret}`;

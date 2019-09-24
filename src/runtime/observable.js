@@ -255,16 +255,16 @@ Observable.prototype.async = function(){
 /**
  * @since 0.129.0
  */
-Observable.prototype.d = function(context, ...dependencies){
-	this.addDependencies(dependencies, context && context.bind);
+Observable.prototype.d = function(...dependencies){
+	this.addDependencies(dependencies);
 	return this;
 };
 
 /**
  * @since 0.129.0
  */
-Observable.prototype.m = function(context, ...dependencies){
-	this.addMaybeDependencies(dependencies, context && context.bind);
+Observable.prototype.m = function(...dependencies){
+	this.addMaybeDependencies(dependencies);
 	return this;
 };
 
@@ -349,6 +349,32 @@ Sactory.coff = function(fun){
  */
 Sactory.cofv = function(value){
 	return new Observable(() => value);
+};
+
+/**
+ * Creates an observable from a function with runtime dependencies.
+ * @since 0.144.0
+ */
+Sactory.cofr = function(fun){
+	const deps = [];
+	const add = {
+		d(dep) {
+			deps.push(dep);
+			return dep.value;
+		},
+		m(dep) {
+			if(Sactory.isObservable(dep)) {
+				return this.d(dep);
+			} else {
+				return dep;
+			}
+		}
+	};
+	const ret = Sactory.coff(fun(add));
+	ret.addDependencies(deps);
+	add.d = a => a.value;
+	add.m = a => Sactory.isObservable(a) ? a.value : a;
+	return ret;
 };
 
 /**
