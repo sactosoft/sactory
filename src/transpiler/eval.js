@@ -38,7 +38,7 @@ function evalScripts() {
 			element: "$$script&&$$script.parentNode",
 			anchor: "$$script&&$$script.nextSibling"
 		});
-		script.textContent = transpiler.transpile(element.textContent);
+		script.textContent = transpiler.transpile(element.textContent).source.all;
 		document.head.appendChild(script);
 	});
 }

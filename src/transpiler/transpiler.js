@@ -535,7 +535,7 @@ Transpiler.prototype.open = function(){
 					ret += `${attr.space}{${expr}}`;
 				}
 				return ret + "]";
-			}).join(", ")}${Object.prototype.hasOwnProperty.call(dattributes, "widget") ? `, ${+dattributes.widget}` : ""}]`;
+			}).join(", ")}]`;
 			// check inheritance
 			if(!noInheritance) {
 				const inheritance = this.inherit.filter(info => info
@@ -550,7 +550,7 @@ Transpiler.prototype.open = function(){
 					}
 				}
 			}
-			return `${dattributesspacer.join("")}[${ret}`;
+			return `${dattributesspacer.join("")}[${ret}${Object.prototype.hasOwnProperty.call(dattributes, "widget") ? `, ${+dattributes.widget}` : ""}`;
 		};
 
 		if(dattributes.this) parent = "this";
