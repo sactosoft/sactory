@@ -45,6 +45,13 @@ function Mode(transpiler, parser, source, attributes) {
 	this.attributes = attributes;
 }
 
+/**
+ * @since 0.144.0
+ */
+Mode.prototype.usedAttributes = function(){
+	return [];
+};
+
 Mode.prototype.add = function(text){
 	return this.source.push(text);
 };
@@ -946,6 +953,10 @@ AutoHTMLMode.prototype = Object.create(HTMLMode.prototype);
  */
 function ScriptMode(transpiler, parser, source, attributes) {
 	TextExprMode.call(this, transpiler, parser, source, attributes);
+	this.scope = !!attributes.scoped && transpiler.nextId();
+	if(this.scope) {
+		this.pushText("!function(){");
+	}
 }
 
 ScriptMode.getOptions = function(){
@@ -957,6 +968,25 @@ ScriptMode.matchesTag = function(tagName){
 };
 
 ScriptMode.prototype = Object.create(TextExprMode.prototype);
+
+ScriptMode.prototype.usedAttributes = function(){
+	if(this.scope) {
+		return [{
+			type: "~",
+			name: "class",
+			value: `"script${this.scope}"`
+		}];
+	} else {
+		return [];
+	}
+};
+
+ScriptMode.prototype.endChain = function(){
+	if(this.scope) {
+		this.pushText(`}.call(document.querySelector(".script${this.scope}").parentNode)`);
+	}
+	TextExprMode.prototype.endChain.call(this);
+};
 
 ScriptMode.prototype.addCurrent = function(){
 	// make sure there are no observables to bind to

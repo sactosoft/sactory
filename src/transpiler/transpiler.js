@@ -738,7 +738,8 @@ Transpiler.prototype.open = function(){
 					// invalid values are ignored
 				}
 			}
-			this.startMode(newMode, nattributes);
+			const mode = this.startMode(newMode, nattributes);
+			attributes.push(...mode.usedAttributes().map(attr => ({type: Attr.NORMAL, attr})));
 
 		}
 
