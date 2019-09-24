@@ -992,7 +992,11 @@ Transpiler.prototype.parseAttributeName = function(force){
 			attr.computed = ret.computed = true;
 			if(ret.name.charAt(0) == "[" && ret.name.charAt(ret.name.length - 1) == "]") {
 				ret.name = ret.name.slice(1, -1);
-				ret.name = this.runtime + ".config.shortcut" + (ret.name.charAt(0) == "[" ? "" : ".") + ret.name;
+				if(ret.name.charAt(0) == "[") {
+					ret.name = `${this.runtime}.config.s${ret.name}`;
+				} else {
+					ret.name = `${this.runtime}.config.s["${ret.name}"]`;
+				}
 			} else {
 				ret.name = this.parseCode(ret.name).source;
 			}
