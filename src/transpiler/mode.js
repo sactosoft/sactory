@@ -856,10 +856,10 @@ SourceCodeMode.prototype.next = function(match){
 					this.source.addSource(`${parsed.source}${parsed.wrapped && !this.es6 ? "}.bind(this)" : ""})`);
 					if(mods.async) this.source.addSource(".async()");
 					if(parsed.observables.length) {
-						this.source.addSource(`.d(${uniq(parsed.observables).join(", ")})`);
+						this.source.addSource(`.d(${this.source.getContext()}, ${uniq(parsed.observables).join(", ")})`);
 					}
 					if(parsed.maybeObservables.length) {
-						this.source.addSource(`.m(${uniq(parsed.maybeObservables).join(", ")})`);
+						this.source.addSource(`.m(${this.source.getContext()}, ${uniq(parsed.maybeObservables).join(", ")})`);
 					}
 				}
 				this.transpiler.updateTemplateLiteralParser();

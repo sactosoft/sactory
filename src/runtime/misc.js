@@ -65,7 +65,7 @@ function BuilderObservable(fun, dependencies) {
 
 BuilderObservable.prototype.use = function(bind){
 	var ret = SactoryObservable.coff(this.fun);
-	ret.addDependencies(this.dependencies, bind);
+	ret.addDependencies(this.dependencies, {bind});
 	return ret;
 };
 
