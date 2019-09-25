@@ -557,7 +557,6 @@ LogicMode.prototype.closeStatement = function(inline){
 		}
 	}
 	statement.endRef = part.close = this.source.addIsolatedSource((inline ? "" : "}") + statement.end);
-	this.popped.push(statement);
 	this.onStatementEnd(statement);
 	if(inline) {
 		this.pushText("\n");
@@ -579,7 +578,8 @@ LogicMode.prototype.closeStatement = function(inline){
 			}
 		}
 		this.pushText(trimmed);
-	} 
+	}
+	this.popped.push(statement);
 };
 
 LogicMode.prototype.onStatementStart = function(/*statement*/){};
