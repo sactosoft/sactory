@@ -1,5 +1,6 @@
 var SactoryConst = require("./const");
 var SactoryObservable = require("./observable");
+var SactoryMisc = require("./misc");
 var { Sactory: SactoryWidget } = require("./widget");
 var counter = require("./counter");
 
@@ -9,7 +10,7 @@ var Sactory = {};
  * @since 0.135.0
  */
 Sactory.classes = function(){
-	var classes = Array.prototype.slice.call(arguments, 0);
+	const classes = Array.prototype.slice.call(arguments, 0);
 	return function(arg0, arg1, {element, bind}){
 		var builder = element["~builder"];
 		classes.forEach(className => builder.className(className, bind));
@@ -30,14 +31,14 @@ function add(name, value, register) {
  * @since 0.134.0
  */
 function documentFragment(arg0, arg1, context) {
-	return (context.document || document).createDocumentFragment();
+	return SactoryMisc.document(context).createDocumentFragment();
 }
 
 /**
  * @since 0.134.0
  */
 function shadowRoot({mode = "open"}, arg1, context) {
-	var element = context.element || (context.document || document).createElement("div");
+	const element = context.element || SactoryMisc.document(context).createElement("div");
 	context.registry.add(null, "", element.attachShadow({mode}));
 	return element;
 }
@@ -46,13 +47,13 @@ function shadowRoot({mode = "open"}, arg1, context) {
  * @since 0.134.0
  */
 function xml({namespace, root, name}, arg1, {registry}) {
-	var ret = xmlImpl(namespace, root || name || "xml");
+	const ret = xmlImpl(namespace, root || name || "xml");
 	registry.add(null, SactoryConst.SL_CONTENT, ret.firstElementChild);
 	registry.add(null, SactoryConst.SL_CONTAINER, ret.firstElementChild);
 	return ret;
 }
 
-var xmlImpl = typeof document != "undefined" && document.implementation ?
+const xmlImpl = typeof document != "undefined" && document.implementation ?
 	(namespace, root) => document.implementation.createDocument(namespace, root) :
 	(namespace, root) => new XMLDocument(namespace, root);
 

@@ -1,20 +1,20 @@
+var Polyfill = require("../polyfill");
 var SactoryConst = require("./const");
+var counter = require("./counter");
 
 var Sactory = {};
 
 var setUpdate = typeof setImmediate == "function" ? setImmediate : setTimeout;
-
-var subCount = 0;
 
 /**
  * @class
  * @since 0.129.0
  */
 function Subscription(observable, callback, type) {
+	Object.defineProperty(this, "id", {value: counter.nextSubscription()});
 	this.observable = observable;
 	this.callback = callback;
 	this.type = type;
-	Object.defineProperty(this, "id", {value: subCount++});
 }
 
 /**
@@ -29,6 +29,7 @@ Subscription.prototype.dispose = function(){
  * @since 0.129.0
  */
 function Observable(fun) {
+	Object.defineProperty(this, "id", {value: counter.nextObservable()});
 	this._dependencies = 0;
 	this._subscriptions = [];
 	this._calc = () => this.value = fun();
@@ -415,7 +416,9 @@ function TrackerEnabled(observable, dependencies) {
 }
 
 TrackerEnabled.prototype.d = function(dep){
-	this._dependencies.push(...this._observable.addDependencies([dep], {}));
+	if(!Polyfill.find.call(this._dependencies, value => value.observable.id == dep.id)) {
+		this._dependencies.push(...this._observable.addDependencies([dep], {}));
+	}
 	return dep.value;
 };
 

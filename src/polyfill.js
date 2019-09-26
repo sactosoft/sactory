@@ -19,14 +19,14 @@ Polyfill.trimEnd = String.prototype.trimEnd || function(){
 };
 
 Polyfill.padStart = String.prototype.padStart || function(target, string){
-	var ret = String(this);
+	let ret = String(this);
 	while(ret.length < target) ret = string + ret;
 	return ret;
 };
 
 Polyfill.assign = Object.assign || function(target, ...args){
 	args.forEach(source => {
-		for(var key in source) {
+		for(let key in source) {
 			if(Object.prototype.hasOwnProperty.call(source, key)) {
 				target[key] = source[key];
 			}
@@ -37,6 +37,15 @@ Polyfill.assign = Object.assign || function(target, ...args){
 
 Polyfill.trunc = Math.trunc || function(value){
 	return value - value % 1;
+};
+
+Polyfill.find = Array.prototype.find || function(callback){
+	for(let i=0; i<this.length; i++) {
+		const value = this[i];
+		if(callback(value, i, this)) {
+			return value;
+		}
+	}
 };
 
 module.exports = Polyfill;

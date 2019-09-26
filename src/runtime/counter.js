@@ -6,6 +6,9 @@ var SactoryConfig = require("./config");
  */
 function Counter(count){
 	this.init = this.count = count;
+	this.bind = 0;
+	this.observable = 0;
+	this.subscription = 0;
 }
 
 /**
@@ -27,6 +30,27 @@ Counter.prototype.nextId = function(){
  */
 Counter.prototype.nextPrefix = function(){
 	return SactoryConfig.config.prefix + this.nextId();
+};
+
+/**
+ * @since 0.145.0
+ */
+Counter.prototype.nextBind = function(){
+	return this.bind++;
+};
+
+/**
+ * @since 0.145.0
+ */
+Counter.prototype.nextObservable = function(){
+	return this.observable++;
+};
+
+/**
+ * @since 0.145.0
+ */
+Counter.prototype.nextSubscription = function(){
+	return this.subscription++;
 };
 
 const counter = new Counter((() => {

@@ -1158,7 +1158,7 @@ Transpiler.prototype.transpile = function(input){
 	if(this.source.uses.chain) this.before += `var ${this.chain}=${this.runtime}.chain;`;
 	if(this.source.uses.context) {
 		let data = [];
-		if(this.options.scope) data.push(`element:${this.options.scope}`);
+		if(this.options.element) data.push(`element:${this.options.element}`);
 		if(this.options.anchor) data.push(`anchor:${this.options.anchor}`);
 		if(this.options.bind) data.push(`bind:${this.options.bind}`);
 		this.before += `var ${this.context0}={${data.join(",")}};`;
