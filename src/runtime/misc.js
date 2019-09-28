@@ -233,15 +233,16 @@ Sactory.range = function(from, to, fun){
 /**
  * @since 0.138.0
  */
-Sactory.stringify = function(value){
+Sactory.stringify = function(value, arg1, arg2){
 	switch(typeof value) {
 		case "number":
+			return value.toString(arg1 || 10);
 		case "function":
 			return value.toString();
 		case "undefined":
 			return "undefined";
 		default:
-			return JSON.stringify(value);
+			return JSON.stringify(value, arg1, arg2);
 	}
 };
 

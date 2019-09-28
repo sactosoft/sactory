@@ -266,6 +266,7 @@ TextExprMode.prototype.parseImpl = function(pre, match, handle, eof){
 	switch(match) {
 		case "$":
 		case "#":
+		case "%":
 			if(pre.slice(-1) == "\\") {
 				const last = this.current[this.current.length - 1];
 				last.value = last.value.slice(0, -1) + match;
@@ -276,6 +277,9 @@ TextExprMode.prototype.parseImpl = function(pre, match, handle, eof){
 					this.addCurrent();
 					this.chain.push(["mixin", expr.source]);
 				} else {
+					if(match == "%") {
+						expr.source = `${this.transpiler.runtime}.stringify(${expr.source})`;
+					}
 					this.pushExpr(expr);
 				}
 			} else {
@@ -303,7 +307,7 @@ TextExprMode.prototype.parseImpl = function(pre, match, handle, eof){
 };
 
 TextExprMode.prototype.parse = function(handle, eof){
-	var result = this.parser.find(["<", "$", "#"], false, true);
+	var result = this.parser.find(["<", "$", "#", "%"], false, true);
 	this.pushText(result.pre);
 	this.parseImpl(result.pre, result.match, handle, eof);
 };
@@ -487,7 +491,7 @@ LogicMode.prototype.parseLogic = function(expected, type, closing){
 };
 
 LogicMode.prototype.find = function(){
-	return this.parser.find(["$", "#", "<", "c", "l", "v", "b", "d", "i", "f", "w", "s", "}", "\n"], false, false);
+	return this.parser.find(["$", "#", "%", "<", "c", "l", "v", "b", "d", "i", "f", "w", "s", "}", "\n"], false, false);
 };
 
 LogicMode.prototype.parse = function(handle, eof){
@@ -1031,7 +1035,7 @@ ScriptMode.prototype.parseImpl = function(pre, match/*, handle, eof*/){
 };
 
 ScriptMode.prototype.parse = function(handle, eof){
-	var result = this.parser.find(["<", "#"], false, true);
+	var result = this.parser.find(["<", "%"], false, true);
 	this.pushText(result.pre);
 	this.parseImpl(result.pre, result.match, handle, eof);
 };

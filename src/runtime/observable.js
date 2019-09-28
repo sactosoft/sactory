@@ -223,6 +223,7 @@ if(typeof sessionStorage != "undefined") {
  */
 Observable.prototype.nowrap = function(){
 	Object.defineProperty(this, "wrapValue", {value: value => value});
+	return this;
 };
 
 /**
@@ -230,6 +231,7 @@ Observable.prototype.nowrap = function(){
  */
 Observable.prototype.always = function(){
 	Object.defineProperty(this, "shouldUpdate", {value: () => true});
+	return this;
 };
 
 /**
