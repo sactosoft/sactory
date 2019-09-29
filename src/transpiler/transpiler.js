@@ -143,18 +143,20 @@ Transpiler.prototype.endMode = function(){
 /**
  * @since 0.124.0
  */
-Transpiler.prototype.parseImpl = function(modeId, input, parentParser){
+Transpiler.prototype.parseImpl = function(modeId, input, parentParser, trackable){
 	var parser = new Parser(input, (parentParser || this.parser).position);
 	var source = this.source.fork();
 	var mode = startMode(modeId, this, parser, source, {inAttr: true});
-	if(mode.observables) {
+	mode.trackable = trackable;
+	//if(mode.observables) {
 		parser.parseTemplateLiteral = expr => {
 			var parsed = this.parseCode(expr, parser);
-			mode.observables.push(...parsed.observables);
-			mode.maybeObservables.push(...parsed.maybeObservables);
+			//mode.observables.push(...parsed.observables);
+			//mode.maybeObservables.push(...parsed.maybeObservables);
+			mode.observables |= parsed.observables;
 			return parsed.source;
 		};
-	}
+	//}
 	mode.start();
 	while(parser.index < input.length) {
 		mode.parse(() => source.addSource("<"), () => {});
@@ -166,16 +168,13 @@ Transpiler.prototype.parseImpl = function(modeId, input, parentParser){
 /**
  * @since 0.42.0
  */
-Transpiler.prototype.parseCode = function(input, parentParser){
-	var {mode, source} = this.parseImpl(defaultMode, input, parentParser);
+Transpiler.prototype.parseCode = function(input, parentParser, trackable){
+	let {mode: {observables}, source} = this.parseImpl(defaultMode, input, parentParser, trackable);
 	source = source.toString();
-	var observables = mode.observables ? uniq(mode.observables) : [];
-	var maybeObservables = mode.maybeObservables ? uniq(mode.maybeObservables) : [];
 	var ret = {
-		source, observables, maybeObservables,
-		wrapped: !!mode.wrapped,
-		toAttrValue: () => observables.length || maybeObservables.length ? `${this.feature("bo")}(${ret.toSpreadValue()}, [${observables.join(", ")}]${maybeObservables.length ? `, [${maybeObservables.join(", ")}]` : ""})` : source,
-		toSpreadValue: () => this.options.es6 ? `() => ${source}` : `function(){return ${source}}.bind(this)`
+		source, observables,
+		toAttrValue: () => observables ? `${this.feature("coff")}(${this.source.getContext()}, ${ret.toSpreadValue()})` : source,
+		toSpreadValue: () => this.options.es6 ? `${this.tracker} => ${source}` : `function(${this.tracker}){return ${source}}.bind(this)`
 	};
 	return ret;
 };
@@ -264,9 +263,7 @@ Transpiler.prototype.open = function(){
 			if(next == "--") {
 				// xml comment
 				this.parser.index += 2;
-				this.source.addSource(`${this.feature("comment")}(`);
-				this.source.addContext();
-				this.source.addSource(`, ${this.parseText(this.parser.findSequence("-->", true).slice(0, -3))})`);
+				this.source.addSource(`${this.feature("comment")}(${this.source.getContext()}, ${this.parseText(this.parser.findSequence("-->", true).slice(0, -3))})`);
 				this.addSemicolon();
 			} else if(next == "/*") {
 				// code comment
@@ -279,7 +276,7 @@ Transpiler.prototype.open = function(){
 			}
 		}
 	} else if(this.currentMode.options.children === false && this.parser.peek() != "#") {
-		throw new Error(`Mode '${this.currentMode.name}' cannot have children.`);
+		throw new Error(`Mode \`${this.currentMode.name}\` cannot have children.`);
 	} else {
 		var position = this.parser.position;
 		var parser = this.parser;
@@ -380,23 +377,18 @@ Transpiler.prototype.open = function(){
 					this.parser.index++;
 					attr.beforeValue = skip();
 					this.parser.parseTemplateLiteral = null;
-					var value = this.parser.readAttributeValue();
-					var parsed = this.parseCode(value);
-					if(parsed.source.substr(0, 2) == "{{" && parsed.source.slice(-2) == "}}") {
-						let source = parsed.source.slice(1, -1);
+					const value = attr.unparsed = this.parser.readAttributeValue();
+					if(Polyfill.startsWith.call(value, "{{")) {
+						const {source} = this.parseCode(value.slice(2, -2), undefined, false);
+						attr.value = this.options.es6 ? `(event, target) => {${source}}` : `function(event, target){${source}}.bind(this)`;
+					} else if(attr.type == "+" && value.charAt(0) == "{") {
+						this.warn("The `{ ... }` syntax for functions as attribute values is deprecated. Use the `{{ ... }}` syntax instead.");
+						const {source} = this.parseCode(value, undefined, false);
 						attr.value = this.options.es6 ? `(event, target) => ${source}` : `function(event, target)${source}.bind(this)`;
-					} else if(attr.type == "+") {
-						let source = parsed.source;
-						if(source.charAt(0) == "{" && source.charAt(source.length - 1) == "}") {
-							this.warn("The `{ ... }` syntax for functions as attribute values is deprecated. Use the `{{ ... }}` syntax instead.");
-							attr.value = this.options.es6 ? `(event, target) => ${source}` : `function(event, target)${source}.bind(this)`;
-						} else {
-							attr.value = source;
-						}
 					} else {
+						const parsed = this.parseCode(value, undefined, true);
 						attr.value = parsed.toAttrValue();
 					}
-					attr.sourceValue = parsed.source;
 					skip();
 				}
 				if(attr.inner) {
@@ -456,7 +448,7 @@ Transpiler.prototype.open = function(){
 										type: name,
 										info: this.stringifyAttribute(attr),
 										value: attr.value,
-										ref: attr.sourceValue || attr.value
+										ref: this.parseCode(attr.unparsed, undefined, false).source
 									});
 									break;
 							}
@@ -1088,7 +1080,15 @@ Transpiler.prototype.transpile = function(input){
 	this.chain = this.nextVar();
 	this.context0 = this.nextVar();
 	this.context1 = this.nextVar();
+	this.tracker = this.nextVar();
 	this.value = this.nextVar();
+
+	/*this.runtime = "runtime";
+	this.chain = "chain";
+	this.context0 = "context0";
+	this.context1 = "context1";
+	this.tracker = "tracker";
+	this.value = "value";*/
 
 	this.tagNames = {};
 	var features = this.features = {};

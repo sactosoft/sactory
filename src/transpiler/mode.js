@@ -59,16 +59,16 @@ Mode.prototype.add = function(text){
 /**
  * @since 0.69.0
  */
-Mode.prototype.parseCode = function(fun){
+Mode.prototype.parseCode = function(fun, trackable){
 	this.parser.parseTemplateLiteral = null;
 	var expr = Parser.prototype[fun].apply(this.parser, Array.prototype.slice.call(arguments, 1));
 	this.transpiler.updateTemplateLiteralParser();
-	return this.transpiler.parseCode(expr, this.parser);
+	return this.transpiler.parseCode(expr, this.parser, trackable);
 };
 
-Mode.prototype.parseCodeToSource = function(fun){
+Mode.prototype.parseCodeToSource = function(fun, trackable){
 	var expr = Parser.prototype[fun].apply(this.parser, Array.prototype.slice.call(arguments, 1));
-	return this.transpiler.parseCode(expr, this.parser).source;
+	return this.transpiler.parseCode(expr, this.parser, trackable).source;
 };
 
 Mode.prototype.parseCodeToValue = function(/*fun*/){
@@ -157,20 +157,13 @@ TextExprMode.prototype.addCurrent = function(){
 		const expr = this.current.filter(c => !c.text || c.value.length);
 		if(expr.length) {
 			// create joined
-			var joined = this.es6 ?
+			let joined = this.es6 ?
 				`\`${expr.map(({text, value}) => text ? this.replaceText(value).replace(/(`|\$|\\)/gm, "\\$1") : "${" + value.source + "}").join("")}\`` :
 				`"" + ${expr.map(({text, value}) => text ? stringify(this.replaceText(value)) : `(${value.source})`).join(" + ")}`;
-			// collect observables
-			var observables = [];
-			var maybeObservables = [];
-			expr.forEach(({text, value}) => {
-				if(!text) {
-					observables.push(...value.observables);
-					maybeObservables.push(...value.maybeObservables);
-				}
-			});
-			if(observables.length || maybeObservables.length) {
-				joined = `${this.transpiler.feature("bo")}(${this.es6 ? `() => ${joined}` : `function(){return ${joined}}.bind(this)`}, [${uniq(observables).join(", ")}]${maybeObservables.length ? `, [${uniq(maybeObservables).join(", ")}]` : ""})`;
+			// check observable
+			const observables = !!Polyfill.find.call(expr, ({text, value}) => !text && value.observables);
+			if(observables) {
+				joined = `${this.transpiler.feature("coff")}(${this.source.getContext()}, ${this.es6 ? `(${this.transpiler.tracker}) => ${joined}` : `function(${this.transpiler.tracker}){return ${joined}}.bind(this)`})`;
 			}
 			this.addText(joined);
 		}
@@ -229,14 +222,14 @@ TextExprMode.prototype.addFinalCurrent = function(){
 TextExprMode.prototype.pushText = function(value){
 	var last = this.current[this.current.length - 1];
 	if(last && last.text) last.value += value;
-	else this.current.push({text: true, value: value});
+	else this.current.push({text: true, value});
 };
 
 /**
  * Adds a code expression to the current data.
  */
 TextExprMode.prototype.pushExpr = function(value){
-	this.current.push({text: false, value: value});
+	this.current.push({text: false, value});
 };
 
 /**
@@ -272,7 +265,7 @@ TextExprMode.prototype.parseImpl = function(pre, match, handle, eof){
 				last.value = last.value.slice(0, -1) + match;
 				break;
 			} else if(this.parser.peek() == "{") {
-				var expr = this.parseCode("skipEnclosedContent", true);
+				const expr = this.parseCode("skipEnclosedContent", true, true);
 				if(match == "#") {
 					this.addCurrent();
 					this.chain.push(["mixin", expr.source]);
@@ -362,8 +355,7 @@ LogicMode.prototype.parseStatement = function(statement, trimmed, expected, cond
 	const part = {
 		type: expected,
 		following,
-		observables: [],
-		maybeObservables: [],
+		observables: false,
 		declStart: this.source.addIsolatedSource("")
 	};
 	statement.parts.push(part);
@@ -378,13 +370,11 @@ LogicMode.prototype.parseStatement = function(statement, trimmed, expected, cond
 		}
 		this.endChainable();
 		this.add(trimmed);
-		const reparse = (source, parser) => {
-			var parsed = this.transpiler.parseCode(source, parser);
-			statement.observables.push(...parsed.observables);
-			statement.maybeObservables.push(...parsed.maybeObservables);
-			part.observables.push(...parsed.observables);
-			part.maybeObservables.push(...parsed.maybeObservables);
-			return parsed.source;
+		const reparse = (s, parser) => {
+			const {source, observables} = this.transpiler.parseCode(s, parser, true);
+			statement.observables |= observables;
+			part.observables |= observables;
+			return source;
 		};
 		const position = this.parser.position;
 		const source = reparse(this.parser.skipEnclosedContent(), this.parser);
@@ -477,8 +467,7 @@ LogicMode.prototype.parseLogic = function(expected, type, closing){
 				type: expected,
 				startRef: this.source.addIsolatedSource(""),
 				context: this.source.getContext(),
-				observables: [],
-				maybeObservables: [],
+				observables: false,
 				inlineable: true,
 				end: "",
 				parts: [],
@@ -592,18 +581,17 @@ LogicMode.prototype.onStatementEnd = function(/*statement*/){};
 
 LogicMode.prototype.end = function(){
 	this.popped.forEach(popped => {
-		if(popped.observables.length || popped.maybeObservables.length) {
+		if(popped.observables) {
 			if(popped.type == "if") {
 				// calculate conditions and remove them from source
-				var conditions = [];
-				var replacement = this.es6 ? `, ${popped.context} =>` : `, function(${popped.context})`;
-				popped.parts.forEach(part => {
+				let conditions = "";
+				const replacement = this.es6 ? `, ${popped.context} =>` : `, function(${popped.context})`;
+				popped.parts.forEach((part, i) => {
 					var source = part.decl.value.substr(part.type.length);
 					if(part.type == "else") {
-						conditions.push("[]");
+						conditions += i;
 					} else {
-						var condition = this.es6 ? `() => ${source}` : `function(){return ${source}}.bind(this)`;
-						conditions.push(`[${condition}, [${uniq(part.observables)}]${part.maybeObservables.length ? `, [${uniq(part.maybeObservables)}]` : ""}]`);
+						conditions += `${source} ? ${i} : `;
 					}
 					part.declStart.value = replacement;
 					if(part.inline) {
@@ -612,26 +600,28 @@ LogicMode.prototype.end = function(){
 					}
 					part.decl.value = "";
 				});
-				popped.startRef.value = `${this.transpiler.feature("bindIfElse")}(${popped.context}, [${conditions.join(", ")}]${popped.startRef.value}`;
+				if(popped.parts[popped.parts.length - 1].type != "else") {
+					conditions += "-1";
+				}
+				popped.startRef.value = `${this.transpiler.feature("bindFlowIfElse")}(${popped.context}, ${this.transpiler.tracker} => ${conditions}${popped.startRef.value}`;
 				popped.endRef.value += `${this.es6 ? "" : ".bind(this)"});`;
 			} else if(popped.type == "foreach") {
 				// the source is divided in 4 parts
 				var expr = popped.ref.b.value;
 				var getter = this.es6 ? `() => ${expr}` : `function(){return ${expr}}.bind(this)`;
-				var maybe = !!popped.maybeObservables.length;
 				popped.ref.a.value = "";
 				popped.ref.b.value = "";
-				popped.ref.c.value = `${this.transpiler.feature("bindEach" + (maybe ? "Maybe" : ""))}(${popped.context}, ${(maybe ? popped.maybeObservables : popped.observables)[0]}, ${getter}, ${!this.es6 ? "function" : ""}(${popped.context}, `;
+				popped.ref.c.value = `${this.transpiler.feature("bindFlowEach")}(${popped.context}, ${this.transpiler.tracker} => ${expr}, ${!this.es6 ? "function" : ""}(${popped.context}, `;
 				// no need to close as the end is the same as the Sactory.forEach function call
 			} else {
 				// normal bind
-				var start = `${this.transpiler.feature("bind")}(${popped.context}, [${uniq(popped.observables).join(", ")}], [${popped.maybeObservables.join(", ")}], `;
-				var end = "}";
+				let start = `${this.transpiler.feature("bindFlow")}(${popped.context}, `;
+				let end = "}";
 				if(this.es6) {
-					start += `${popped.context} => `;
+					start += `${this.transpiler.tracker} => ${popped.context} => `;
 				} else {
-					start += `function(${popped.context})`;
-					end += ".bind(this)";
+					start += `function(${this.transpiler.tracker}){return function(${popped.context})`;
+					end += ".bind(this)}.bind(this)";
 				}
 				popped.startRef.value = `${start}{${popped.startRef.value}`;
 				popped.endRef.value += `${end});`;
@@ -659,8 +649,6 @@ OptionalLogicMode.prototype = Object.create(LogicMode.prototype);
  */
 function SourceCodeMode(transpiler, parser, source, attributes) {
 	BreakpointMode.call(this, transpiler, parser, source, attributes, ["(", ")", "{", "}", "$", "&", "*", "^"]);
-	this.observables = [];
-	this.maybeObservables = [];
 	this.parentheses = [];
 }
 
@@ -679,37 +667,61 @@ SourceCodeMode.prototype.handleParenthesis = function(match){
 	this.restoreIndex(match);
 };
 
-SourceCodeMode.prototype.addObservable = function(observables, maybeObservables, name, wrap){
+SourceCodeMode.prototype.addObservableImpl = function(tracked, name){
 	if(name.length) {
 		const tail = this.source.tail();
 		tail.value = tail.value.slice(0, -name.length);
 	}
 	const maybe = !!this.parser.readIf("?");
 	if(this.parser.peek() == "(") {
-		name += this.parseCodeToSource("skipEnclosedContent");
+		name += this.parseCodeToSource("skipEnclosedContent", false);
 	} else {
-		name += this.parseCodeToSource("readVarName", true);
+		name += this.parseCodeToSource("readVarName", false, true);
 	}
-	if(wrap) {
-		this.source.addSource(`${this.transpiler.value}.${maybe ? "m" : "d"}(${name})`);
+	if(this.trackable && tracked) {
+		this.observables = true;
+		let skipped = this.parser.skipImpl({comments: true});
+		if(this.parser.peek() == ".") {
+			// check for child observables
+			this.add(`${this.transpiler.tracker}.${maybe ? "d" : "c"}(${name}, `);
+			const parsed = this.transpiler.parseCode(this.transpiler.value + skipped + this.parser.readSingleExpression(true), this.parser, true);
+			if(this.es6) {
+				this.add(`(${this.transpiler.tracker}, ${this.transpiler.value}) => ${parsed.source})`);
+			} else {
+				this.add(`function(${this.transpiler.tracker}, ${this.transpiler.value}){return ${parsed.source}}.bind(this))`);
+			}
+		} else {
+			this.add(`${this.transpiler.tracker}.${maybe ? "b" : "a"}(${name})${skipped}`);
+		}
 	} else if(maybe) {
 		this.source.addSource(`${this.transpiler.feature("value")}(${name})`);
-		if(maybeObservables) maybeObservables.push(name);
 	} else {
 		this.add(`${name}.value`);
-		if(observables) observables.push(name);
 	}
 	this.parser.last = "]"; // see issue#57
 	this.parser.lastIndex = this.parser.index - 1;
 };
 
+SourceCodeMode.prototype.addObservable = function(tracked){
+	if(this.parser.couldStartRegExp()) {
+		this.addObservableImpl(tracked, "");
+		return true;
+	} else if(this.parser.last == ".") {
+		this.addObservableImpl(tracked, this.lookBehind());
+		return true;
+	} else {
+		return false;
+	}
+};
+
 SourceCodeMode.prototype.lookBehind = function(){
-	var end = this.parser.lastIndex;
-	var index = end;
-	while(index >= 0 && /[\sa-zA-Z0-9_$.]/.test(this.parser.input.charAt(index))) {
+	const tail = this.source.tail();
+	let end = tail.value.length;
+	let index = end - 1;
+	while(index >= 0 && /[\s\u0561-\u0588a-zA-Z0-9_$.]/.test(tail.value.charAt(index))) {
 		index--;
 	}
-	return this.parser.input.substring(index + 1, end + 1);
+	return tail.value.substring(index + 1, end);
 };
 
 SourceCodeMode.prototype.next = function(match){
@@ -827,10 +839,10 @@ SourceCodeMode.prototype.next = function(match){
 					}
 				} else if(this.parser.peek() == "=") {
 					// from arrow function not wrapped
-					index = space.length + 4;
+					index = space.length + 2 + this.transpiler.tracker.length;
 					this.parser.read(); // =
 					this.parser.expect(">");
-					this.source.addSource(`()${space}=>`);
+					this.source.addSource(`${this.transpiler.tracker}${space}=>`);
 				}  else {
 					// from variable
 					let parsed = this.transpiler.parseCode(this.parser.readSingleExpression(true));
@@ -850,21 +862,10 @@ SourceCodeMode.prototype.next = function(match){
 						}
 					}
 					// add expression
-					const parsed = this.transpiler.parseCode(this.parser.readExpression());
-					if(parsed.wrapped) {
-						const decl = this.es6 ? `${this.transpiler.value} => ` : `function(${this.transpiler.value}){return `;
-						tail.value = `${tail.value.slice(0, -beforeIndex)}${this.transpiler.feature("cofr")}(${decl}${tail.value.substr(-afterIndex)}`;
-					} else {
-						tail.value = `${tail.value.slice(0, -beforeIndex)}${this.transpiler.feature("coff")}(${tail.value.substr(-afterIndex)}`;
-					}
-					this.source.addSource(`${parsed.source}${parsed.wrapped && !this.es6 ? "}.bind(this)" : ""})`);
+					const parsed = this.transpiler.parseCode(this.parser.readExpression(), null, true);
+					tail.value = `${tail.value.slice(0, -beforeIndex)}${this.transpiler.feature("coff")}(${this.source.getContext()}, ${tail.value.substr(-afterIndex)}`;
+					this.source.addSource(`${parsed.source})`);
 					if(mods.async) this.source.addSource(".async()");
-					if(parsed.observables.length) {
-						this.source.addSource(`.d(${this.source.getContext()}, ${uniq(parsed.observables).join(", ")})`);
-					}
-					if(parsed.maybeObservables.length) {
-						this.source.addSource(`.m(${this.source.getContext()}, ${uniq(parsed.maybeObservables).join(", ")})`);
-					}
 				}
 				this.transpiler.updateTemplateLiteralParser();
 				this.parser.last = "]"; // see issue#57
@@ -877,19 +878,7 @@ SourceCodeMode.prototype.next = function(match){
 			break;
 		}
 		case "*":
-			if(this.parser.couldStartRegExp()) {
-				if(this.parser.readIf("*")) {
-					this.addObservable(null, null, "", this.wrapped = true);
-				} else {
-					this.addObservable(this.observables, this.maybeObservables, "", false);
-				}
-			} else if(this.parser.last == ".") {
-				if(this.parser.readIf("*")) {
-					this.addObservable(null, null, this.lookBehind(), this.wrapped = true);
-				} else {
-					this.addObservable(this.observables, this.maybeObservables, this.lookBehind(), false);
-				}
-			} else {
+			if(!this.addObservable(true)) {
 				// just a multiplication or exponentiation
 				this.restoreIndex("*");
 				if(this.parser.readIf("*")) {
@@ -899,11 +888,7 @@ SourceCodeMode.prototype.next = function(match){
 			}
 			break;
 		case "^":
-			if(this.parser.couldStartRegExp()) {
-				this.addObservable(null, null, "");
-			} else if(this.parser.last == ".") {
-				this.addObservable(null, null, this.lookBehind());
-			} else {
+			if(!this.addObservable(false)) {
 				// xor operator
 				this.restoreIndex("^");
 			}
@@ -1018,7 +1003,7 @@ ScriptMode.prototype.handle = function(){
 };
 
 ScriptMode.prototype.parseImpl = function(pre, match/*, handle, eof*/){
-	if(match == "#") {
+	if(match == "%") {
 		if(pre.slice(-1) == "\\") {
 			const curr = this.current[this.current.length - 1];
 			curr.value = curr.value.slice(0, -1) + match;
@@ -1060,8 +1045,7 @@ CSSMode.prototype = Object.create(OptionalLogicMode.prototype);
  */
 function SSBMode(transpiler, parser, source, attributes) {
 	LogicMode.call(this, transpiler, parser, source, attributes);
-	this.observables = [];
-	this.maybeObservables = [];
+	this.observables = false;
 	this.expr = [];
 	this.scopes = [transpiler.value];
 	this.scope = attributes.scope && JSON.stringify(attributes.scope);
@@ -1095,10 +1079,8 @@ SSBMode.prototype.skip = function(){
 };
 
 SSBMode.prototype.start = function(){
-	let args = [this.transpiler.value];
-	if(this.attributes.dollar != false) args.push("$");
-	this.source.addSource(`${this.transpiler.feature("cabs")}(${this.source.getContext()}, ${this.scope || +this.scoped}`);
-	this.source.addSource(`, ${this.es6 ? `(${args.join(", ")}) => ` : `function(${args.join(", ")})`}{`);
+	this.source.addSource(`${this.transpiler.feature("cabs")}(${this.source.getContext()}, ${this.scope || +this.scoped}, `);
+	this.startRef = this.source.addIsolatedSource("");
 };
 
 SSBMode.prototype.find = function(){
@@ -1152,8 +1134,7 @@ SSBMode.prototype.lastValue = function(callback, parser){
 		if(part.text || part.comment) {
 			return part.value.length;
 		} else {
-			this.observables.push(...part.value.observables);
-			this.maybeObservables.push(...part.value.maybeObservables);
+			this.observables |= part.value.observables;
 			return true;
 		}
 	});
@@ -1199,8 +1180,7 @@ SSBMode.prototype.parseImpl = function(pre, match, handle, eof){
 			this.lastValue(value => this.addScope(value));
 			this.statements.push({
 				selector: true,
-				observables: [],
-				maybeObservables: [],
+				observables: false,
 				end: "",
 				parts: [{}],
 				single: match == "<"
@@ -1307,8 +1287,7 @@ SSBMode.prototype.onStatementEnd = function(statement){
 			statement.endRef.value = "";
 		}
 	} else {
-		this.observables.push(...statement.observables);
-		this.maybeObservables.push(...statement.maybeObservables);
+		this.observables |= statement.observables;
 	}
 	this.inExpr = false;
 };
@@ -1344,8 +1323,21 @@ SSBMode.prototype.end = function(){
 			this.source[popped.endIndex] = popped.end + this.source[popped.endIndex];
 		}
 	});
-	// add return statement
-	this.add(`}${this.es6 ? "" : ".bind(this)"}, [${uniq(this.observables).join(", ")}], [${this.maybeObservables.join(", ")}])`);
+	// wrap content
+	this.add(`}${this.es6 ? "" : ".bind(this)"})`);
+	let args = [this.transpiler.value];
+	if(this.attributes.dollar != false) args.push("$");
+	if(this.observables) {
+		this.startRef.value = `${this.transpiler.feature("coff")}(${this.source.getContext()}, `;
+		if(this.es6) {
+			this.startRef.value += `${this.transpiler.tracker} => `;
+			this.add(")");
+		} else {
+			this.startRef.value += `function(${this.transpiler.tracker}){return `;
+			this.add("}.bind(this))");
+		}
+	}
+	this.startRef.value += `${this.es6 ? `(${args.join(", ")}) => ` : `function(${args.join(", ")})`}{`;
 };
 
 SSBMode.prototype.chainAfter = function(){

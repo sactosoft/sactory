@@ -28,40 +28,17 @@ Subscription.prototype.dispose = function(){
  * @class
  * @since 0.129.0
  */
-function Observable(fun) {
+function Observable(value) {
 	Object.defineProperty(this, "id", {value: counter.nextObservable()});
-	this._dependencies = 0;
 	this._subscriptions = [];
-	this._calc = () => this.value = fun();
-	this._value = this.wrapValue(fun());
+	this._value = this.wrapValue(value);
 }
 
 /**
  * @since 0.129.0
  */
-Observable.prototype.recalc = function(){};
-
-/**
- * @since 0.129.0
- */
-Observable.prototype.addDependencies = function(dependencies, context){
-	var subscriptions = dependencies.map(dependency => dependency.$$subscribe(context, this._calc));
-	this._dependencies += dependencies.length;
-	return subscriptions;
-};
-
-/**
- * @since 0.129.0
- */
-Observable.prototype.addMaybeDependencies = function(dependencies, context){
-	return this.addDependencies(dependencies.filter(Sactory.isObservable), context);
-};
-
-/**
- * @since 0.129.0
- */
 Observable.prototype.subscribe = function(callback, type){
-	var ret = new Subscription(this, callback, type);
+	const ret = new Subscription(this, callback, type);
 	this._subscriptions.push(ret);
 	return ret;
 };
@@ -70,8 +47,8 @@ Observable.prototype.subscribe = function(callback, type){
  * @since 0.129.0
  */
 Observable.prototype.unsubscribe = function({id}){
-	for(var i=0; i<this._subscriptions.length; i++) {
-		var sub = this._subscriptions[i];
+	for(let i=0; i<this._subscriptions.length; i++) {
+		const sub = this._subscriptions[i];
 		if(sub.id == id) {
 			this._subscriptions.splice(i, 1);
 			return true;
@@ -84,18 +61,11 @@ Observable.prototype.unsubscribe = function({id}){
  * @since 0.130.0
  */
 Observable.prototype.$$subscribe = function(context, callback, type){
-	var subscription = this.subscribe(callback, type);
+	const subscription = this.subscribe(callback, type);
 	if(context && context.bind) {
 		context.bind.subscribe(subscription);
 	}
 	return subscription;
-};
-
-/**
- * @since 0.132.0
- */
-Observable.prototype.$$depend = function(context, ...dependencies){
-	return this.addMaybeDependencies(dependencies, context);
 };
 
 /**
@@ -123,7 +93,7 @@ Observable.prototype.update = function(value, type, args){
 	if(this.shouldUpdate(this._value, value)) {
 		var oldValue = this._value;
 		this._value = this.wrapValue(value);
-		this.propagateUpdate(value, oldValue, type, args);
+		this.propagateUpdate(value, oldValue, type || this.currentType, args);
 	}
 };
 
@@ -251,22 +221,30 @@ Observable.prototype.async = function(){
 	return this;
 };
 
-// functions used internally
-
 /**
- * @since 0.129.0
+ * @since 0.145.0
  */
-Observable.prototype.d = function(context, ...dependencies){
-	this.addDependencies(dependencies, context);
+Observable.prototype.transform = function(fun){
+	if(this.converters) {
+		this.converters.push(fun);
+	} else {
+		this.converters = [fun];
+		const wrapValue = this.wrapValue;
+		Object.defineProperty(this, "wrapValue", {
+			value(value) {
+				this.converters.forEach(fun => value = fun(value));
+				return wrapValue.call(this, value);
+			}
+		});
+	}
 	return this;
 };
 
 /**
- * @since 0.129.0
+ * @since 0.145.0
  */
-Observable.prototype.m = function(context, ...dependencies){
-	this.addMaybeDependencies(dependencies, context);
-	return this;
+Observable.prototype.validate = function(fun, defaultValue){
+	return this.transform(value => fun(value) ? value : defaultValue);
 };
 
 // wrappers
@@ -340,118 +318,93 @@ Observable.Array = (SysArray => {
  * @class
  * @since 0.145.0
  */
-function RuntimeObservable(rfun) {
-	this._tracker = new Tracker(this);
-	Observable.call(this, rfun(this._tracker));
-	this._tracker.disable();
-}
-
-RuntimeObservable.prototype = Object.create(Observable.prototype);
-
-RuntimeObservable.prototype.d = function(context, ...dependencies){
-	this._tracker.add(context, dependencies);
-	Observable.prototype.d.call(this, context, ...dependencies);
-	return this;
+function ComputedObservable(context, fun){
+	Observable.call(this);
+	this.context = context;
+	this.fun = fun;
+	this.deps = this.ndeps = {};
+	this.tracker = new Tracker(this);
+	this._value = this.wrapValue(fun(this.tracker));
+	this.ndeps = {};
 };
 
-RuntimeObservable.prototype.m = function(context, ...dependencies){
-	return this.d(context, ...dependencies.filter(Sactory.isObservable));
+ComputedObservable.prototype = Object.create(Observable.prototype);
+
+ComputedObservable.prototype.recalc = function(){
+	// store the ids of dependencies before recalc
+	this.odeps = Polyfill.assign({}, this.deps);
+	this.value = this.fun(this.tracker);
+	// remove unused dependencies
+	for(let id in this.odeps) {
+		if(!this.ndeps[id]) {
+			this.odeps[id].dispose();
+		}
+	}
+	this.deps = this.ndeps;
+	this.odeps = this.ndeps = {};
 };
+
+/*const notracker = {
+	a: value => value.value,
+	b: value => Sactory.isObservable(value) ? value.value : value,
+	c: (value, fun) => fun(notracker, value.value),
+	d: (value, fun) => fun(notracker, Sactory.isObservable(value) ? value.value : value)
+};*/
 
 /**
  * @class
  * @since 0.145.0
  */
 function Tracker(observable) {
-	this._observable = observable;
-	this._dependencies = [];
-	this._enabled = this._internal = new TrackerEnabled(this._observable, this._dependencies);
-	this._disabled = new TrackerDisabled();
+	this.observable = observable;
+	this.context = observable.context;
 }
 
-Tracker.prototype.enable = function(){
-	this._internal = this._enabled;
-};
-
-Tracker.prototype.disable = function(){
-	this._internal = this._disabled;
-};
-
-/**
- * Adds a runtime dependency.
- */
-Tracker.prototype.d = function(dep){
-	return this._internal.d(dep);
-};
-
-/**
- * Adds a maybe runtime dependency.
- */
-Tracker.prototype.m = function(dep){
-	return this._internal.m(dep);
-};
-
-/**
- * Adds a hard dependency that will trigger a recalculation
- * of the runtime dependencies.
- */
-Tracker.prototype.add = function(context, dependencies){
-	dependencies.forEach(dep => {
-		dep.$$subscribe(context, () => {
-			this._observable._dependencies -= this._dependencies.length;
-			this._dependencies.forEach(dep => dep.dispose());
-			this._dependencies.length = 0;
-			this.enable();
-			this._observable._calc();
-			this.disable();
-		});
-	});
-};
-
-/**
- * @class
- * @since 0.145.0
- */
-function TrackerEnabled(observable, dependencies) {
-	this._observable = observable;
-	this._dependencies = dependencies;
-}
-
-TrackerEnabled.prototype.d = function(dep){
-	if(!Polyfill.find.call(this._dependencies, value => value.observable.id == dep.id)) {
-		this._dependencies.push(...this._observable.addDependencies([dep], {}));
-	}
-	return dep.value;
-};
-
-TrackerEnabled.prototype.m = function(dep){
-	if(Sactory.isObservable(dep)) {
-		return this.d(dep);
+Tracker.prototype.add = function(observable){
+	const {id} = observable;
+	if(!this.observable.deps[id]) {
+		this.observable.ndeps[id] = observable.$$subscribe(this.context, () => this.observable.recalc());
 	} else {
-		return dep;
+		this.observable.ndeps[id] = this.observable.deps[id];
 	}
 };
 
 /**
- * @class
- * @since 0.145.0
+ * Adds a dependency.
  */
-function TrackerDisabled() {}
-
-TrackerDisabled.prototype.d = function(dep){
-	return dep.value;
-};
-
-TrackerDisabled.prototype.m = function(dep){
-	return Sactory.isObservable(dep) ? dep.value : dep;
+Tracker.prototype.a = function(value){
+	this.add(value);
+	return value.value;
 };
 
 /**
- * Creates an observable from a function.
- * @since 0.129.0
+ * Adds a maybe dependency.
  */
-Sactory.coff = function(fun){
-	return new Observable(fun);
+Tracker.prototype.b = function(value){
+	if(Sactory.isObservable(value)) {
+		return this.a(value);
+	} else {
+		return value;
+	}
+};
+
+/**
+ * Adds a dependency and calls the function.
+ */
+Tracker.prototype.c = function(value, fun){
+	this.add(value);
+	return fun(this, value.value);
+};
+
+/**
+ * Adds a maybe dependency and calls the function.
+ */
+Tracker.prototype.d = function(value, fun){
+	if(Sactory.isObservable(value)) {
+		return this.c(value, fun);
+	} else {
+		return fun(this, value);
+	}
 };
 
 /**
@@ -459,15 +412,15 @@ Sactory.coff = function(fun){
  * @since 0.129.0
  */
 Sactory.cofv = function(value){
-	return new Observable(() => value);
+	return new Observable(value);
 };
 
 /**
- * Creates an observable from a function with runtime dependencies.
- * @since 0.144.0
+ * Creates an observable from a function.
+ * @since 0.129.0
  */
-Sactory.cofr = function(fun){
-	return new RuntimeObservable(fun);
+Sactory.coff = function(context, fun){
+	return new ComputedObservable(context, fun);
 };
 
 /**
@@ -490,5 +443,9 @@ Sactory.value = function(value){
 		return value;
 	}
 };
+
+// export
+Sactory.Subscription = Subscription;
+Sactory.Observable = Observable;
 
 module.exports = Sactory;

@@ -3,7 +3,6 @@ var Attr = require("../attr");
 var { dehyphenate } = require("../util");
 var SactoryConst = require("./const");
 var SactoryContext = require("./context");
-var SactoryMisc = require("./misc");
 var SactoryWidget = require("./widget").Sactory;
 var { Widget, Registry } = require("./widget");
 
@@ -109,9 +108,6 @@ chain.updateImpl = function(context, tagName, tagNameString, attrs = [], widgetC
 	const add = (type, name, value) => {
 		if(type >= Attr.WIDGET) {
 			var obj;
-			if(SactoryMisc.isBuilderObservable(value)) {
-				value = value.use(context.bind);
-			}
 			if(type >= Attr.UPDATE_WIDGET) {
 				if(typeof name[0] == "function") {
 					var widget = name[0];

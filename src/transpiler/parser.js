@@ -530,7 +530,7 @@ Parser.prototype.readSingleExpression = function(skip, force){
 	} else if(peek == "/") {
 		ret += this.skipRegExp();
 	} else {
-		ret += this.readImpl(/^(([a-zA-Z_$][a-zA-Z0-9_$]*)|0[box][0-9]+|([0-9]*\.?[0-9]+([eE][+-]?[0-9]+)?))/, false) || "";
+		ret += this.readImpl(/^(([\u0561-\u0588a-zA-Z_$][\u0561-\u0588a-zA-Z0-9_$]*)|0[box][0-9]+|([0-9]*\.?[0-9]+([eE][+-]?[0-9]+)?))/, false) || "";
 	}
 	while(!this.eof()) {
 		var before = {
@@ -538,7 +538,7 @@ Parser.prototype.readSingleExpression = function(skip, force){
 			index: this.index
 		};
 		if(skip) ret += this.skipImpl({comments: true});
-		var expr = this.readImpl(/^(\.((\*\*?|\^)\??)?#?[a-zA-Z0-9_$]+)/, false);
+		var expr = this.readImpl(/^(\.((\*\*?|\^)\??)?#?[\u0561-\u0588a-zA-Z0-9_$]+)/, false);
 		if(expr) {
 			ret += expr;
 			if(skip) ret += this.skipImpl({comments: true});

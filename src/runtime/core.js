@@ -5,7 +5,6 @@ var { hyphenate } = require("../util");
 var SactoryBind = require("./bind");
 var SactoryConfig = require("./config");
 var SactoryConst = require("./const");
-var SactoryMisc = require("./misc");
 var SactoryObservable = require("./observable");
 
 var counter = require("./counter");
@@ -39,22 +38,15 @@ Sactory.prototype.subscribe = function(bind, subscription){
 /**
  * @since 0.129.0
  */
-Sactory.prototype.observeImpl = function(bind, observable, fun, type){
+Sactory.prototype.observe = function(bind, observable, fun, type){
 	var ret = observable.subscribe(fun, type);
 	this.subscribe(bind, ret);
 	fun(observable.value);
 	return ret;
 };
-
-/**
- * @since 0.129.0
- */
-Sactory.prototype.observe = function(bind, bo, fun){
-	return this.observeImpl(bind, bo.use(bind), fun);
-};
 	
 Sactory.prototype.attr = function(name, value, bind){
-	if(SactoryMisc.isBuilderObservable(value)) {
+	if(SactoryObservable.isObservable(value)) {
 		this.observe(bind, value, value => this.element.setAttribute(name, value));
 	} else {
 		this.element.setAttribute(name, value);
@@ -62,7 +54,7 @@ Sactory.prototype.attr = function(name, value, bind){
 };
 	
 Sactory.prototype.prop = function(name, value, bind, type){
-	if(SactoryMisc.isBuilderObservable(value)) {
+	if(SactoryObservable.isObservable(value)) {
 		this.observe(bind, value, value => this.element[name] = value, type);
 	} else {
 		this.element[name] = value;
@@ -106,7 +98,7 @@ Sactory.prototype.complexStyle = function(name, value, bind){
 			wrap = value => `.${className}${name}{${prop}:${value};}`;
 		}
 	}
-	if(SactoryMisc.isBuilderObservable(value)) {
+	if(SactoryObservable.isObservable(value)) {
 		this.observe(bind, value, value => node.textContent = wrap(value));
 	} else {
 		node.textContent = wrap(value);
@@ -133,8 +125,8 @@ Sactory.prototype.style = function(name, value, bind){
 			prop = name.substr(1);
 			get = value => `${value} !important`;
 		}
-		if(SactoryMisc.isBuilderObservable(value)) {
-			var subscription = this.observe(bind, value, update);
+		if(SactoryObservable.isObservable(value)) {
+			const subscription = this.observe(bind, value, update);
 			this.styles.push({name, value, subscription, bind});
 		} else if(value === false) {
 			update("0");
@@ -167,8 +159,7 @@ Sactory.prototype.styleImpl = function(values){
 	var className = counter.nextPrefix();
 	var update = () => node.textContent = `.${className}{${values.join("")}}`;
 	values.forEach(({value, bind}) => {
-		if(SactoryMisc.isBuilderObservable(value)) {
-			value = value.use(bind);
+		if(SactoryObservable.isObservable(value)) {
 			this.subscribe(bind, value.subscribe(update));
 		}
 	});
@@ -178,18 +169,13 @@ Sactory.prototype.styleImpl = function(values){
 };
 	
 Sactory.prototype.text = function(value, {top, bind, anchor, document}){
-	var textNode;
-	var use = value => {
+	let textNode;
+	if(SactoryObservable.isObservable(value)) {
 		textNode = document.createTextNode("");
-		this.observeImpl(bind, value, value => {
+		this.observe(bind, value, value => {
 			textNode.textContent = value + "";
 			textNode.observed = true;
 		});
-	};
-	if(SactoryObservable.isObservable(value)) {
-		use(value);
-	} else if(SactoryMisc.isBuilderObservable(value)) {
-		use(value.use(bind));
 	} else {
 		textNode = document.createTextNode(value);
 	}
@@ -222,7 +208,7 @@ Sactory.prototype.html = function(value, {top, bind, anchor, document}){
 			}
 		});
 	};
-	var use = value => {
+	if(SactoryObservable.isObservable(value)) {
 		// create an anchor to maintain the right order
 		var innerAnchor = SactoryBind.anchor({element: this.element, bind, anchor});
 		this.subscribe(bind, value.subscribe(value => {
@@ -232,11 +218,6 @@ Sactory.prototype.html = function(value, {top, bind, anchor, document}){
 			parse(value, innerAnchor);
 		}));
 		parse(value.value, innerAnchor);
-	};
-	if(SactoryObservable.isObservable(value)) {
-		use(value);
-	} else if(SactoryMisc.isBuilderObservable(value)) {
-		use(value.use(bind));
 	} else {
 		parse(value, anchor);
 	}
@@ -246,8 +227,8 @@ Sactory.prototype.html = function(value, {top, bind, anchor, document}){
  * @since 0.100.0
  */
 Sactory.prototype.className = function(className, bind){
-	var use = className => {
-		var value = className.value;
+	if(SactoryObservable.isObservable(className)) {
+		let value = className.value;
 		this.subscribe(bind, className.subscribe(newValue => {
 			this.removeClassName(value);
 			this.addClassName(value = newValue);
@@ -256,11 +237,6 @@ Sactory.prototype.className = function(className, bind){
 		if(bind) {
 			bind.addRollback(() => this.removeClassName(value));
 		}
-	};
-	if(SactoryObservable.isObservable(className)) {
-		use(className);
-	} else if(SactoryMisc.isBuilderObservable(className)) {
-		use(className.use(bind));
 	} else {
 		this.addClassName(className);
 		if(bind) {
@@ -273,7 +249,7 @@ Sactory.prototype.className = function(className, bind){
  * @since 0.100.0
  */
 Sactory.prototype.classNameIf = function(className, condition, bind){
-	var use = condition => {
+	if(SactoryObservable.isObservable(condition)) {
 		this.subscribe(bind, condition.subscribe(newValue => {
 			if(newValue) {
 				// add class
@@ -287,11 +263,6 @@ Sactory.prototype.classNameIf = function(className, condition, bind){
 		if(bind) {
 			bind.addRollback(() => condition.value && this.removeClassName(className));
 		}
-	};
-	if(SactoryObservable.isObservable(condition)) {
-		use(condition);
-	} else if(SactoryMisc.isBuilderObservable(condition)) {
-		use(condition.use(bind));
 	} else if(condition) {
 		this.addClassName(className);
 		if(bind) {
@@ -703,16 +674,12 @@ Sactory.prototype[Attr.EVENT] = function({bind}, name, value){
  * @since 0.46.0
  */
 Sactory.prototype.bind = function({bind}, type, info, value, update){
-	var isObservable = SactoryObservable.isObservable(value);
-	if(SactoryMisc.isBuilderObservable(value)) {
-		isObservable = true;
-		value = value.use(bind);
-	}
-	var events = info.split("::");
-	var modifiers = events.shift();
-	var updateType = SactoryConst.OUT_FORM_RANGE_START + Math.floor(Math.random() * SactoryConst.OUT_FORM_RANGE_LENGTH);
-	var select = this.element.tagName.toUpperCase() == "SELECT";
-	var get, set, converters = [];
+	const isObservable = SactoryObservable.isObservable(value);
+	const events = info.split("::");
+	const modifiers = events.shift();
+	const updateType = SactoryConst.OUT_FORM_RANGE_START + Math.floor(Math.random() * SactoryConst.OUT_FORM_RANGE_LENGTH);
+	const select = this.element.tagName.toUpperCase() == "SELECT";
+	let get, set, converters = [];
 	// set the type if needed
 	if(type && type != "value") {
 		this.element.type = type;
@@ -752,7 +719,7 @@ Sactory.prototype.bind = function({bind}, type, info, value, update){
 	}
 	// subscribe if needed and/or update element's value
 	if(isObservable) {
-		this.observeImpl(bind, value, set, updateType);
+		this.observe(bind, value, set, updateType);
 	} else {
 		set(value);
 	}
@@ -844,20 +811,12 @@ Sactory.prototype.bind = function({bind}, type, info, value, update){
 		});
 	}
 	if(isObservable) {
-		if(value._dependencies) {
-			// it's the child value of an observable, use the update
-			// function to update the right value and also update the observable's
-			// value to keep it in sync with the element's value
-			converters.push(newValue => {
-				value._value = value.wrapValue(newValue);
-				update(newValue);
-			});
-		} else {
-			// normal observable, call the observable's update with the correct update type
-			converters.push(newValue => {
-				value.update(newValue, updateType);
-			});
-		}
+		// call the observable's update with the correct update type
+		converters.push(newValue => {
+			value.currentType = updateType;
+			update(newValue);
+			delete value.currentType;
+		});
 	} else {
 		// not an observable, simply call the update function
 		converters.push(update);

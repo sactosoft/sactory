@@ -58,17 +58,6 @@ AttrValue.prototype.toString = function(){
 	return this.args.join("");
 };
 
-function BuilderObservable(fun, dependencies) {
-	this.fun = fun;
-	this.dependencies = dependencies;
-}
-
-BuilderObservable.prototype.use = function(bind){
-	var ret = SactoryObservable.coff(this.fun);
-	ret.addDependencies(this.dependencies, {bind});
-	return ret;
-};
-
 /**
  * Checks whether the given version in compatible with the runtime version.
  * @throws {Error} When the given version is not compatible with the runtime version and `warn` is not true.
@@ -175,27 +164,6 @@ Sactory.$$bindInput = function(context, element, type, {info, value, update}){
  */
 Sactory.attr = function(...args){
 	return new AttrValue(args);
-};
-
-/**
- * @since 0.129.0
- */
-Sactory.bo = function(fun, dependencies, maybeDependencies){
-	if(maybeDependencies) {
-		Array.prototype.push.apply(dependencies, maybeDependencies.filter(SactoryObservable.isObservable));
-	}
-	if(dependencies.length) {
-		return new BuilderObservable(fun, dependencies);
-	} else {
-		return fun();
-	}
-};
-
-/**
- * @since 0.129.0
- */
-Sactory.isBuilderObservable = function(value){
-	return value instanceof BuilderObservable;
 };
 
 /**

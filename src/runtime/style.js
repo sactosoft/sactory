@@ -138,7 +138,7 @@ Sactory.computeUnit = Sactory.cu = function(fun){
  * if present.
  * @since 0.49.0
  */
-Sactory.cabs = function({element, bind, selector}, scope, fun, observables, maybe){
+Sactory.cabs = function({element, bind, selector}, scope, fun){
 	if(!selector) {
 		if(scope == 1) {
 			// assign a selector at runtime
@@ -149,7 +149,7 @@ Sactory.cabs = function({element, bind, selector}, scope, fun, observables, mayb
 			selector = scope;
 		}
 	}
-	const compile = () => {
+	const compile = fun => {
 		let root = [];
 		let tree = root;
 		let selectors = [];
@@ -161,12 +161,11 @@ Sactory.cabs = function({element, bind, selector}, scope, fun, observables, mayb
 		fun(new Builder(root, root, tree, selectors), Sactory.css);
 		element.textContent = Builder.minify(root);
 	};
-	observables.push(...maybe.filter(SactoryObservable.isObservable));
-	if(observables.length) {
-		var observable = SactoryObservable.coff(compile);
-		observable.addDependencies(observables, bind);
+	if(SactoryObservable.isObservable(fun)) {
+		fun.$$subscribe({bind}, compile);
+		compile(fun.value);
 	} else {
-		compile();
+		compile(fun);
 	}
 };
 

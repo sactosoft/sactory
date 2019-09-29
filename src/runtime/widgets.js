@@ -129,7 +129,7 @@ function visibility(element, value, visible, bind) {
 		}
 	};
 	if(SactoryObservable.isObservable(value)) {
-		builder.observeImpl(bind, value, update);
+		builder.observe(bind, value, update);
 	} else {
 		update(value);
 	}

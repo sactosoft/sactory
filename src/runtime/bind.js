@@ -1,6 +1,5 @@
 var SactoryContext = require("./context");
 var SactoryConst = require("./const");
-var SactoryMisc = require("./misc");
 var SactoryObservable = require("./observable");
 
 var Sactory = {};
@@ -107,12 +106,11 @@ Sactory.anchor = function({element, bind, anchor}){
  * @since 0.124.0
  */
 Sactory.comment = function(context, value){
-	var { element, bind, anchor } = context;
-	var ret = (context.document || document).createComment(SactoryMisc.isBuilderObservable(value) ? (value => {
-		var subscription = value.subscribe(value => ret.textContent = value);
-		if(bind) bind.subscribe(subscription);
-		return value;
-	})(value.use(bind)) : value);
+	const { element, bind, anchor } = context;
+	const ret = (context.document || document).createComment(SactoryObservable.isObservable(value) ? (() => {
+		value.$$subscribe(context, value => ret.textContent = value);
+		return value.value;
+	})() : value);
 	if(element) {
 		if(anchor) element.insertBefore(ret, anchor);
 		else element.appendChild(ret);
@@ -124,26 +122,22 @@ Sactory.comment = function(context, value){
 /**
  * @since 0.11.0
  */
-Sactory.bind = function(context, dependencies, maybeDependencies, fun){
-	var currentBind = (context.bind || Sactory.bindFactory).fork("bind");
-	var currentAnchor = null;
-	var subscribe = !context.bind ? () => {} : subscriptions => context.bind.subscribe(subscriptions);
-	var args = dependencies.concat(maybeDependencies);
-	var reload = () => fun(SactoryContext.newBindContext(context, currentBind, currentAnchor), args);
-	if(context.element) {
-		currentAnchor = Sactory.anchor(context);
-		/* debug:
+Sactory.bindFlow = function(context, computed){
+	const observable = SactoryObservable.coff(context, computed);
+	const currentBind = (context.bind || Sactory.bindFactory).fork("bind");
+	const currentAnchor = context.element && Sactory.anchor(context);
+	const reload = fun => fun(SactoryContext.newBindContext(context, currentBind, currentAnchor));
+	/* debug:
+	if(currentAnchor) {
 		currentAnchor.bind = currentBind;
 		currentAnchor.textContent = " bind ";
-		*/
 	}
-	dependencies.concat(maybeDependencies.filter(SactoryObservable.isObservable)).forEach(dependency => {
-		subscribe(dependency.subscribe(() => {
-			currentBind.rollback();
-			reload();
-		}));
+	*/
+	observable.$$subscribe(context, fun => {
+		currentBind.rollback();
+		reload(fun);
 	});
-	reload();
+	reload(observable.value);
 };
 
 /**
@@ -180,61 +174,27 @@ Sactory.$$unbind = bindImpl(Sactory.unbind);
 /**
  * @since 0.102.0
  */
-Sactory.bindIfElse = function(context, conditions, ...functions){
-	var currentBindDependencies = (context.bind || Sactory.bindFactory).fork("bindIfElse.dependencies");
-	var currentBindContent = (context.bind || Sactory.bindFactory).fork("bindIfElse.content");
-	var currentAnchor = context.element && Sactory.anchor(context);
-	// filter maybe observables
-	conditions.forEach(([, observables, maybe]) => {
-		if(maybe) {
-			observables.push(...maybe.filter(SactoryObservable.isObservable));
+Sactory.bindFlowIfElse = function(context, computed, ...functions){
+	const index = SactoryObservable.coff(context, computed);
+	const currentBind = (context.bind || Sactory.bindFactory).fork("bindIfElse");
+	const currentAnchor = context.element && Sactory.anchor(context);
+	const reload = index => {
+		if(index != -1) {
+			functions[index](SactoryContext.newBindContext(context, currentBind, currentAnchor));
 		}
-	});
-	var active = 0xFEE1DEAD;
-	var results;
-	var reload = () => {
-		// reset results
-		results = conditions.map(() => null);
-		// calculate new results and call body
-		for(var i=0; i<results.length; i++) {
-			var [getter] = conditions[i];
-			if(!getter || (results[i] = !!getter())) {
-				active = i;
-				functions[i](SactoryContext.newBindContext(context, currentBindContent, currentAnchor));
-				return;
-			}
-		}
-		// no result found
-		active = 0xFEE1DEAD;
 	};
-	var recalc = () => {
-		currentBindContent.rollback();
-		reload();
-	};
-	conditions.forEach(([getter, observables], i) => {
-		if(observables) {
-			observables.forEach(dependency => {
-				currentBindDependencies.subscribe(dependency.subscribe(() => {
-					if(i <= active) {
-						// the change may affect what is being displayed
-						var result = !!getter();
-						if(result != results[i]) {
-							// the condition has changes, need to recalc
-							results[i] = result;
-							recalc();
-						}
-					}
-				}));
-			});
-		}
+	index.$$subscribe(context, index => {
+		currentBind.rollback();
+		reload(index);
 	});
-	reload();
+	reload(index.value);
 };
 
 /**
  * @since 0.102.0
  */
-Sactory.bindEach = function(context, target, getter, fun){
+Sactory.bindFlowEach = function(context, computed, fun){
+	const target = SactoryObservable.coff(context, computed);
 	var currentBind = (context.bind || Sactory.bindFactory).fork("bindEach");
 	var firstAnchor, lastAnchor;
 	if(context.element) {
@@ -256,7 +216,7 @@ Sactory.bindEach = function(context, target, getter, fun){
 	}
 	var makeAnchor = anchor => (context.element ? Sactory.anchor({element: context.element, anchor}) : null);
 	function updateAll() {
-		getter().forEach((value, index, array) => {
+		target.value.forEach((value, index, array) => {
 			add("push", new Bind(currentBind, "bindEach." + index), makeAnchor(lastAnchor), value, index, array);
 		});
 	}
@@ -324,17 +284,6 @@ Sactory.bindEach = function(context, target, getter, fun){
 		}
 	}));
 	updateAll();
-};
-
-/**
- * @since 0.102.0
- */
-Sactory.bindEachMaybe = function(context, target, getter, fun){
-	if(SactoryObservable.isObservable(target)) {
-		Sactory.bindEach(context, target, getter, fun);
-	} else {
-		SactoryMisc.forEachArray(getter(), (...args) => fun(context, ...args));
-	}
 };
 
 /**
