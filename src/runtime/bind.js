@@ -141,37 +141,6 @@ Sactory.bindFlow = function(context, computed){
 };
 
 /**
- * @since 0.131.0
- */
-Sactory.unbind = function(context, dependencies, maybeDependencies, fun){
-	fun(SactoryContext.newContext(context, {top: false, bind: undefined}));
-};
-
-var bindImpl = fun => {
-	return (context, a, b, c) => {
-		if(typeof a == "function") {
-			c = a;
-			a = b = [];
-		} else if(typeof b == "function") {
-			c = b;
-			b = Array.isArray(a) ? a : [a];
-			a = [];
-		}
-		fun(context, a, b, c);
-	};
-};
-
-/**
- * @since 0.131.0
- */
-Sactory.$$bind = bindImpl(Sactory.bind);
-
-/**
- * @since 0.131.0
- */
-Sactory.$$unbind = bindImpl(Sactory.unbind);
-
-/**
  * @since 0.102.0
  */
 Sactory.bindFlowIfElse = function(context, computed, ...functions){
@@ -285,6 +254,49 @@ Sactory.bindFlowEach = function(context, computed, fun){
 	});
 	updateAll();
 };
+
+/**
+ * @since 0.145.0
+ */
+Sactory.bindTo = function(context, dependencies, fun){
+	const currentBind = (context.bind || factory).fork("bindTo");
+	const currentAnchor = context.element && Sactory.anchor(context);
+	const reload = () => fun(SactoryContext.newBindContext(context, currentBind, currentAnchor), dependencies);
+	dependencies.forEach(dependency => dependency.subscribe(context, fun => {
+		currentBind.rollback();
+		reload();
+	}));
+	reload();
+};
+
+/**
+ * @since 0.131.0
+ */
+Sactory.unbindTo = function(context, dependencies, fun){
+	fun(SactoryContext.newContext(context, {top: false, bind: undefined}));
+};
+
+var bindImpl = impl => {
+	return (context, dependencies, fun) => {
+		if(typeof dependencies == "function") {
+			fun = dependencies;
+			dependencies = [];
+		} else if(!Array.isArray(dependencies)) {
+			dependencies = [dependencies];
+		}
+		impl(context, dependencies, fun);
+	};
+};
+
+/**
+ * @since 0.131.0
+ */
+Sactory.$$bind = bindImpl(Sactory.bindTo);
+
+/**
+ * @since 0.131.0
+ */
+Sactory.$$unbind = bindImpl(Sactory.unbindTo);
 
 /**
  * @since 0.130.0

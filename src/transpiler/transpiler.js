@@ -749,26 +749,33 @@ Transpiler.prototype.open = function(){
 
 			if(tagName == ":bind" || tagName == ":unbind") {
 
-				let str = value => Array.isArray(value) ? value.join(", ") : (value || "");
+				const to = Array.isArray(dattributes.to) ? dattributes.to.join(",") : (dattributes.to || "");
+				let as = dattributes.as;
+				if(!Array.isArray(as)) {
+					if(as.charAt(0) == "[" && as.charAt(as.length - 1) == "]") as = as.slice(1, -1).split(",");
+					else as = [as];
+				}
+				as = as.map(value => value === true ? "" : value);
 
-				this.source.addSource(`${this.feature(tagName.substr(1))}(`);
-				this.source.addContext();
-				this.source.addSource(`, [${str(dattributes.to)}], [${str(dattributes["maybe-to"])}], `);
+				this.source.addSource(`${this.feature(tagName.substr(1))}To(${this.source.getContext()}, [${to}], `);
 				if(this.options.es6) {
 					if(dattributes.as) {
-						let as = dattributes.as;
-						if(Array.isArray(as)) as = `[${as.join(", ")}]`;
-						else if(as.charAt(0) != "[" || as.charAt(as.length - 1) != "]") as = `[${as}]`;
-						this.source.addSource(`(${this.source.getContext()}, ${this.value}) => {var ${as}=${this.value}.map(${this.runtime}.value);`);
+						this.source.addSource(`(${this.source.getContext()}, ${this.value}) => {var [${as.join(", ")}]=${this.value}.map(${this.value} => ${this.value}.value);`);
 					} else {
 						this.source.addSource(`${this.source.getContext()} => {`);
 					}
 					currentClosing.unshift("})");
 				} else {
 					if(dattributes.as) {
-						this.parser.error("Attribute `as` can only be used when transpiling in es6 mode.");
+						this.source.addSource(`function(${this.source.getContext()}, ${this.value}){`);
+						as.forEach((as, i) => {
+							if(as.trim()) {
+								this.source.addSource(`var ${as}=${this.value}[${i}].value;`);
+							}
+						});
+					} else {
+						this.source.addSource(`function(${this.source.getContext()}){`);
 					}
-					this.source.addSource(`function(${this.source.getContext()}){`);
 					currentClosing.unshift("}.bind(this))");
 				}
 
