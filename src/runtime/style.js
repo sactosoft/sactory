@@ -140,7 +140,7 @@ Sactory.computeUnit = Sactory.cu = function(fun){
  */
 Sactory.cabs = function({element, bind, selector}, scope, fun){
 	if(!selector) {
-		if(scope == 1) {
+		if(scope === 1) {
 			// assign a selector at runtime
 			const className = element["~builder"].scopedClassName = counter.nextPrefix();
 			selector = "." + className;
@@ -173,10 +173,10 @@ Sactory.cabs = function({element, bind, selector}, scope, fun){
  * @since 0.129.0
  */
 Sactory.scope = function({element, bind}){
-	var builder = element["~builder"];
-	var className = builder.scopedClassName;
-	var add = () => {
-		var builder = element.parentNode["~builder"];
+	const builder = element["~builder"];
+	const className = builder.scopedClassName;
+	const add = () => {
+		const builder = element.parentNode["~builder"];
 		builder.addClass(className);
 		if(bind) bind.addRollback(() => builder.removeClass(className));
 	};
@@ -190,13 +190,6 @@ Sactory.scope = function({element, bind}){
 // css functions
 
 Sactory.css = {};
-
-/**
- * @since 0.94.0
- */
-Sactory.quote = function(value){
-	return JSON.stringify(value + "");
-};
 
 function Color(type) {
 	this.type = type;

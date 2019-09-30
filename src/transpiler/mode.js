@@ -260,6 +260,7 @@ TextExprMode.prototype.parseImpl = function(pre, match, handle, eof){
 		case "$":
 		case "#":
 		case "%":
+		case "@":
 			if(pre.slice(-1) == "\\") {
 				const last = this.current[this.current.length - 1];
 				last.value = last.value.slice(0, -1) + match;
@@ -272,6 +273,8 @@ TextExprMode.prototype.parseImpl = function(pre, match, handle, eof){
 				} else {
 					if(match == "%") {
 						expr.source = `${this.transpiler.runtime}.stringify(${expr.source})`;
+					} else if(match == "@") {
+						expr.source = `${this.transpiler.runtime}.quote(${expr.source})`;
 					}
 					this.pushExpr(expr);
 				}
@@ -300,7 +303,7 @@ TextExprMode.prototype.parseImpl = function(pre, match, handle, eof){
 };
 
 TextExprMode.prototype.parse = function(handle, eof){
-	var result = this.parser.find(["<", "$", "#", "%"], false, true);
+	var result = this.parser.find(["<", "$", "#", "%", "@"], false, true);
 	this.pushText(result.pre);
 	this.parseImpl(result.pre, result.match, handle, eof);
 };
@@ -480,7 +483,7 @@ LogicMode.prototype.parseLogic = function(expected, type, closing){
 };
 
 LogicMode.prototype.find = function(){
-	return this.parser.find(["$", "#", "%", "<", "c", "l", "v", "b", "d", "i", "f", "w", "s", "}", "\n"], false, false);
+	return this.parser.find(["$", "#", "%", "@", "<", "c", "l", "v", "b", "d", "i", "f", "w", "s", "}", "\n"], false, false);
 };
 
 LogicMode.prototype.parse = function(handle, eof){
@@ -1002,25 +1005,8 @@ ScriptMode.prototype.handle = function(){
 	return !!/^\/script>/.exec(this.parser.input.substr(this.parser.index));
 };
 
-ScriptMode.prototype.parseImpl = function(pre, match/*, handle, eof*/){
-	if(match == "%") {
-		if(pre.slice(-1) == "\\") {
-			const curr = this.current[this.current.length - 1];
-			curr.value = curr.value.slice(0, -1) + match;
-		} else if(this.parser.peek() == "{") {
-			var expr = this.parseCode("skipEnclosedContent", true);
-			expr.source = `${this.transpiler.feature("stringify")}(${expr.source})`;
-			this.pushExpr(expr);
-		} else {
-			this.pushText(match);
-		}
-	} else {
-		TextExprMode.prototype.parseImpl.apply(this, arguments);
-	}
-};
-
 ScriptMode.prototype.parse = function(handle, eof){
-	var result = this.parser.find(["<", "%"], false, true);
+	var result = this.parser.find(["<", "$", "%", "@"], false, true);
 	this.pushText(result.pre);
 	this.parseImpl(result.pre, result.match, handle, eof);
 };
@@ -1084,7 +1070,7 @@ SSBMode.prototype.start = function(){
 };
 
 SSBMode.prototype.find = function(){
-	return this.parser.find(["$", "<", "v", "c", "l", "i", "f", "{", "}", "/", "\"", "'", ";"], false, false);
+	return this.parser.find(["$", "%", "@", "<", "v", "c", "l", "i", "f", "{", "}", "/", "\"", "'", ";"], false, false);
 };
 
 SSBMode.prototype.lastValue = function(callback, parser){

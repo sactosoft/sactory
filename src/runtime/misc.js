@@ -215,6 +215,13 @@ Sactory.stringify = function(value, arg1, arg2){
 };
 
 /**
+ * @since 0.94.0
+ */
+Sactory.quote = function(value){
+	return JSON.stringify(value + "");
+};
+
+/**
  * @since 0.93.0
  */
 Sactory.ready = function(callback){
