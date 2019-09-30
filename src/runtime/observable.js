@@ -7,24 +7,36 @@ var Sactory = {};
 var setUpdate = typeof setImmediate == "function" ? setImmediate : setTimeout;
 
 /**
+ * Stores a subscription to an observable.
+ * @param {Observable} observed - The observable that dispatches the update.
+ * @param {ComputedObservable=} observer - The computed observable that receives the update, if the subscription is a dependency.
+ * @param {function(newValue, oldValue, type, args)} callback - Callback function called when the observable is updated.
+ * @param {number=} type - If the type passed to the observable's update function matches the given type, the callback is not called.
  * @class
  * @since 0.129.0
  */
-function Subscription(observable, callback, type) {
+function Subscription(observed, observer, callback, type) {
 	Object.defineProperty(this, "id", {value: counter.nextSubscription()});
-	this.observable = observable;
+	this.observed = observed;
+	this.observer = observer;
 	this.callback = callback;
 	this.type = type;
+	this.disposed = false;
 }
 
 /**
+ * Disposes the subscription and stops receiving updates from the
+ * observed observable.
  * @since 0.129.0
  */
 Subscription.prototype.dispose = function(){
+	this.disposed = true;
 	this.observable.unsubscribe(this);
 };
 
 /**
+ * Stores an observable, its value and its subscribers.
+ * @param {*} value - The initial value of the observable.
  * @class
  * @since 0.129.0
  */
@@ -35,15 +47,33 @@ function Observable(value) {
 }
 
 /**
- * @since 0.129.0
+ * @since 0.145.0
  */
-Observable.prototype.subscribe = function(callback, type){
-	const ret = new Subscription(this, callback, type);
-	this._subscriptions.push(ret);
-	return ret;
+Observable.prototype.subscribeImpl = function(context, subscription){
+	this._subscriptions.push(subscription);
+	if(context && context.bind) {
+		context.bind.subscribe(subscription);
+	}
+	return subscription;
 };
 
 /**
+ * @since 0.129.0
+ */
+Observable.prototype.subscribe = function(context, callback, type){
+	this.subscribeImpl(context, new Subscription(this, null, callback, type));
+};
+
+/**
+ * @since 0.145.0
+ */
+Observable.prototype.depend = function(context, callback, observer){
+	return this.subscribeImpl(context, new Subscription(this, observer, callback));
+};
+
+/**
+ * @param {Subscription} subscription
+ * @returns Whether the subscription was removed.
  * @since 0.129.0
  */
 Observable.prototype.unsubscribe = function({id}){
@@ -61,11 +91,7 @@ Observable.prototype.unsubscribe = function({id}){
  * @since 0.130.0
  */
 Observable.prototype.$$subscribe = function(context, callback, type){
-	const subscription = this.subscribe(callback, type);
-	if(context && context.bind) {
-		context.bind.subscribe(subscription);
-	}
-	return subscription;
+	return this.subscribe(context, callback, type);
 };
 
 /**
@@ -363,7 +389,7 @@ function Tracker(observable) {
 Tracker.prototype.add = function(observable){
 	const {id} = observable;
 	if(!this.observable.deps[id]) {
-		this.observable.ndeps[id] = observable.$$subscribe(this.context, () => this.observable.recalc());
+		this.observable.ndeps[id] = observable.depend(this.context, () => this.observable.recalc(), this.observable);
 	} else {
 		this.observable.ndeps[id] = this.observable.deps[id];
 	}
@@ -408,7 +434,7 @@ Tracker.prototype.d = function(value, fun){
 };
 
 /**
- * Creates an observable from a value.
+ * Creates an observable from the given value.
  * @since 0.129.0
  */
 Sactory.cofv = function(value){
@@ -416,7 +442,7 @@ Sactory.cofv = function(value){
 };
 
 /**
- * Creates an observable from a function.
+ * Creates a computed observable from the given function.
  * @since 0.129.0
  */
 Sactory.coff = function(context, fun){
@@ -432,8 +458,8 @@ Sactory.isObservable = function(value){
 };
 
 /**
- * If the given value is an observable returns the current value, otherwise
- * returns the given value.
+ * If the given value is an observable returns the observable's value,
+ * otherwise returns the given value.
  * @since 0.86.0
  */
 Sactory.value = function(value){

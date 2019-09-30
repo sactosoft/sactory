@@ -39,8 +39,7 @@ Sactory.prototype.subscribe = function(bind, subscription){
  * @since 0.129.0
  */
 Sactory.prototype.observe = function(bind, observable, fun, type){
-	var ret = observable.subscribe(fun, type);
-	this.subscribe(bind, ret);
+	const ret = observable.subscribe({bind}, fun, type);
 	fun(observable.value);
 	return ret;
 };
