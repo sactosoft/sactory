@@ -144,19 +144,15 @@ Transpiler.prototype.endMode = function(){
  * @since 0.124.0
  */
 Transpiler.prototype.parseImpl = function(modeId, input, parentParser, trackable){
-	var parser = new Parser(input, (parentParser || this.parser).position);
-	var source = this.source.fork();
-	var mode = startMode(modeId, this, parser, source, {inAttr: true});
+	const parser = new Parser(input, (parentParser || this.parser).position);
+	parser.parseTemplateLiteral = expr => {
+		const parsed = this.parseCode(expr, parser, trackable);
+		mode.observables |= parsed.observables;
+		return parsed.source;
+	};
+	const source = this.source.fork();
+	const mode = startMode(modeId, this, parser, source, {inAttr: true});
 	mode.trackable = trackable;
-	//if(mode.observables) {
-		parser.parseTemplateLiteral = expr => {
-			var parsed = this.parseCode(expr, parser);
-			//mode.observables.push(...parsed.observables);
-			//mode.maybeObservables.push(...parsed.maybeObservables);
-			mode.observables |= parsed.observables;
-			return parsed.source;
-		};
-	//}
 	mode.start();
 	while(parser.index < input.length) {
 		mode.parse(() => source.addSource("<"), () => {});
@@ -189,8 +185,8 @@ Transpiler.prototype.parseText = function(input, parentParser){
 /**
  * @since 0.51.0
  */
-Transpiler.prototype.parseTemplateLiteral = function(expr, parser){
-	return this.parseCode(expr, parser).source;
+Transpiler.prototype.parseTemplateLiteral = function(expr, parser, trackable){
+	return this.parseCode(expr, parser, trackable).source;
 };
 
 /**
