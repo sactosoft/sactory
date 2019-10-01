@@ -447,7 +447,7 @@ Parser.prototype.readVarName = function(force){
  * @since 0.13.0
  */
 Parser.prototype.readTagName = function(force){
-	return this.readImpl(/^(#[a-z-]+|[a-zA-Z0-9$:-]+)/, force, () => "Could not find a valid tag name.");
+	return this.readImpl(/^(#[a-z-]+|@?[a-zA-Z0-9$:-]+)/, force, () => "Could not find a valid tag name.");
 };
 
 /**

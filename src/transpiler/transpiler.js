@@ -631,6 +631,7 @@ Transpiler.prototype.open = function(){
 							create = false;
 							break;
 						case "slot": {
+							this.warn("The `<:slot />` tag is deprecated. Use the `<@ />` tag instead.", position);
 							if(!arg) arg = "";
 							let column = arg.indexOf(",");
 							if(column == -1) {
@@ -684,9 +685,20 @@ Transpiler.prototype.open = function(){
 							this.parser.error("No special meaning associated to `<:" + name + " />` tag.");
 					}
 				}
+			} else if(tagName.charAt(0) == "@") {
+				const name = tagName.substr(1);
+				const column = name.indexOf(":");
+				if(column == -1) {
+					slotName = name;
+					tagName = "";
+				} else {
+					slotName = name.substr(column + 1);
+					tagName = name.substr(0, column);
+				}
+				create = append = false;
 			} else if(tagName.charAt(0) == "#") {
 				// default widget
-				let name = tagName.substr(1);
+				const name = tagName.substr(1);
 				if(/^[a-zA-Z]+$/.test(name)) {
 					tagName = `${this.runtime}.widgets.${name}`;
 				} else {
