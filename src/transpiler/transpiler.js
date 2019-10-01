@@ -557,7 +557,10 @@ Transpiler.prototype.open = function(){
 		if(!computed) {
 			if(tagName.charAt(0) == ":") {
 				let name = tagName.substr(1);
-				if(this.options.aliases && Object.prototype.hasOwnProperty.call(this.options.aliases, name)) {
+				if(name.charAt(0) == ":") {
+					newMode = name.substr(1);
+					tagName = ":mode";
+				} else if(this.options.aliases && Object.prototype.hasOwnProperty.call(this.options.aliases, name)) {
 					let alias = this.options.aliases[name];
 					tagName = alias.tagName;
 					if(Object.prototype.hasOwnProperty.call(alias, "parent")) parent = alias.parent;
@@ -715,9 +718,11 @@ Transpiler.prototype.open = function(){
 
 		if(newMode) {
 			// mode declared, search it and validate it
-			let name = newMode; //TODO parse attributes
+			const name = newMode; //TODO parse attributes
 			newMode = modeNames[newMode];
-			if(newMode === undefined) this.parser.error(`Unknown mode "${name}".`);
+			if(newMode === undefined) {
+				this.parser.errorAt(position, `Unknown mode "${name}".`);
+			}
 		} else {
 			// search for an auto-opening mode
 			for(let i=0; i<modeRegistry.length; i++) {
