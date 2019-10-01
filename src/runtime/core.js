@@ -29,13 +29,6 @@ Sactory.prototype.widgets = {};
 Sactory.prototype.widget = null;
 
 /**
- * @since 0.42.0
- */
-Sactory.prototype.subscribe = function(bind, subscription){
-	if(bind) bind.subscriptions.push(subscription);
-};
-
-/**
  * @since 0.129.0
  */
 Sactory.prototype.observe = function(bind, observable, fun, type){
@@ -159,7 +152,7 @@ Sactory.prototype.styleImpl = function(values){
 	var update = () => node.textContent = `.${className}{${values.join("")}}`;
 	values.forEach(({value, bind}) => {
 		if(SactoryObservable.isObservable(value)) {
-			this.subscribe(bind, value.subscribe(update));
+			value.subscribe({bind}, update);
 		}
 	});
 	update();
@@ -210,12 +203,12 @@ Sactory.prototype.html = function(value, {top, bind, anchor, document}){
 	if(SactoryObservable.isObservable(value)) {
 		// create an anchor to maintain the right order
 		var innerAnchor = SactoryBind.anchor({element: this.element, bind, anchor});
-		this.subscribe(bind, value.subscribe(value => {
+		value.subscribe({bind}, value => {
 			// removing children from bind context should not be necessary,
 			// as they can't have any sactory-created context
 			children.forEach(child => this.element.removeChild(child));
 			parse(value, innerAnchor);
-		}));
+		});
 		parse(value.value, innerAnchor);
 	} else {
 		parse(value, anchor);
@@ -228,10 +221,10 @@ Sactory.prototype.html = function(value, {top, bind, anchor, document}){
 Sactory.prototype.className = function(className, bind){
 	if(SactoryObservable.isObservable(className)) {
 		let value = className.value;
-		this.subscribe(bind, className.subscribe(newValue => {
+		className.subscribe({bind}, newValue => {
 			this.removeClassName(value);
 			this.addClassName(value = newValue);
-		}));
+		});
 		this.addClassName(value);
 		if(bind) {
 			bind.addRollback(() => this.removeClassName(value));
@@ -249,7 +242,7 @@ Sactory.prototype.className = function(className, bind){
  */
 Sactory.prototype.classNameIf = function(className, condition, bind){
 	if(SactoryObservable.isObservable(condition)) {
-		this.subscribe(bind, condition.subscribe(newValue => {
+		condition.subscribe({bind}, newValue => {
 			if(newValue) {
 				// add class
 				this.addClassName(className);
@@ -257,7 +250,7 @@ Sactory.prototype.classNameIf = function(className, condition, bind){
 				// remove class name
 				this.removeClassName(className);
 			}
-		}));
+		});
 		if(condition.value) this.addClassName(className);
 		if(bind) {
 			bind.addRollback(() => condition.value && this.removeClassName(className));
@@ -274,14 +267,14 @@ Sactory.prototype.classNameIf = function(className, condition, bind){
  * @since 0.62.0
  */
 Sactory.prototype.addClassName = function(className){
-	this.element.classList.add(className);
+	className.split(" ").forEach(className => this.element.classList.add(className));
 };
 
 /**
  * @since 0.62.0
  */
 Sactory.prototype.removeClassName = function(className){
-	this.element.classList.remove(className);
+	className.split(" ").forEach(className => this.element.classList.remove(className));
 };
 
 /**

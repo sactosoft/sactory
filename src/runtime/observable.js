@@ -31,7 +31,7 @@ function Subscription(observed, observer, callback, type) {
  */
 Subscription.prototype.dispose = function(){
 	this.disposed = true;
-	this.observable.unsubscribe(this);
+	this.observed.unsubscribe(this);
 };
 
 /**
