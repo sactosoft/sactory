@@ -1,6 +1,6 @@
 var Polyfill = require("../polyfill");
 var Parser = require("./parser");
-var { uniq, stringify } = require("./util");
+var { stringify } = require("./util");
 
 var modeRegistry = [];
 var modeNames = {};
@@ -619,8 +619,7 @@ LogicMode.prototype.end = function(){
 				popped.endRef.value += `${this.es6 ? "" : ".bind(this)"});`;
 			} else if(popped.type == "foreach") {
 				// the source is divided in 4 parts
-				var expr = popped.ref.b.value;
-				var getter = this.es6 ? `() => ${expr}` : `function(){return ${expr}}.bind(this)`;
+				const expr = popped.ref.b.value;
 				popped.ref.a.value = "";
 				popped.ref.b.value = "";
 				popped.ref.c.value = `${this.transpiler.feature("bindFlowEach")}(${popped.context}, ${this.transpiler.tracker} => ${expr}, ${!this.es6 ? "function" : ""}(${popped.context}, `;

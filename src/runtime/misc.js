@@ -1,5 +1,4 @@
 var SactoryConfig = require("./config");
-var SactoryObservable = require("./observable");
 
 var Sactory = {};
 

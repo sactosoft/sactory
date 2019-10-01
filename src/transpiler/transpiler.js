@@ -4,7 +4,7 @@ require("../dom");
 var version = require("../../version");
 var Attr = require("../attr");
 var Polyfill = require("../polyfill");
-var { hash, now, uniq } = require("./util");
+var { hash, now } = require("./util");
 var Parser = require("./parser");
 var Generated = require("./generated");
 var { modeRegistry, modeNames, defaultMode, startMode } = require("./mode");

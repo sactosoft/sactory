@@ -12,10 +12,6 @@ function now() {
 	return performance.now ? performance.now() : new Date().getTime();
 }
 
-function uniq(array) {
-	return array.filter((value, i) => array.indexOf(value) == i);
-}
-
 function stringify(str) {
 	// that's not very fast
 	return "\"" + str.replace(/(\r?\n)|([\\"])/gm, function(_, newline, escaped){
@@ -24,4 +20,4 @@ function stringify(str) {
 	}) + "\"";
 }
 
-module.exports = { hash, now, uniq, stringify };
+module.exports = { hash, now, stringify };
