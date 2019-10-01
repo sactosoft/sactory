@@ -4,7 +4,7 @@ require("../dom");
 var version = require("../../version");
 var Attr = require("../attr");
 var Polyfill = require("../polyfill");
-var { hash, now } = require("./util");
+var { hash, now, optimize } = require("./util");
 var Parser = require("./parser");
 var Generated = require("./generated");
 var { modeRegistry, modeNames, defaultMode, startMode } = require("./mode");
@@ -382,8 +382,13 @@ Transpiler.prototype.open = function(){
 						const {source} = this.parseCode(value, undefined, false);
 						attr.value = this.options.es6 ? `(event, target) => ${source}` : `function(event, target)${source}.bind(this)`;
 					} else {
-						const parsed = this.parseCode(value, undefined, true);
-						attr.value = parsed.toAttrValue();
+						const optimized = optimize(value);
+						if(optimized) {
+							attr.value = optimized;
+						} else {
+							const parsed = this.parseCode(value, undefined, true);
+							attr.value = parsed.toAttrValue();
+						}
 					}
 					skip();
 				}

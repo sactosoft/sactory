@@ -162,8 +162,7 @@ Sactory.bindFlowIfElse = function(context, computed, ...functions){
 /**
  * @since 0.102.0
  */
-Sactory.bindFlowEach = function(context, computed, fun){
-	const target = SactoryObservable.coff(context, computed);
+Sactory.bindFlowEach = function(context, target, fun){
 	var currentBind = (context.bind || factory).fork("bindEach");
 	var firstAnchor, lastAnchor;
 	if(context.element) {

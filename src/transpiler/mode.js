@@ -1,6 +1,6 @@
 var Polyfill = require("../polyfill");
 var Parser = require("./parser");
-var { stringify } = require("./util");
+var { optimize, stringify } = require("./util");
 
 var modeRegistry = [];
 var modeNames = {};
@@ -389,7 +389,7 @@ LogicMode.prototype.parseStatement = function(statement, trimmed, expected, cond
 			return source;
 		};
 		const position = this.parser.position;
-		const source = reparse(this.parser.skipEnclosedContent(), this.parser);
+		const source = this.parser.skipEnclosedContent();
 		if(expected == "foreach") {
 			const parser = new Parser(source.slice(1, -1), position);
 			Polyfill.assign(parser.options, {comments: true, strings: true, regexp: true});
@@ -407,7 +407,8 @@ LogicMode.prototype.parseStatement = function(statement, trimmed, expected, cond
 				from = "0";
 				to = reparse(parser.readExpression());
 			} else {
-				expr = parser.readExpression();
+				statement.unparsed = parser.readExpression();
+				expr = reparse(statement.unparsed);
 			}
 			let rest = "";
 			if(parser.input.substr(parser.index, 3) == "as ") {
@@ -441,7 +442,7 @@ LogicMode.prototype.parseStatement = function(statement, trimmed, expected, cond
 			statement.end += ");";
 			statement.inlineable = false;
 		} else {
-			part.decl = this.source.addIsolatedSource(expected + skipped + source);
+			part.decl = this.source.addIsolatedSource(expected + skipped + reparse(source));
 		}
 	} else {
 		// without condition
@@ -619,10 +620,16 @@ LogicMode.prototype.end = function(){
 				popped.endRef.value += `${this.es6 ? "" : ".bind(this)"});`;
 			} else if(popped.type == "foreach") {
 				// the source is divided in 4 parts
-				const expr = popped.ref.b.value;
+				let expr = popped.ref.b.value;
+				const optimized = optimize(popped.unparsed.trim());
+				if(optimized) {
+					expr = optimized;
+				} else {
+					expr = `${this.transpiler.feature("coff")}(${this.source.getContext()}, ${this.es6 ? `${this.transpiler.tracker} => ${expr}` : `function(${this.transpiler.tracker}){return ${expr}}.bind(this)`})`;
+				}
 				popped.ref.a.value = "";
 				popped.ref.b.value = "";
-				popped.ref.c.value = `${this.transpiler.feature("bindFlowEach")}(${popped.context}, ${this.transpiler.tracker} => ${expr}, ${!this.es6 ? "function" : ""}(${popped.context}, `;
+				popped.ref.c.value = `${this.transpiler.feature("bindFlowEach")}(${popped.context}, ${expr}, ${!this.es6 ? "function" : ""}(${popped.context}, `;
 				// no need to close as the end is the same as the Sactory.forEach function call
 			} else {
 				// normal bind

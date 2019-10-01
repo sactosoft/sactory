@@ -12,6 +12,11 @@ function now() {
 	return performance.now ? performance.now() : new Date().getTime();
 }
 
+function optimize(value) {
+	const match = value.match(/^((?:[a-zA-Z0-9_$]+\.)*)\*([a-zA-Z0-9_$]+)$/);
+	return match && match.slice(1).join("");
+}
+
 function stringify(str) {
 	// that's not very fast
 	return "\"" + str.replace(/(\r?\n)|([\\"])/gm, function(_, newline, escaped){
@@ -20,4 +25,4 @@ function stringify(str) {
 	}) + "\"";
 }
 
-module.exports = { hash, now, stringify };
+module.exports = { hash, now, optimize, stringify };
