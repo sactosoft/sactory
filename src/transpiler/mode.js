@@ -269,7 +269,16 @@ TextExprMode.prototype.parseImpl = function(pre, match, handle, eof){
 				const expr = this.parseCode("skipEnclosedContent", true, true);
 				if(match == "#") {
 					this.addCurrent();
-					this.chain.push(["mixin", expr.source]);
+					let source = expr.source;
+					if(expr.observables) {
+						if(this.es6) {
+							source = `${this.transpiler.tracker} => ${source}`;
+						} else {
+							source = `function(${this.transpiler.tracker}){return ${source}}.bind(this)`;
+						}
+						source = `${this.runtime}.coff(${this.source.getContext()}, ${source})`;
+					}
+					this.chain.push(["mixin", source]);
 				} else {
 					if(match == "%") {
 						expr.source = `${this.transpiler.runtime}.stringify(${expr.source})`;
