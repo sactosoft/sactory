@@ -261,31 +261,33 @@ TextExprMode.prototype.parseImpl = function(pre, match, handle, eof){
 		case "#":
 		case "%":
 		case "@":
-			if(pre.slice(-1) == "\\") {
-				const last = this.current[this.current.length - 1];
-				last.value = last.value.slice(0, -1) + match;
-				break;
-			} else if(this.parser.peek() == "{") {
-				const expr = this.parseCode("skipEnclosedContent", true, true);
-				if(match == "#") {
-					this.addCurrent();
-					let source = expr.source;
-					if(expr.observables) {
-						if(this.es6) {
-							source = `${this.transpiler.tracker} => ${source}`;
-						} else {
-							source = `function(${this.transpiler.tracker}){return ${source}}.bind(this)`;
-						}
-						source = `${this.runtime}.coff(${this.source.getContext()}, ${source})`;
-					}
-					this.chain.push(["mixin", source]);
+			if(this.parser.peek() == "{") {
+				if(pre.slice(-1) == "\\") {
+					const last = this.current[this.current.length - 1];
+					last.value = last.value.slice(0, -1) + match;
+					break;
 				} else {
-					if(match == "%") {
-						expr.source = `${this.transpiler.runtime}.stringify(${expr.source})`;
-					} else if(match == "@") {
-						expr.source = `${this.transpiler.runtime}.quote(${expr.source})`;
+					const expr = this.parseCode("skipEnclosedContent", true, true);
+					if(match == "#") {
+						this.addCurrent();
+						let source = expr.source;
+						if(expr.observables) {
+							if(this.es6) {
+								source = `${this.transpiler.tracker} => ${source}`;
+							} else {
+								source = `function(${this.transpiler.tracker}){return ${source}}.bind(this)`;
+							}
+							source = `${this.runtime}.coff(${this.source.getContext()}, ${source})`;
+						}
+						this.chain.push(["mixin", source]);
+					} else {
+						if(match == "%") {
+							expr.source = `${this.transpiler.runtime}.stringify(${expr.source})`;
+						} else if(match == "@") {
+							expr.source = `${this.transpiler.runtime}.quote(${expr.source})`;
+						}
+						this.pushExpr(expr);
 					}
-					this.pushExpr(expr);
 				}
 			} else {
 				this.pushText(match);
