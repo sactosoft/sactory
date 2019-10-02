@@ -352,7 +352,7 @@ function ComputedObservable(context, fun){
 	this.tracker = new Tracker(this);
 	this._value = this.wrapValue(fun(this.tracker));
 	this.ndeps = {};
-};
+}
 
 ComputedObservable.prototype = Object.create(Observable.prototype);
 

@@ -3,6 +3,7 @@ var Attr = require("../attr");
 var { dehyphenate } = require("../util");
 var SactoryConst = require("./const");
 var SactoryContext = require("./context");
+var SactoryTwoWay = require("./twoway");
 var SactoryWidget = require("./widget").Sactory;
 var { Widget, Registry } = require("./widget");
 
@@ -395,22 +396,15 @@ chain.bind = function(context){
 		// look for widget's custom binding in registry
 		const widget = context.registry.widgets.main;
 		if(widget) {
-			const proto = Object.getPrototypeOf(widget);
-			if(proto.bind$) {
-				// all of them
-				widget.bind$(type, {info, value, update}, context);
+			const prototype = Object.getPrototypeOf(widget);
+			const fun = prototype["bind$" + type] || prototype["bind$" + dehyphenate(type)] || prototype.bind;
+			if(fun) {
+				fun.call(widget, {type, value, update}, context);
 				return;
-			} else {
-				let fun = proto["bind$" + type] || proto["bind$" + dehyphenate(type)];
-				if(fun) {
-					// handling a specific type
-					fun.call(widget, {info, value, update}, context);
-					return;
-				}
 			}
 		}
 		// fallback to default element's bind handler
-		element["~builder"].bind(context, type, info, value, update);
+		SactoryTwoWay.bindInput(context, element, {type, info, value, update});
 	});
 };
 

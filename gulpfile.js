@@ -33,7 +33,7 @@ function makeImpl(filename, className, declare, debug, sources) {
 		.pipe(replace(/var Sactory = {};?/gm, ""))
 		.pipe(replace(/(var {?[a-zA-Z0-9_,:\s]+}? = )?require\(\"[a-zA-Z0-9_\-\.\/]*\"\)[a-zA-Z0-9_\.]*;/gm, ""))
 		.pipe(replace(/(module\.exports = {?[a-zA-Z0-9_,\s\.]*}?;)/gm, ""))
-		.pipe(replace(/(Sactory[A-Z][a-z]+)/gm, className));
+		.pipe(replace(/(Sactory[A-Za-z]+)/gm, className));
 
 	if(debug) {
 		// uncomment debug expressions
@@ -103,6 +103,7 @@ gulp.task("dist:sactory", () => makeImpl("sactory", "Sactory", false, false, [
 	"runtime/misc",
 	"runtime/observable",
 	"runtime/style",
+	"runtime/twoway",
 	"runtime/widget",
 	"runtime/widgets"
 ]));

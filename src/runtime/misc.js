@@ -152,13 +152,6 @@ Sactory.$$on = function(context, element, name, value){
 };
 
 /**
- * @since 0.141.0
- */
-Sactory.$$bindInput = function(context, element, type, {info, value, update}){
-	element["~builder"].bind(context, type, info, value, update);
-};
-
-/**
  * @since 0.127.0
  */
 Sactory.attr = function(...args){

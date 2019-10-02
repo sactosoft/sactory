@@ -24,6 +24,7 @@ module.exports = merge(
 	require("./src/runtime/misc"),
 	require("./src/runtime/observable"),
 	require("./src/runtime/style"),
+	require("./src/runtime/twoway"),
 	require("./src/runtime/widget"),
 	require("./src/runtime/widgets")
 );

@@ -261,7 +261,7 @@ Sactory.bindTo = function(context, dependencies, fun){
 	const currentBind = (context.bind || factory).fork("bindTo");
 	const currentAnchor = context.element && Sactory.anchor(context);
 	const reload = () => fun(SactoryContext.newBindContext(context, currentBind, currentAnchor), dependencies);
-	dependencies.forEach(dependency => dependency.subscribe(context, fun => {
+	dependencies.forEach(dependency => dependency.subscribe(context, () => {
 		currentBind.rollback();
 		reload();
 	}));

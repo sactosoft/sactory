@@ -1,10 +1,8 @@
-var Polyfill = require("../polyfill");
 var Attr = require("../attr");
 var { hyphenate } = require("../util");
 
 var SactoryBind = require("./bind");
 var SactoryConfig = require("./config");
-var SactoryConst = require("./const");
 var SactoryObservable = require("./observable");
 
 var counter = require("./counter");
@@ -586,7 +584,7 @@ Sactory.prototype.event = function(name, value, bind){
 		var append = listener;
 		var element = this.element;
 		listener = function(event){
-			if(BuilderPolyfill.contains(element.ownerDocument, element)) {
+			if(contains(element.ownerDocument, element)) {
 				append.call(element, event, element);
 			} else {
 				var parent = event.detail.parentNode;
@@ -662,164 +660,6 @@ Sactory.prototype[Attr.EVENT] = function({bind}, name, value){
 	this.event(name, value, bind);
 };
 
-/**
- * @since 0.46.0
- */
-Sactory.prototype.bind = function({bind}, type, info, value, update){
-	const isObservable = SactoryObservable.isObservable(value);
-	const events = info.split("::");
-	const modifiers = events.shift();
-	const updateType = SactoryConst.OUT_FORM_RANGE_START + Math.floor(Math.random() * SactoryConst.OUT_FORM_RANGE_LENGTH);
-	const select = this.element.tagName.toUpperCase() == "SELECT";
-	let get, set, converters = [];
-	// set the type if needed
-	if(type && type != "value") {
-		this.element.type = type;
-	}
-	// calculate property name and default converter
-	if(select) {
-		if(this.element.multiple) {
-			// select multiple, returns an array
-			get = callback => callback(Array.prototype.map.call(BuilderPolyfill.selectedOptions(this.element),
-				option => option.value));
-			set = value => Array.prototype.forEach.call(this.element.options,
-				option => option.selected = value.indexOf(option.value) != -1);
-		} else {
-			// normal select, just get and set the element's value
-			get = callback => callback(this.element.value);
-			set = value => this.element.value = value;
-		}
-	} else if(this.element.type == "checkbox") {
-		// classic boolean binding using the element's `checked` property
-		get = callback => callback(this.element.checked);
-		set = value => this.element.checked = value;
-	} else if(this.element.type == "radio") {
-		// the event is called only when radio is selected
-		get = callback => callback(this.element.value);
-		set = value => this.element.checked = value == this.element.value;
-		if(isObservable) {
-			// make sure that the radio buttons that depend on the same observable have
-			// the same name and are in the same radio group
-			if(!this.element.name) {
-				this.element.name = value._radioGroupName || (value._radioGroupName = counter.nextPrefix());
-			}
-		}
-	} else {
-		// normal input, values that are `null` and `undefined` are treated as empty strings
-		get = callback => callback(this.element.value);
-		set = value => this.element.value = value === null || value === undefined ? "" : value;
-	}
-	// subscribe if needed and/or update element's value
-	if(isObservable) {
-		this.observe(bind, value, set, updateType);
-	} else {
-		set(value);
-	}
-	// calculate the default event type if none was specified
-	if(!events.length) {
-		if(select || this.element.type == "checkbox" || this.element.type == "radio") {
-			events.push("change");
-		} else {
-			events.push("input");
-		}
-	}
-	if(modifiers) {
-		modifiers.split(":").forEach(mod => {
-			if(mod.args) {
-				mod = mod.toValue();
-				if(typeof mod == "function") {
-					converters.push(mod);
-					return;
-				}
-			}
-			converters.push((() => {
-				switch(mod) {
-					case "number":
-					case "num":
-					case "float":
-						return function(){
-							return +this;
-						};
-					case "int":
-					case "integer":
-						return function(){
-							return Polyfill.trunc(+this);
-						};
-					case "str":
-					case "string":
-						return function(){
-							return this + "";
-						};
-					case "date":
-						switch(this.element.type) {
-							case "date":
-							case "month":
-								return function(){
-									var s = this.split("-");
-									return new Date(s[0], s[1] - 1, s[2] || 1);
-								};
-							case "time":
-								return function(){
-									var s = this.split(":");
-									var date = new Date();
-									date.setHours(s[0]);
-									date.setMinutes(s[1]);
-									date.setSeconds(0);
-									date.setMilliseconds(0);
-									return date;
-								};
-							default:
-								return function(){
-									return new Date(this);
-								};
-						}
-					case "comma":
-						return function(){
-							return this.replace(/,/g, ".");
-						};
-					case "trim":
-						return String.prototype.trim;
-					case "trim-left":
-					case "trim-start":
-						return Polyfill.trimStart;
-					case "trim-right":
-					case "trim-end":
-						return Polyfill.trimEnd;
-					case "lower":
-					case "lowercase":
-						return String.prototype.toLowerCase;
-					case "upper":
-					case "uppercase":
-						return String.prototype.toUpperCase;
-					case "capital":
-					case "capitalize":
-						return function(){
-							return this.charAt(0).toUpperCase() + this.substr(1);
-						};
-					default:
-						throw new Error("Unknown value modifier '" + mod + "'.");
-				}
-			})());
-		});
-	}
-	if(isObservable) {
-		// call the observable's update with the correct update type
-		converters.push(newValue => {
-			value.currentType = updateType;
-			update(newValue);
-			delete value.currentType;
-		});
-	} else {
-		// not an observable, simply call the update function
-		converters.push(update);
-	}
-	events.forEach(type => {
-		this.event(type, () => {
-			get(newValue => converters.forEach(converter => newValue = converter.call(newValue, newValue)));
-		}, bind);
-	});
-};
-
 // polyfill
 
 if(Object.getOwnPropertyDescriptor(Element.prototype, "classList")) {
@@ -868,20 +708,13 @@ if(typeof CustomEvent == "function") {
 
 }
 
-var BuilderPolyfill = {};
-
-BuilderPolyfill.contains = function(owner, element){
+function contains(owner, element) {
 	if(element.parentNode) {
 		if(element.parentNode === owner) return true;
-		else return BuilderPolyfill.contains(owner, element.parentNode);
+		else return contains(owner, element.parentNode);
 	} else {
 		return false;
 	}
-};
-
-BuilderPolyfill.selectedOptions =
-	typeof HTMLSelectElement == "function" && Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "selectedOptions") ? 
-		select => select.selectedOptions :
-		select => Array.prototype.filter.call(select.options, option => option.selected);
+}
 
 module.exports = Sactory;
