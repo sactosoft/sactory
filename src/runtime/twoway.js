@@ -52,7 +52,8 @@ Sactory.bindInput = function({bind}, element, {type, info, value, update}){
 	let get, set, converters = [];
 	// set the type if needed
 	if(type && type != "value") {
-		element.type = type;
+		// some browsers may throw an exception when settings the `type` property to an invalid value
+		element.setAttribute("type", type);
 	}
 	// calculate property name and default converter
 	if(select) {
@@ -96,7 +97,7 @@ Sactory.bindInput = function({bind}, element, {type, info, value, update}){
 	}
 	// calculate the default event type if none was specified
 	if(!events.length) {
-		if(select || this.element.type == "checkbox" || this.element.type == "radio") {
+		if(select || element.type == "checkbox" || element.type == "radio") {
 			events.push("change");
 		} else {
 			events.push("input");

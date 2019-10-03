@@ -19,7 +19,8 @@ Polyfill.trimEnd = String.prototype.trimEnd || function(){
 };
 
 Polyfill.padStart = String.prototype.padStart || function(target, string){
-	let ret = String(this);
+	// see https://github.com/babel/minify/issues/875
+	var ret = String(this);
 	while(ret.length < target) ret = string + ret;
 	return ret;
 };

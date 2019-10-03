@@ -522,7 +522,7 @@ Parser.prototype.readQueryExpr = function(){
  * @returns The expression read or an empty string if no expression could be found.
  */
 Parser.prototype.readSingleExpression = function(skip, force){
-	var ret = this.readImpl(/^([-+~!]*((new|delete|typeof)\s+)?(&|\*\*?\??|\^\??)?)/) || "";
+	var ret = this.readImpl(/^([-+~!]*((new|delete|typeof)\s+)?(&|\*\??|\^\??)?)/) || "";
 	if(skip) ret += this.skipImpl({comments: true});
 	var peek = this.peek();
 	if(peek == "\"" || peek == "'" || peek == "`") {
@@ -538,9 +538,14 @@ Parser.prototype.readSingleExpression = function(skip, force){
 			index: this.index
 		};
 		if(skip) ret += this.skipImpl({comments: true});
-		var expr = this.readImpl(/^(\.((\*\*?|\^)\??)?#?[\u0561-\u0588a-zA-Z0-9_$]+)/, false);
+		var expr = this.readImpl(/^(\.((\*|\^)\??)?#?(\[|[\u0561-\u0588a-zA-Z0-9_$]+))/, false);
 		if(expr) {
-			ret += expr;
+			if(expr.charAt(expr.length - 1) == "[") {
+				this.index--;
+				ret += expr.slice(0, -1) + this.skipEnclosedContent();
+			} else {
+				ret += expr;
+			}
 			if(skip) ret += this.skipImpl({comments: true});
 		}
 		peek = this.peek();

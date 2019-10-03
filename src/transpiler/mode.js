@@ -61,13 +61,13 @@ Mode.prototype.add = function(text){
  */
 Mode.prototype.parseCode = function(fun, trackable){
 	this.parser.parseTemplateLiteral = null;
-	var expr = Parser.prototype[fun].apply(this.parser, Array.prototype.slice.call(arguments, 1));
+	var expr = Parser.prototype[fun].apply(this.parser, Array.prototype.slice.call(arguments, 2));
 	this.transpiler.updateTemplateLiteralParser();
 	return this.transpiler.parseCode(expr, this.parser, trackable);
 };
 
 Mode.prototype.parseCodeToSource = function(fun, trackable){
-	var expr = Parser.prototype[fun].apply(this.parser, Array.prototype.slice.call(arguments, 1));
+	var expr = Parser.prototype[fun].apply(this.parser, Array.prototype.slice.call(arguments, 2));
 	return this.transpiler.parseCode(expr, this.parser, trackable).source;
 };
 
@@ -693,8 +693,10 @@ SourceCodeMode.prototype.addObservableImpl = function(tracked, name){
 		tail.value = tail.value.slice(0, -name.length);
 	}
 	const maybe = !!this.parser.readIf("?");
-	if(this.parser.peek() == "(") {
+	if(!name.length && this.parser.peek() == "(") {
 		name += this.parseCodeToSource("skipEnclosedContent", false);
+	} else if(name.length && this.parser.peek() == "[") {
+		name = name.slice(0, -1) + this.parseCodeToSource("skipEnclosedContent", this.trackable && tracked);
 	} else {
 		name += this.parseCodeToSource("readVarName", false, true);
 	}
