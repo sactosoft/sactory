@@ -768,10 +768,13 @@ Transpiler.prototype.open = function(){
 			if(tagName == ":bind" || tagName == ":unbind") {
 
 				const to = Array.isArray(dattributes.to) ? dattributes.to.join(",") : (dattributes.to || "");
-				let as = dattributes.as;
+				let as = dattributes.as || [];
 				if(!Array.isArray(as)) {
-					if(as.charAt(0) == "[" && as.charAt(as.length - 1) == "]") as = as.slice(1, -1).split(",");
-					else as = [as];
+					if(as.charAt(0) == "[" && as.charAt(as.length - 1) == "]") {
+						as = as.slice(1, -1).split(",");
+					} else {
+						as = [as];
+					}
 				}
 				as = as.map(value => value === true ? "" : value);
 
