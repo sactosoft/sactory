@@ -1,20 +1,20 @@
-var gulp = require("gulp");
-var append = require("gulp-append-prepend").appendText;
-var prepend = require("gulp-append-prepend").prependText;
-var babel = require("gulp-babel");
-var clone = require("gulp-clone");
-var concat = require("gulp-concat");
-var nop = require("gulp-nop");
-var rename = require("gulp-rename");
-var replace = require("gulp-replace");
-var sourcemaps = require("gulp-sourcemaps");
-var uglify = require("gulp-uglify-es").default;
-var es = require("event-stream");
+const gulp = require("gulp");
+const append = require("gulp-append-prepend").appendText;
+const prepend = require("gulp-append-prepend").prependText;
+const babel = require("gulp-babel");
+const clone = require("gulp-clone");
+const concat = require("gulp-concat");
+const nop = require("gulp-nop");
+const rename = require("gulp-rename");
+const replace = require("gulp-replace");
+const sourcemaps = require("gulp-sourcemaps");
+const terser = require("gulp-terser");
+const es = require("event-stream");
 
-var { version } = require("./version");
+const { version } = require("./version");
 
-var nos = Object("");
-var debugExp = /\/\* debug: ([\s\S]*?)\*\//g;
+const nos = Object("");
+const debugExp = /\/\* debug: ([\s\S]*?)\*\//g;
 
 function makeImpl(filename, className, declare, debug, sources) {
 
@@ -50,7 +50,7 @@ function makeImpl(filename, className, declare, debug, sources) {
 		.pipe(gulp.dest("dist"));
 
 	var moduleUgly = module.pipe(clone())
-		.pipe(uglify({mangle: {toplevel: true, reserved}}))
+		.pipe(terser({mangle: {toplevel: true, reserved}}))
 		.pipe(append(`export default ${className};`, nos))
 		.pipe(rename(filename + ".module.min.js"))
 		.pipe(sourcemaps.write("./maps"))
@@ -66,13 +66,11 @@ function makeImpl(filename, className, declare, debug, sources) {
 
 	var amdUgly = amd.pipe(clone())
 		.pipe(babel({
-			presets: ["babel-preset-env", ["babel-preset-minify", {
-				builtIns: false,
-				mangle: {exclude: reserved}
-			}]],
+			presets: ["babel-preset-env"],
 			minified: true,
 			comments: false
 		}))
+		.pipe(terser({mangle: {toplevel: true, reserved}}))
 		.pipe(rename(filename + ".min.js"))
 		.pipe(sourcemaps.write("./maps"))
 		.pipe(gulp.dest("dist"));
