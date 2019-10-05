@@ -9,16 +9,14 @@ var setUpdate = typeof setImmediate == "function" ? setImmediate : setTimeout;
 /**
  * Stores a subscription to an observable.
  * @param {Observable} observed - The observable that dispatches the update.
- * @param {ComputedObservable=} observer - The computed observable that receives the update, if the subscription is a dependency.
  * @param {function(newValue, oldValue, type, args)} callback - Callback function called when the observable is updated.
  * @param {number=} type - If the type passed to the observable's update function matches the given type, the callback is not called.
  * @class
  * @since 0.129.0
  */
-function Subscription(observed, observer, callback, type) {
+function Subscription(observed, callback, type) {
 	Object.defineProperty(this, "id", {value: counter.nextSubscription()});
 	this.observed = observed;
-	this.observer = observer;
 	this.callback = callback;
 	this.type = type;
 	this.disposed = false;
@@ -35,13 +33,26 @@ Subscription.prototype.dispose = function(){
 };
 
 /**
+ * @param {ComputedObservable} observer - The computed observable that receives the update, if the subscription is a dependency.
+ * @since 0.146.0
+ */
+function Dependency(observed, observer, callback) {
+	Subscription.call(this, observed, callback);
+	this.observer = observer;
+}
+
+Dependency.prototype = Object.create(Subscription.prototype);
+
+/**
  * Stores an observable, its value and its subscribers.
  * @param {*} value - The initial value of the observable.
  * @class
  * @since 0.129.0
  */
-function Observable(value) {
+function Observable(context, value) {
 	Object.defineProperty(this, "id", {value: counter.nextObservable()});
+	this.context = context;
+	this.bindId = context.bind && context.bind.id;
 	this._subscriptions = [];
 	this._value = this.wrapValue(value);
 }
@@ -51,7 +62,7 @@ function Observable(value) {
  */
 Observable.prototype.subscribeImpl = function(context, subscription){
 	this._subscriptions.push(subscription);
-	if(context && context.bind) {
+	if(context && context.bind && context.bind.id !== this.bindId) {
 		context.bind.subscribe(subscription);
 	}
 	return subscription;
@@ -61,14 +72,14 @@ Observable.prototype.subscribeImpl = function(context, subscription){
  * @since 0.129.0
  */
 Observable.prototype.subscribe = function(context, callback, type){
-	this.subscribeImpl(context, new Subscription(this, null, callback, type));
+	this.subscribeImpl(context, new Subscription(this, callback, type));
 };
 
 /**
  * @since 0.145.0
  */
 Observable.prototype.depend = function(context, callback, observer){
-	return this.subscribeImpl(context, new Subscription(this, observer, callback));
+	return this.subscribeImpl(context, new Dependency(this, observer, callback));
 };
 
 /**
@@ -345,8 +356,7 @@ Observable.Array = (SysArray => {
  * @since 0.145.0
  */
 function ComputedObservable(context, fun){
-	Observable.call(this);
-	this.context = context;
+	Observable.call(this, context);
 	this.fun = fun;
 	this.deps = this.ndeps = {};
 	this.tracker = new Tracker(this);
@@ -389,7 +399,9 @@ function Tracker(observable) {
 Tracker.prototype.add = function(observable){
 	const {id} = observable;
 	if(!this.observable.deps[id]) {
-		this.observable.ndeps[id] = observable.depend(this.context, () => this.observable.recalc(), this.observable);
+		this.observable.ndeps[id] = observable.depend(this.context, () => {
+			this.observable.recalc();
+		}, this.observable);
 	} else {
 		this.observable.ndeps[id] = this.observable.deps[id];
 	}
@@ -437,8 +449,8 @@ Tracker.prototype.d = function(value, fun){
  * Creates an observable from the given value.
  * @since 0.129.0
  */
-Sactory.cofv = function(value){
-	return new Observable(value);
+Sactory.cofv = function(context, value){
+	return new Observable(context, value);
 };
 
 /**

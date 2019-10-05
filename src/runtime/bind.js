@@ -1,5 +1,6 @@
 var SactoryContext = require("./context");
 var SactoryConst = require("./const");
+var counter = require("./counter");
 var SactoryObservable = require("./observable");
 
 var Sactory = {};
@@ -9,10 +10,10 @@ var Sactory = {};
  * @since 0.45.0
  */
 function Bind(parent, createdBy) {
+	this.id = counter.nextBind();
 	this.parent = parent;
 	this.createdBy = createdBy;
 	this.children = [];
-	this.subscriptions = [];
 	this.elements = [];
 	this.rollbacks = [];
 }
@@ -30,10 +31,6 @@ Bind.prototype.fork = function(createdBy){
  * @since 0.45.0
  */
 Bind.prototype.rollback = function(){
-	if(this.subscriptions.length) {
-		this.subscriptions.forEach(subscription => subscription.dispose());
-		this.subscriptions = [];
-	}
 	if(this.elements.length) {
 		this.elements.forEach(element => {
 			if(element.parentNode) element.parentNode.removeChild(element);
@@ -41,11 +38,15 @@ Bind.prototype.rollback = function(){
 		this.elements = [];
 	}
 	if(this.rollbacks.length) {
-		this.rollbacks.forEach(fun => fun());
+		this.rollbacks.forEach(rollback => {
+			rollback();
+		});
 		this.rollbacks = [];
 	}
 	if(this.children.length) {
-		this.children.forEach(child => child.rollback());
+		this.children.forEach(child => {
+			child.rollback();
+		});
 		this.children = [];
 	}
 };
@@ -54,7 +55,9 @@ Bind.prototype.rollback = function(){
  * @since 0.45.0
  */
 Bind.prototype.subscribe = function(subscription){
-	this.subscriptions.push(subscription);
+	this.addRollback(() => {
+		subscription.dispose();
+	});
 };
 
 /**
@@ -195,9 +198,15 @@ Sactory.bindFlowEach = function(context, target, fun){
 				var ptr = binds[index];
 				if(ptr) {
 					// replace
-					if(ptr.anchor) ptr.bind.elements.shift(); // shift the anchor so it will not be removed from the DOM
-					ptr.bind.rollback();
-					if(ptr.anchor) ptr.bind.appendChild(ptr.anchor);
+					if(ptr.anchor) {
+						// shift the anchor so it will not be removed from the DOM
+						ptr.elements.shift();
+					}
+					ptr.rollback();
+					if(ptr.anchor) {
+						// put it back
+						ptr.appendChild(ptr.anchor);
+					}
 					fun(SactoryContext.newBindContext(context, ptr, ptr.anchor), value, index, array);
 				} else {
 					//TODO

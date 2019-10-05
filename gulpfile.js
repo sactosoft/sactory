@@ -21,7 +21,7 @@ function makeImpl(filename, className, declare, debug, sources) {
 	let header = `var toString=function(){return Object.toString().replace(/Object/,"${className}").replace(/native/,"sactory")};` +
 		`${className}.toString=toString.toString=toString;Object.defineProperty(${className},"VERSION",{value:"${version}"});` +
 		`Object.defineProperty(${className},"BUILT",{value:"${new Date().toISOString()}"});`;
-	let reserved = [className, "Widget", "Builder", "Bind", "Subscription", "Observable", "ComputedObservable", "Array", "Color", "RGBColor", "HSLColor", "Parser", "ParserError"];
+	let reserved = [className, "Widget", "Builder", "Bind", "Subscription", "Dependency", "Observable", "ComputedObservable", "Array", "Color", "RGBColor", "HSLColor", "Parser", "ParserError"];
 
 	if(declare) {
 		header += `function ${className}(){}`;
@@ -91,9 +91,9 @@ gulp.task("dist:sactory", () => makeImpl("sactory", "Sactory", false, false, [
 	"attr",
 	"util",
 	"runtime/config", // must be first
+	"runtime/counter", // must be before bind
 	"runtime/bind",
 	"runtime/core",
-	"runtime/counter",
 	"runtime/chain",
 	"runtime/const",
 	"runtime/context",
@@ -108,6 +108,7 @@ gulp.task("dist:sactory", () => makeImpl("sactory", "Sactory", false, false, [
 
 gulp.task("dist:sactory-observable", () => makeImpl("sactory-observable", "Sactory", true, false, [
 	"runtime/context",
+	"runtime/counter",
 	"runtime/observable"
 ]));
 

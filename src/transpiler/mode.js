@@ -855,7 +855,7 @@ SourceCodeMode.prototype.next = function(match){
 						} else {
 							// not a computed observable, just an observable with no value
 							let index = tail.value.length - (this.parser.index - this.parser.lastParenthesis.end) - 1;
-							tail.value = `${tail.value.substring(0, index)}${this.transpiler.feature("cofv")}()${tail.value.substr(index)}`;
+							tail.value = `${tail.value.substring(0, index)}${this.transpiler.feature("cofv")}(${this.source.getContext()})${tail.value.substr(index)}`;
 							coff = false;
 						}
 					}
@@ -868,7 +868,7 @@ SourceCodeMode.prototype.next = function(match){
 				}  else {
 					// from variable
 					let parsed = this.transpiler.parseCode(this.parser.readSingleExpression(true));
-					this.add(`${space}${this.transpiler.feature("cofv")}(${parsed.source})`);
+					this.add(`${space}${this.transpiler.feature("cofv")}(${this.source.getContext()}, ${parsed.source})`);
 					coff = false;
 				}
 				if(coff) {

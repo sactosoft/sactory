@@ -252,6 +252,9 @@ chain.updateImpl = function(context, tagName, tagNameString, attrs = [], widgetC
 			}
 			*/
 		}
+		if(context.bind) {
+			updatedElement["~builder"].bindId = context.bind.id;
+		}
 	}
 
 	// create priority for attributes based on type

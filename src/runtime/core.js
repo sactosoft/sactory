@@ -224,12 +224,12 @@ Sactory.prototype.className = function(className, bind){
 			this.addClassName(value = newValue);
 		});
 		this.addClassName(value);
-		if(bind) {
+		if(bind && bind.id !== this.bindId) {
 			bind.addRollback(() => this.removeClassName(value));
 		}
 	} else {
 		this.addClassName(className);
-		if(bind) {
+		if(bind && bind.id !== this.bindId) {
 			bind.addRollback(() => this.removeClassName(className));
 		}
 	}
@@ -250,12 +250,12 @@ Sactory.prototype.classNameIf = function(className, condition, bind){
 			}
 		});
 		if(condition.value) this.addClassName(className);
-		if(bind) {
+		if(bind && bind.id !== this.bindId) {
 			bind.addRollback(() => condition.value && this.removeClassName(className));
 		}
 	} else if(condition) {
 		this.addClassName(className);
-		if(bind) {
+		if(bind && bind.id !== this.bindId) {
 			bind.addRollback(() => this.removeClassName(className));
 		}
 	}
@@ -607,8 +607,10 @@ Sactory.prototype.event = function(name, value, bind){
 Sactory.prototype.eventImpl = function(event, listener, options, bind){
 	this.events[event] = true;
 	this.element.addEventListener(event, listener, options);
-	if(bind) {
-		bind.addRollback(() => this.element.removeEventListener(event, listener, options));
+	if(bind && bind.id !== this.bindId) {
+		bind.addRollback(() => {
+			this.element.removeEventListener(event, listener, options);
+		});
 	}
 };
 
