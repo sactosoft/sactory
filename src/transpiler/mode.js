@@ -384,6 +384,7 @@ LogicMode.prototype.parseStatement = function(statement, trimmed, expected, cond
 		}
 		this.endChainable();
 		this.add(trimmed);
+		this.parser.parseTemplateLiteral = null;
 		const reparse = (s, parser) => {
 			const {source, observables} = this.transpiler.parseCode(s, parser, true);
 			statement.observables |= observables;
@@ -473,7 +474,8 @@ LogicMode.prototype.parseLogic = function(expected, type, closing){
 			this.add(trimmed + expected.charAt(0) + end.pre + end.match);
 			if(end.match == "=") {
 				// add the value/body of the variable
-				this.add(this.transpiler.parseCode(this.parser.readExpression()).source);
+				this.parser.parseTemplateLiteral = null;
+				this.add(this.transpiler.parseCode(this.parser.readExpression(), this.parser, true).source);
 				if(this.parser.readIf(";")) this.add(";");
 			}
 			return true;
