@@ -33,7 +33,10 @@ Bind.prototype.fork = function(createdBy){
 Bind.prototype.rollback = function(){
 	if(this.elements.length) {
 		this.elements.forEach(element => {
-			if(element.parentNode) element.parentNode.removeChild(element);
+			if(element.parentNode && (!element["~builderInstance"] || !element["~builder"].events.remove
+				|| !element["~builder"].dispatchEvent("remove", {cancelable: true}).defaultPrevented)) {
+				element.parentNode.removeChild(element);
+			}
 		});
 		this.elements = [];
 	}
