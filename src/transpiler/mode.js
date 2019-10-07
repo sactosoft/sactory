@@ -806,7 +806,7 @@ SourceCodeMode.prototype.next = function(match){
 			break;
 		}
 		case "&": {
-			if(this.parser.couldStartRegExp() || this.parser.lastKeywordIn("async")) {
+			if(this.parser.couldStartRegExp() || this.parser.lastKeywordIn("async", "lazy")) {
 				let space = this.parser.skipImpl({comments: true});
 				let coff = true;
 				let tail = this.source.tail();
@@ -878,7 +878,7 @@ SourceCodeMode.prototype.next = function(match){
 					let afterIndex = index;
 					let mod, mods = {};
 					while(mod = previous()) {
-						if(["async"].indexOf(mod) != -1) {
+						if(["async", "lazy"].indexOf(mod) != -1) {
 							mods[mod] = true;
 							beforeIndex = index;
 						} else {
@@ -887,9 +887,9 @@ SourceCodeMode.prototype.next = function(match){
 					}
 					// add expression
 					const parsed = this.transpiler.parseCode(this.parser.readExpression(), null, true);
-					tail.value = `${tail.value.slice(0, -beforeIndex)}${this.transpiler.feature("coff")}(${this.source.getContext()}, ${tail.value.substr(-afterIndex)}`;
+					tail.value = `${tail.value.slice(0, -beforeIndex)}${this.transpiler.feature("coff")}(${this.source.getContext()}, ${mods.async ? "async " : ""}${tail.value.substr(-afterIndex)}`;
 					this.source.addSource(`${parsed.source})`);
-					if(mods.async) this.source.addSource(".async()");
+					if(mods.lazy) this.source.addSource(".lazy()");
 				}
 				this.transpiler.updateTemplateLiteralParser();
 				this.parser.last = "]"; // see issue#57

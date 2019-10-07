@@ -242,23 +242,6 @@ Observable.prototype.always = function(){
 };
 
 /**
- * @since 0.129.0
- */
-Observable.prototype.async = function(){
-	var calc = this._calc;
-	this._calc = () => {
-		if(!this._updating) {
-			this._updating = true;
-			setUpdate(() => {
-				this._updating = false;
-				calc();
-			});
-		}
-	};
-	return this;
-};
-
-/**
  * @since 0.145.0
  */
 Observable.prototype.transform = function(fun){
@@ -378,6 +361,31 @@ ComputedObservable.prototype.recalc = function(){
 	}
 	this.deps = this.ndeps;
 	this.odeps = this.ndeps = {};
+};
+
+/**
+ * @since 0.147.0
+ */
+ComputedObservable.prototype.throttle = function(duration){
+	Object.defineProperty(this, "recalc", {
+		value() {
+			if(this._throttle) {
+				// already throttling, reset it
+				clearTimeout(this._throttle);
+			}
+			this._throttle = setTimeout(() => {
+				ComputedObservable.prototype.recalc.call(this);
+			}, duration);
+		}
+	});
+	return this;
+};
+
+/**
+ * @since 0.147.0
+ */
+ComputedObservable.prototype.lazy = function(){
+	return this.throttle(0);
 };
 
 /*const notracker = {
