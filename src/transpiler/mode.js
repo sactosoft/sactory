@@ -279,7 +279,7 @@ TextExprMode.prototype.parseImpl = function(pre, match, handle, eof){
 							}
 							source = `${this.runtime}.coff(${this.source.getContext()}, ${source})`;
 						}
-						this.chain.push(["mixin", source]);
+						this.chain.push(["html", source]);
 					} else {
 						if(match == "%") {
 							expr.source = `${this.transpiler.runtime}.stringify(${expr.source})`;

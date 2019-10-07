@@ -363,22 +363,6 @@ chain.html = function(context, html){
 };
 
 /**
- * @since 0.90.0
- */
-chain.mixin = function(context, data){
-	if(data instanceof Node) {
-		chain.appendTo({
-			element: data,
-			top: context.top,
-			bind: context.bind,
-			parentAnchor: context.anchor
-		}, SactoryContext.currentElement(context));
-	} else if(data) {
-		chain.html(context, data);
-	}
-};
-
-/**
  * @since 0.60.0
  */
 chain.body = function(context, fun){
