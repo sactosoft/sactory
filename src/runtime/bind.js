@@ -9,10 +9,10 @@ var Sactory = {};
  * @class
  * @since 0.45.0
  */
-function Bind(parent, createdBy) {
+function Bind(parent/* debug: , createdBy */) {
 	this.id = counter.nextBind();
 	this.parent = parent;
-	this.createdBy = createdBy;
+	/* debug: this.createdBy = createdBy; */
 	this.children = [];
 	this.elements = [];
 	this.rollbacks = [];
@@ -79,20 +79,13 @@ Bind.prototype.addRollback = function(fun){
 
 const factory = new Bind(null, Sactory);
 
-/**
- * @since 0.45.0
- */
-Object.defineProperty(Sactory, "bindFactory", {
-	get: function(){
-		return factory;
-	}
-});
+/* debug: Object.defineProperty(Sactory, "bindFactory", {get: () => factory}); */
 
 /**
  * @since 0.48.0
  */
 Sactory.anchor = function({element, bind, anchor}){
-	var ret = document.createTextNode("");
+	let ret = document.createTextNode("");
 	/* debug:
 	ret = document.createComment("");
 	*/
@@ -102,9 +95,14 @@ Sactory.anchor = function({element, bind, anchor}){
 	Object.defineProperty(ret, "nodeName", {
 		value: "#anchor"
 	});
-	if(anchor) element.insertBefore(ret, anchor);
-	else element.appendChild(ret);
-	if(bind) bind.appendChild(ret);
+	if(anchor) {
+		element.insertBefore(ret, anchor);
+	} else {
+		element.appendChild(ret);
+	}
+	if(bind) {
+		bind.appendChild(ret);
+	}
 	return ret;
 };
 
@@ -130,7 +128,7 @@ Sactory.comment = function(context, value){
  */
 Sactory.bindFlow = function(context, computed){
 	const observable = SactoryObservable.coff(context, computed);
-	const currentBind = (context.bind || factory).fork("bind");
+	const currentBind = (context.bind || factory).fork(/* debug: "bind" */);
 	const currentAnchor = context.element && Sactory.anchor(context);
 	const reload = fun => fun(SactoryContext.newBindContext(context, currentBind, currentAnchor));
 	/* debug:
@@ -151,7 +149,7 @@ Sactory.bindFlow = function(context, computed){
  */
 Sactory.bindFlowIfElse = function(context, computed, ...functions){
 	const index = SactoryObservable.coff(context, computed);
-	const currentBind = (context.bind || factory).fork("bindIfElse");
+	const currentBind = (context.bind || factory).fork(/* debug: "bindIfElse" */);
 	const currentAnchor = context.element && Sactory.anchor(context);
 	const reload = index => {
 		if(index != -1) {
@@ -169,7 +167,7 @@ Sactory.bindFlowIfElse = function(context, computed, ...functions){
  * @since 0.102.0
  */
 Sactory.bindFlowEach = function(context, target, fun){
-	var currentBind = (context.bind || factory).fork("bindEach");
+	var currentBind = (context.bind || factory).fork(/* debug: "bindEach" */);
 	var firstAnchor, lastAnchor;
 	if(context.element) {
 		firstAnchor = Sactory.anchor(context);
@@ -191,7 +189,7 @@ Sactory.bindFlowEach = function(context, target, fun){
 	var makeAnchor = anchor => (context.element ? Sactory.anchor({element: context.element, anchor}) : null);
 	function updateAll() {
 		target.value.forEach((value, index, array) => {
-			add("push", new Bind(currentBind, "bindEach." + index), makeAnchor(lastAnchor), value, index, array);
+			add("push", new Bind(currentBind, /* debug: "bindEach." + index */), makeAnchor(lastAnchor), value, index, array);
 		});
 	}
 	target.subscribe({bind: currentBind}, (array, _, type, data) => {
@@ -227,7 +225,7 @@ Sactory.bindFlowEach = function(context, target, fun){
 				break;
 			case SactoryConst.OUT_ARRAY_UNSHIFT:
 				Array.prototype.forEach.call(data, value => {
-					add("unshift", new Bind(currentBind, "bindEach.unshift"),
+					add("unshift", new Bind(currentBind, /* debug: "bindEach.unshift" */),
 						makeAnchor(firstAnchor.nextSibling), value, 0, array);
 				});
 				break;
@@ -242,7 +240,7 @@ Sactory.bindFlowEach = function(context, target, fun){
 				var ref = binds[endIndex];
 				var anchorTo = ref && ref.anchor && ref.anchor.nextSibling || lastAnchor;
 				var args = Array.prototype.slice.call(data, 2).map(value => {
-					var ret = new Bind(currentBind, "bindEach.splice");
+					var ret = new Bind(currentBind, /* debug: "bindEach.splice" */);
 					ret.value = value;
 					return ret;
 				});
@@ -270,7 +268,7 @@ Sactory.bindFlowEach = function(context, target, fun){
  * @since 0.145.0
  */
 Sactory.bindTo = function(context, dependencies, fun){
-	const currentBind = (context.bind || factory).fork("bindTo");
+	const currentBind = (context.bind || factory).fork(/* debug: "bindTo" */);
 	const currentAnchor = context.element && Sactory.anchor(context);
 	const reload = () => fun(SactoryContext.newBindContext(context, currentBind, currentAnchor), dependencies);
 	dependencies.forEach(dependency => dependency.subscribe(context, () => {

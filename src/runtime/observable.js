@@ -4,7 +4,10 @@ var counter = require("./counter");
 
 var Sactory = {};
 
-var setUpdate = typeof setImmediate == "function" ? setImmediate : setTimeout;
+/* debug:
+const subscriptions = {};
+Object.defineProperty(Sactory, "subscriptions", {get: () => Object.values(subscriptions)});
+*/
 
 /**
  * Stores a subscription to an observable.
@@ -64,7 +67,10 @@ Observable.prototype.subscribeImpl = function(context, subscription){
 	this._subscriptions.push(subscription);
 	if(context && context.bind && context.bind.id !== this.bindId) {
 		context.bind.subscribe(subscription);
+	} /* debug: else if(context && context.bind) {
+		context.bind.subscribe(subscription);
 	}
+	subscriptions[subscription.id] = subscription; */
 	return subscription;
 };
 
@@ -92,6 +98,7 @@ Observable.prototype.unsubscribe = function({id}){
 		const sub = this._subscriptions[i];
 		if(sub.id == id) {
 			this._subscriptions.splice(i, 1);
+			/* debug: delete subscriptions[id]; */
 			return true;
 		}
 	}
@@ -136,11 +143,13 @@ Observable.prototype.update = function(value, type, args){
 
 /**
  * Indicates whether the observable should update when the value is changed by
- * assigning the `value` property.
+ * calling the `update` method. It is true by default on normal observables
+ * and is only true in computed observables when `newValue` is different from
+ * `oldValue`.
  * @since 0.129.0
  */
 Observable.prototype.shouldUpdate = function(newValue, oldValue){
-	return newValue !== oldValue;
+	return true;
 };
 
 /**
@@ -230,14 +239,6 @@ if(typeof sessionStorage != "undefined") {
  */
 Observable.prototype.nowrap = function(){
 	Object.defineProperty(this, "wrapValue", {value: value => value});
-	return this;
-};
-
-/**
- * @since 0.142.0
- */
-Observable.prototype.always = function(){
-	Object.defineProperty(this, "shouldUpdate", {value: () => true});
 	return this;
 };
 
@@ -361,6 +362,18 @@ ComputedObservable.prototype.recalc = function(){
 	}
 	this.deps = this.ndeps;
 	this.odeps = this.ndeps = {};
+};
+
+ComputedObservable.prototype.shouldUpdate = function(newValue, oldValue){
+	return newValue !== oldValue;
+};
+
+/**
+ * @since 0.142.0
+ */
+Observable.prototype.always = function(){
+	Object.defineProperty(this, "shouldUpdate", {value: () => true});
+	return this;
 };
 
 /**

@@ -14,7 +14,7 @@ const es = require("event-stream");
 const { version } = require("./version");
 
 const nos = Object("");
-const debugExp = /\/\* debug: ([\s\S]*?)\*\//g;
+const debugExp = /\/\* debug:([\s\S]*?)\*\//g;
 
 function makeImpl(filename, className, declare, debug, sources) {
 
@@ -79,14 +79,14 @@ function makeImpl(filename, className, declare, debug, sources) {
 
 }
 
-/*function make(filename, className, declare, debug, sources) {
+function make(filename, className, declare, debug, sources) {
 	return es.merge(
 		makeImpl(filename, className, declare, false, sources),
 		makeImpl(filename + ".debug", className, declare, true, sources.concat(debug))
 	).pipe(nop());
-}*/
+}
 
-gulp.task("dist:sactory", () => makeImpl("sactory", "Sactory", false, false, [
+gulp.task("dist:sactory", () => make("sactory", "Sactory", false, [], [
 	"polyfill",
 	"attr",
 	"util",
