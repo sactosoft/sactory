@@ -366,13 +366,20 @@ LogicMode.prototype.parseIf = function(expected, checkLine = true){
 LogicMode.prototype.parseStatement = function(statement, trimmed, expected, condition, following){
 	const index = this.parser.index;
 	this.parser.index += expected.length - 1;
-	const part = {
-		type: expected,
-		following,
-		observables: false,
-		declStart: this.source.addIsolatedSource("")
+	let part;
+	const init = () => {
+		this.endChainable();
+		this.add(trimmed);
+		if(!statement.startRef) {
+			statement.startRef = this.source.addIsolatedSource("");
+		}
+		statement.parts.push(part = {
+			type: expected,
+			following,
+			observables: false,
+			declStart: this.source.addIsolatedSource("")
+		});
 	};
-	statement.parts.push(part);
 	if(condition === 1) {
 		// with condition (e.g. `statement(condition)`)
 		let skipped = this.parser.skipImpl({comments: true});
@@ -382,8 +389,7 @@ LogicMode.prototype.parseStatement = function(statement, trimmed, expected, cond
 			this.pushText(trimmed);
 			return false;
 		}
-		this.endChainable();
-		this.add(trimmed);
+		init();
 		this.parser.parseTemplateLiteral = null;
 		const reparse = (s, parser) => {
 			const {source, observables} = this.transpiler.parseCode(s, parser, true);
@@ -449,8 +455,7 @@ LogicMode.prototype.parseStatement = function(statement, trimmed, expected, cond
 		}
 	} else {
 		// without condition
-		this.endChainable();
-		this.add(trimmed);
+		init();
 		part.decl = this.source.addIsolatedSource(expected);
 	}
 	this.source.addSource(this.parser.skipImpl({comments: true}));
@@ -482,7 +487,6 @@ LogicMode.prototype.parseLogic = function(expected, type, closing){
 		} else {
 			return this.parseStatement({
 				type: expected,
-				startRef: this.source.addIsolatedSource(""),
 				context: this.source.getContext(),
 				observables: false,
 				inlineable: true,
@@ -604,7 +608,7 @@ LogicMode.prototype.end = function(){
 				let conditions = "";
 				const replacement = this.es6 ? `, ${popped.context} =>` : `, function(${popped.context})`;
 				popped.parts.forEach((part, i) => {
-					var source = part.decl.value.substr(part.type.length);
+					const source = part.decl.value.substr(part.type.length);
 					if(part.type == "else") {
 						conditions += i;
 					} else {
