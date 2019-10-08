@@ -255,6 +255,18 @@ Sactory.bindFlowEach = function(context, target, fun){
 					fun(SactoryContext.newBindContext(context, bind, bind.anchor), bind.value, i + startIndex, array);
 				});
 				break;
+			case SactoryConst.OUT_ARRAY_REVERSE: {
+				// insert every element except the last before the last anchor
+				const popped = binds.pop();
+				binds.reverse().forEach(bind => {
+					context.element.insertBefore(bind.anchor, lastAnchor);
+					bind.elements.slice(1).forEach(element => {
+						context.element.insertBefore(element, bind.anchor);
+					});
+				});
+				binds.unshift(popped);
+				break;
+			}
 			default:
 				binds.forEach(remove);
 				binds.length = 0;

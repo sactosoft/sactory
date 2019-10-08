@@ -299,7 +299,7 @@ Observable.Array = (SysArray => {
 		{name: "fill"},
 		{name: "pop", type: SactoryConst.OUT_ARRAY_POP},
 		{name: "push", type: SactoryConst.OUT_ARRAY_PUSH},
-		{name: "reverse"},
+		{name: "reverse", type: SactoryConst.OUT_ARRAY_REVERSE},
 		{name: "shift", type: SactoryConst.OUT_ARRAY_SHIFT},
 		{name: "sort"},
 		{name: "splice", type: SactoryConst.OUT_ARRAY_SPLICE},
