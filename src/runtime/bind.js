@@ -2,6 +2,7 @@ var SactoryContext = require("./context");
 var SactoryConst = require("./const");
 var counter = require("./counter");
 var SactoryObservable = require("./observable");
+var SactoryMisc = require("./misc");
 
 var Sactory = {};
 
@@ -21,8 +22,8 @@ function Bind(parent/* debug: , createdBy */) {
 /**
  * @since 0.45.0
  */
-Bind.prototype.fork = function(createdBy){
-	var child = new Bind(this, createdBy);
+Bind.prototype.fork = function(/* debug: createdBy */){
+	var child = new Bind(this, /* debug: createdBy */);
 	this.children.push(child);
 	return child;
 };
@@ -77,9 +78,9 @@ Bind.prototype.addRollback = function(fun){
 	this.rollbacks.push(fun);
 };
 
-const factory = new Bind(null, Sactory);
+const factory = new Bind(null, /* debug: Sactory */);
 
-/* debug: Object.defineProperty(Sactory, "bindFactory", {get: () => factory}); */
+/* debug: Object.defineProperty(Sactory, "binds", {get: () => factory}); */
 
 /**
  * @since 0.48.0
@@ -177,6 +178,7 @@ Sactory.bindFlowEach = function(context, target, fun){
 		lastAnchor.textContent = " bind-each:last ";
 		*/
 	}
+	let rollback;
 	var binds = currentBind.children; // children are added/removed manually
 	function add(action, bind, anchor, value, index, array) {
 		if(bind.anchor = anchor) bind.appendChild(anchor);
@@ -188,9 +190,26 @@ Sactory.bindFlowEach = function(context, target, fun){
 	}
 	var makeAnchor = anchor => (context.element ? Sactory.anchor({element: context.element, anchor}) : null);
 	function updateAll() {
-		target.value.forEach((value, index, array) => {
-			add("push", new Bind(currentBind, /* debug: "bindEach." + index */), makeAnchor(lastAnchor), value, index, array);
-		});
+		if(SactoryObservable.isOrray(target.value)) {
+			target.value.forEach((value, index, array) => {
+				add("push", new Bind(currentBind, /* debug: "bindEach." + index */), makeAnchor(lastAnchor), value, index, array);
+			});
+			rollback = () => {
+				binds.forEach(remove);
+				binds.length = 0;
+			};
+		} else {
+			const newContext = SactoryContext.newBindContext(context, currentBind, lastAnchor);
+			Array.prototype.forEach.call(target.value, (value, index, array) => {
+				fun(newContext, value, index, array);
+			});
+			rollback = () => {
+				const sub = currentBind.rollbacks.shift(); // preserve
+				currentBind.rollback();
+				binds = currentBind.children;
+				currentBind.addRollback(sub);
+			};
+		}
 	}
 	target.subscribe({bind: currentBind}, (array, _, type, data) => {
 		switch(type) {
@@ -224,9 +243,12 @@ Sactory.bindFlowEach = function(context, target, fun){
 				if(popped) remove(popped);
 				break;
 			case SactoryConst.OUT_ARRAY_UNSHIFT:
-				Array.prototype.forEach.call(data, value => {
+				const anchor = binds.length ? (binds[0].elements[1] || binds[0].anchor) : lastAnchor;
+				console.log(anchor);
+				Array.prototype.slice.call(data).reverse().forEach(value => {
 					add("unshift", new Bind(currentBind, /* debug: "bindEach.unshift" */),
-						makeAnchor(firstAnchor.nextSibling), value, 0, array);
+						makeAnchor(binds.length ? (binds[0].elements[1] || binds[0].anchor) : lastAnchor),
+						value, 0, array);
 				});
 				break;
 			case SactoryConst.OUT_ARRAY_SHIFT:
@@ -268,8 +290,7 @@ Sactory.bindFlowEach = function(context, target, fun){
 				break;
 			}
 			default:
-				binds.forEach(remove);
-				binds.length = 0;
+				rollback();
 				updateAll();
 		}
 	});

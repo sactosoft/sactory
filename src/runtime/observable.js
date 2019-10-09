@@ -160,12 +160,15 @@ Observable.prototype.wrapValue = function(value){
 		// copy observable
 		value = value.value;
 	}
-	if(Array.isArray(value) || value instanceof Observable.Array) {
-		// wrap in special container class
-		return new Observable.Array(this, value);
-	} else {
-		return value;
+	if(value instanceof Orray) {
+		// set observable
+		Object.defineProperty(value, "observable", {
+			enumerable: false,
+			configurable: true,
+			value: this
+		});
 	}
+	return value;
 };
 
 /**
@@ -235,14 +238,6 @@ if(typeof sessionStorage != "undefined") {
 }
 
 /**
- * @since 0.129.0
- */
-Observable.prototype.nowrap = function(){
-	Object.defineProperty(this, "wrapValue", {value: value => value});
-	return this;
-};
-
-/**
  * @since 0.145.0
  */
 Observable.prototype.transform = function(fun){
@@ -267,73 +262,6 @@ Observable.prototype.transform = function(fun){
 Observable.prototype.validate = function(fun, defaultValue){
 	return this.transform(value => fun(value) ? value : defaultValue);
 };
-
-// wrappers
-
-/**
- * @class
- * @since 0.66.0
- */
-Observable.Array = (SysArray => {
-
-	function Array(observable, value) {
-		SysArray.call(this);
-		SysArray.prototype.push.apply(this, value);
-		Object.defineProperty(this, "observable", {
-			enumerable: false,
-			value: observable
-		});
-		var length = this.length;
-		Object.defineProperty(this, "length", {
-			configurable: false,
-			enumerable: false,
-			writable: true,
-			value: length
-		});
-	}
-
-	Array.prototype = Object.create(SysArray.prototype);
-
-	[
-		{name: "copyWithin"},
-		{name: "fill"},
-		{name: "pop", type: SactoryConst.OUT_ARRAY_POP},
-		{name: "push", type: SactoryConst.OUT_ARRAY_PUSH},
-		{name: "reverse", type: SactoryConst.OUT_ARRAY_REVERSE},
-		{name: "shift", type: SactoryConst.OUT_ARRAY_SHIFT},
-		{name: "sort"},
-		{name: "splice", type: SactoryConst.OUT_ARRAY_SPLICE},
-		{name: "unshift", type: SactoryConst.OUT_ARRAY_UNSHIFT}
-	].forEach(({name, type}) => {
-		if(SysArray.prototype[name]) {
-			Object.defineProperty(Array.prototype, name, {
-				enumerable: false,
-				value() {
-					var ret = SysArray.prototype[name].apply(this, arguments);
-					this.observable.triggerUpdate(type, arguments);
-					return ret;
-				}
-			});
-		}
-	});
-
-	Object.defineProperty(Array.prototype, "set", {
-		value(index, value) {
-			this[index] = value;
-			this.observable.triggerUpdate(SactoryConst.OUT_ARRAY_SET, [index, value]);
-			return value;
-		}
-	});
-
-	Object.defineProperty(Array.prototype, "toJSON", {
-		value() {
-			return SysArray.apply(null, this);
-		}
-	});
-
-	return Array;
-	
-})(Array);
 
 /**
  * @class
@@ -467,6 +395,73 @@ Tracker.prototype.d = function(value, fun){
 };
 
 /**
+ * @class
+ * @since 0.66.0
+ */
+function Orray(values) {
+	Array.prototype.push.apply(this, values);
+	const length = this.length;
+	Object.defineProperty(this, "length", {
+		configurable: false,
+		enumerable: false,
+		writable: true,
+		value: length
+	});
+}
+
+Orray.prototype = Object.create(Array.prototype);
+
+const redefine = (prop, value) => {
+	Object.defineProperty(Orray.prototype, prop, {
+		enumerable: false,
+		value
+	});
+};
+
+[
+	["copyWithin"],
+	["fill"],
+	["pop", SactoryConst.OUT_ARRAY_POP],
+	["push", SactoryConst.OUT_ARRAY_PUSH],
+	["reverse", SactoryConst.OUT_ARRAY_REVERSE],
+	["shift", SactoryConst.OUT_ARRAY_SHIFT],
+	["sort"],
+	["splice", SactoryConst.OUT_ARRAY_SPLICE],
+	["unshift", SactoryConst.OUT_ARRAY_UNSHIFT]
+].forEach(([prop, type]) => {
+	if(Array.prototype[prop]) {
+		redefine(prop, function(){
+			const ret = Array.prototype[prop].apply(this, arguments);
+			this.observable.triggerUpdate(type, arguments);
+			return ret;
+		});
+	}
+});
+
+["concat", "slice", "filter", "map"].forEach(prop => {
+	redefine(prop, function(){
+		return new Orray(Array.prototype[prop].apply(this, arguments));
+	});
+});
+
+redefine("set", function(index, value){
+	this[index] = value;
+	this.observable.triggerUpdate(SactoryConst.OUT_ARRAY_SET, [index, value]);
+	return value;
+});
+
+redefine("toJSON", function(){
+	return Array.apply(null, this);
+});
+
+/**
+ * @since 0.147.0
+ */
+Sactory.orray = function(...values){
+	return new Orray(values);
+};
+
+/**
  * Creates an observable from the given value.
  * @since 0.129.0
  */
@@ -488,6 +483,20 @@ Sactory.coff = function(context, fun){
  */
 Sactory.isObservable = function(value){
 	return value instanceof Observable;
+};
+
+/**
+ * @since 0.147.0
+ */
+Sactory.isComputedObservable = function(value){
+	return value instanceof ComputedObservable;
+};
+
+/**
+ * @since 0.147.0
+ */
+Sactory.isOrray = function(value){
+	return value instanceof Orray;
 };
 
 /**
