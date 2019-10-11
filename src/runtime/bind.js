@@ -243,7 +243,6 @@ Sactory.bindFlowEach = function(context, target, fun){
 				break;
 			case SactoryConst.OUT_ARRAY_UNSHIFT:
 				const anchor = binds.length ? (binds[0].elements[1] || binds[0].anchor) : currentAnchor;
-				console.log(anchor);
 				Array.prototype.slice.call(data).reverse().forEach(value => {
 					add("unshift", new Bind(currentBind, /* debug: "bindEach.unshift" */),
 						makeAnchor(binds.length ? (binds[0].elements[1] || binds[0].anchor) : currentAnchor),

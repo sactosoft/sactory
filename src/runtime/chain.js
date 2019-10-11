@@ -99,7 +99,7 @@ chain.namespace = function(context, namespace){
 /**
  * @since 0.60.0
  */
-chain.updateImpl = function(context, tagName, tagNameString, attrs = [], widgetCheck = true){
+chain.updateImpl = function(context, tagName, givenName, attrs = [], widgetCheck = true){
 	
 	let args = [];
 	let widgetArgs = {};
@@ -206,14 +206,15 @@ chain.updateImpl = function(context, tagName, tagNameString, attrs = [], widgetC
 	var registry = new Registry(context.registry);
 	
 	if(!updatedElement) {
-		var widget, ref = { name: tagNameString || tagName };
+		var widget, ref = { name: givenName || tagName };
 		if(widgetCheck && (widget = SactoryWidget.getFunctionWidget(tagName, context.registry, ref))) {
 			var slotRegistry = registry.sub(ref.name, true);
 			var newContext = SactoryContext.newContext(context, {element: null, anchor: null, registry: slotRegistry});
 			if(widget.prototype && widget.prototype.render) {
 				var instance = Widget.newInstance(widget, newContext, widgetArgs);
 				// register here so the widget can access its children when rendering
-				registry.widgets.main = registry.widgets.named[ref.name] = instance;
+				registry.widgets.main = instance;
+				registry.addNamed(instance, tagName, givenName);
 				var element = Widget.render(widget, instance, newContext, widgetArgs);
 				element["~builder"].widget = element["~builder"].widgets[ref.name] = instance;
 				context.element = element;
@@ -276,7 +277,11 @@ chain.updateImpl = function(context, tagName, tagNameString, attrs = [], widgetC
 			if(element !== updatedElement) {
 				throw new Error("The widget did not return the given element, hence does not support extension.");
 			}
-			if(ref.name) registry.widgets.named[ref.name] = updatedElement["~builder"].widgets[ref.name] = instance;
+			if(ref.name) {
+				// is this still used?
+				updatedElement["~builder"].widgets[ref.name] = instance;
+			}
+			registry.addNamed(instance, widget, name);
 		} else if(ref.parentWidget) {
 			widget.call(ref.parentWidget, args, args, newContext);
 		} else {
@@ -286,12 +291,6 @@ chain.updateImpl = function(context, tagName, tagNameString, attrs = [], widgetC
 
 	// update context's widget registry
 	context.registry = registry;
-
-	/* debug:
-	if(context.element.setAttribute) {
-		context.element.setAttribute(":id", context.element["~builder"].runtimeId);
-	}
-	*/
 	
 };
 
@@ -309,20 +308,20 @@ chain.update = function(context, attrs, widgetCheck){
 /**
  * @since 0.60.0
  */
-chain.create = function(context, tagName, tagNameString, attrs, widgetCheck){
+chain.create = function(context, tagName, givenName, attrs, widgetCheck){
 	context.anchor = null; // invalidate the current anchor so the children will not use it
 	context.created = true;
-	chain.updateImpl(context, tagName, tagNameString, attrs, widgetCheck);
+	chain.updateImpl(context, tagName, givenName, attrs, widgetCheck);
 };
 
 /**
  * @since 0.128.0
  */
-chain.createIf = function(context, tagName, tagNameString, attrs, widgetCheck){
+chain.createIf = function(context, tagName, givenName, attrs, widgetCheck){
 	if(context.parentElement) {
 		chain.update(context, attrs, widgetCheck);
 	} else {
-		chain.create(context, tagName, tagNameString, attrs, widgetCheck);
+		chain.create(context, tagName, givenName, attrs, widgetCheck);
 	}
 };
 

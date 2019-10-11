@@ -304,7 +304,7 @@ Transpiler.prototype.open = function(){
 			computed = true;
 		} else {
 			originalTagName = tagName = this.parser.readTagName(true);
-			if(this.options.capitalIsWidget && tagName.charCodeAt(0) >= 65 && tagName.charCodeAt(0) <= 90) {
+			if(this.options.capitalIsWidget && tagName.charCodeAt(0) >= 65 && tagName.charCodeAt(0) <= 90 && tagName.indexOf("$") === -1) {
 				computed = true;
 				tagNameString = tagName;
 			}
@@ -851,7 +851,9 @@ Transpiler.prototype.open = function(){
 					let data = [this.chainFeature(optional ? "createIf" : "create"), 0, 0, options()];
 					if(computed/* || this.options.widgets && this.options.widgets.indexOf(tagName) != -1*/) {
 						data[1] = tagName;
-						if(tagNameString) {
+						if(dattributes.name) {
+							data[2] = dattributes.name;
+						} else if(tagNameString) {
 							data[2] = JSON.stringify(tagNameString);
 						}
 					} else {

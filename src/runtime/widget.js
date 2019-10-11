@@ -75,29 +75,34 @@ Sactory.hasWidget = function(name){
  * @since 0.112.0
  */
 Sactory.getWidget = function(name, registry, ref = {}){
-	var sep = name.indexOf("$");
-	if(sep == -1) {
+	const sep = name.indexOf("$");
+	if(sep === -1) {
 		return Object.prototype.hasOwnProperty.call(widgets, name) && widgets[name];
-	} else {
-		var parentWidget, parentName = name.substring(0, sep);
-		if(registry) {
-			var search = registry;
-			if(parentName) {
-				// search in named widgets
-				do {
-					parentWidget = search.widgets.named[parentName];
-				} while(!parentWidget && (search = search.parent));
-			} else {
-				// search in main widgets
-				do {
-					parentWidget = search.widgets.main;
-				} while(!parentWidget && (search = search.parent));
-			}
+	} else if(registry) {
+		const fname = name.substr(sep + 1);
+		const dname = dehyphenate(name);
+		if(sep === 0) {
+			// search in main widgets' children
+			do {
+				if(registry.widgets.main) {
+					const p = registry.widgets.main;
+					const ret = p["render$" + fname] || p["render$" + dname];
+					if(ret) {
+						ref.parentWidget = p;
+						return ret;
+					}
+				}
+			} while(registry = registry.parent);
+		} else {
+			// search in named widgets's children only
+			ref.parentName = name.substring(0, sep);
+			do {
+				if(Object.prototype.hasOwnProperty.call(registry.widgets.named, ref.parentName)) {
+					const p = ref.parentWidget = registry.widgets.named[ref.parentName];
+					return p["render$" + fname] || p["render$" + dname];
+				}
+			} while(registry = registry.parent);
 		}
-		ref.parentWidget = parentWidget;
-		ref.parentName = parentName;
-		ref.name = name.substr(sep + 1);
-		return parentWidget && (parentWidget["render$" + ref.name] || parentWidget["render$" + dehyphenate(ref.name)]);
 	}
 };
 
@@ -226,6 +231,19 @@ function Registry(parent) {
 	if(parent) this.targetSlots = parent.targetSlots;
 	this.main = null;
 }
+
+Registry.prototype.addNamed = function(widget, ...names){
+	names.forEach(name => {
+		if(typeof name === "string") {
+			// every possible name (usually tag name and given name) is always registered
+			this.widgets.named[name] = widget;
+		}
+	});
+	if(typeof widget.name === "string" && !Object.prototype.hasOwnProperty.call(this.widgets.named, widget.name)) {
+		// the widget's own name is only registered if it does not cause any conflict
+		this.widgets.named[widget.name] = widget;
+	}
+};
 
 Registry.prototype.sub = function(name, main){
 	var ret = new Registry(this.parent);
