@@ -1,10 +1,10 @@
-var Polyfill = require("../polyfill");
-var Parser = require("./parser");
-var { optimize, stringify } = require("./util");
+const Polyfill = require("../polyfill");
+const Parser = require("./parser");
+const { optimize, stringify } = require("./util");
 
-var modeRegistry = [];
-var modeNames = {};
-var defaultMode;
+const modeRegistry = [];
+const modeNames = {};
+let defaultMode;
 
 /**
  * @since 0.15.0
@@ -810,7 +810,7 @@ SourceCodeMode.prototype.next = function(match){
 			break;
 		}
 		case "&": {
-			if(this.parser.couldStartRegExp() || this.parser.lastKeywordIn("async", "lazy")) {
+			if(this.parser.couldStartRegExp() || this.parser.lastKeywordIn("async", "defer")) {
 				let space = this.parser.skipImpl({comments: true});
 				let coff = true;
 				let tail = this.source.tail();
@@ -882,7 +882,7 @@ SourceCodeMode.prototype.next = function(match){
 					let afterIndex = index;
 					let mod, mods = {};
 					while(mod = previous()) {
-						if(["async", "lazy"].indexOf(mod) != -1) {
+						if(["async", "defer"].indexOf(mod) != -1) {
 							mods[mod] = true;
 							beforeIndex = index;
 						} else {
@@ -891,9 +891,8 @@ SourceCodeMode.prototype.next = function(match){
 					}
 					// add expression
 					const parsed = this.transpiler.parseCode(this.parser.readExpression(), null, true);
-					tail.value = `${tail.value.slice(0, -beforeIndex)}${this.transpiler.feature("coff")}(${this.source.getContext()}, ${mods.async ? "async " : ""}${tail.value.substr(-afterIndex)}`;
+					tail.value = `${tail.value.slice(0, -beforeIndex)}${this.transpiler.feature(mods.defer ? "cofd" : "coff")}(${this.source.getContext()}, ${mods.async ? "async " : ""}${tail.value.substr(-afterIndex)}`;
 					this.source.addSource(`${parsed.source})`);
-					if(mods.lazy) this.source.addSource(".lazy()");
 				}
 				this.transpiler.updateTemplateLiteralParser();
 				this.parser.last = "]"; // see issue#57

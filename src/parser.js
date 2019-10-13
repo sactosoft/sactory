@@ -1,5 +1,3 @@
-var Polyfill = require("../polyfill");
-
 /**
  * @class
  */
@@ -45,7 +43,7 @@ function Parser(input, from) {
 	this.parseTemplateLiteral = null;
 	this.parentheses = [];
 	this.lastParenthesis = undefined;
-	this.options = Polyfill.assign({}, defaultOptions);
+	this.options = Object.assign({}, defaultOptions);
 	this.from = from || {};
 }
 
@@ -233,7 +231,7 @@ Parser.prototype.couldStartRegExp = function(){
  * @since 0.19.0
  */
 Parser.prototype.skipImpl = function(options){
-	options = Polyfill.assign({}, defaultOptions, options);
+	options = Object.assign({}, defaultOptions, options);
 	var prelast = this.last;
 	var prelastIndex = this.lastIndex;
 	var ret = "";
@@ -522,7 +520,7 @@ Parser.prototype.readQueryExpr = function(){
  * @returns The expression read or an empty string if no expression could be found.
  */
 Parser.prototype.readSingleExpression = function(skip, force){
-	var ret = this.readImpl(/^([-+~!]*((new|delete|typeof)\s+)?(&|\*\??|\^\??)?)/) || "";
+	var ret = this.readImpl(/^([-+~!]*((new|delete|typeof|await)\s+)?(&|\*\??|\^\??)?)/) || "";
 	if(skip) ret += this.skipImpl({comments: true});
 	var peek = this.peek();
 	if(peek == "\"" || peek == "'" || peek == "`") {

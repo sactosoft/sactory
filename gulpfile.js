@@ -21,7 +21,7 @@ function makeImpl(filename, className, declare, debug, sources) {
 	let header = `var toString=function(){return Object.toString().replace(/Object/,"${className}").replace(/native/,"sactory")};` +
 		`${className}.toString=toString.toString=toString;Object.defineProperty(${className},"VERSION",{value:"${version}"});` +
 		`Object.defineProperty(${className},"BUILT",{value:"${new Date().toISOString()}"});`;
-	let reserved = [className, "Widget", "Builder", "Bind", "Subscription", "Dependency", "Observable", "ComputedObservable", "Orray", "Color", "RGBColor", "HSLColor", "Parser", "ParserError"];
+	let reserved = [className, "Widget", "Builder", "Bind", "Subscription", "Dependency", "Observable", "ComputedObservable", "DeferredObservable", "Orray", "Color", "RGBColor", "HSLColor", "Parser", "ParserError"];
 
 	if(declare) {
 		header += `function ${className}(){}`;

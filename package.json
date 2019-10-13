@@ -1,12 +1,10 @@
 {
 	"name": "sactory",
-	"version": "0.148.0",
-	"description": "HTML-spiced javascript for DOM creation and manipulation",
+	"version": "0.150.0",
+	"description": "Sactory syntax transpiler for HTML-in-JS and observables",
 	"main": "index.js",
 	"scripts": {
 		"dist": "gulp dist",
-		"test": "node ./test.js",
-		"test-open": "node ./test.js && start ./_test/index.html",
 		"lint": "eslint ./src"
 	},
 	"repository": {

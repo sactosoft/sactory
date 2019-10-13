@@ -1,4 +1,0 @@
-let type = &100;
-
-if(*type < 10) {}
-if(*type < 20) {}

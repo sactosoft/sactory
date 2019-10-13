@@ -13,7 +13,7 @@ function now() {
 }
 
 function optimize(value) {
-	const match = value.match(/^((?:[a-zA-Z0-9_$]+\.)*)\*([a-zA-Z0-9_$]+)$/);
+	const match = value.match(/^((?:[a-zA-Z0-9_$]+\.)*)\*\??([a-zA-Z0-9_$]+)$/);
 	return match && match.slice(1).join("");
 }
 
