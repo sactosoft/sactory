@@ -1,5 +1,3 @@
-const { hash, now, optimize } = require("./transpiler/util");
-
 const Parser = require("./parser");
 const Result = require("./result");
 const { getModeByName, getModeByTagName, startMode } = require("./mode/registry");
@@ -105,13 +103,6 @@ class Transpiler {
 	 */
 	newParser() {
 		return new Parser();
-	}
-
-	/**
-	 * @since 0.49.0
-	 */
-	nextId() {
-		return this.count++;
 	}
 
 	/**
@@ -570,29 +561,26 @@ class Transpiler {
 	/**
 	 * @since 0.50.0
 	 */
-	transpile(input) {
+	transpile(filename, input) {
 
-		var start = now();
+		if(arguments.length === 1) {
+			input = filename;
+			filename = "";
+		}
 		
 		this.parser = new Parser(input);
 		this.result = new Result();
 
-		this.count = hash((this.options.namespace || this.options.filename) + "") % 100000;
-
 		this.warnings = [];
 		
 		this.tags = [];
-		this.inherit = [];
-		this.closing = [];
 		this.modes = [];
-
-		this.level = 0;
 		
 		//TODO check mode before starting
 		this.startMode(getModeByName(this.options.mode), this.options.modeAttributes).start();
 		
-		const open = Transpiler.prototype.open.bind(this);
-		const close = Transpiler.prototype.close.bind(this);
+		const open = this.open.bind(this);
+		const close = this.close.bind(this);
 
 		while(!this.parser.eof()) {
 			this.updateTemplateLiteralParser();
@@ -608,7 +596,7 @@ class Transpiler {
 		this.endMode();
 
 		if(!this.options.silent) {
-			this.warnings.forEach(({message, position}) => console.warn(`${this.options.filename}[${position.line + 1}:${position.column}]: ${message}`));
+			this.warnings.forEach(({message, position}) => console.warn(`${filename}[${position.line + 1}:${position.column}]: ${message}`));
 		}
 		
 		return this.result.data;

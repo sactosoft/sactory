@@ -1,27 +1,10 @@
-/**
- * @class
- */
-function ParserError(message, fileName, lineNumber) {
-	var error = new Error(message, fileName, lineNumber);
-	if(Object.setPrototypeOf) {
-		Object.setPrototypeOf(error, Object.getPrototypeOf(this));
-	} else {
-		error.__proto__ = this.__proto__;
+class ParserError extends Error {
+
+	constructor(message, fileName, lineNumber) {
+		super(message, fileName, lineNumber);
 	}
-	if(Error.captureStackTrace) Error.captureStackTrace(error, ParserError);
-	return error;
+
 }
-
-ParserError.prototype = Object.create(Error.prototype, {
-	constructor: {
-		value: Error,
-		enumerable: false,
-		writable: false,
-		configurable: false
-	}
-});
-
-ParserError.prototype.name = "ParserError";
 
 const defaultOptions = {
 	whitespaces: /\s/,
