@@ -1,3 +1,9 @@
+let id = 0;
+
+const make = (left, right) => {
+	return Object.assign(left, right, {id: id++});
+};
+
 class Result {
 	
 	constructor() {
@@ -5,7 +11,7 @@ class Result {
 	}
 
 	push(type, position, data = {}) {
-		this.data.push(Object.assign(data, {type, position}));
+		this.data.push(make(data, {type, position}));
 		return data;
 	}
 
@@ -14,8 +20,12 @@ class Result {
 	}
 
 	inject(index, type, position, data = {}) {
-		this.data.splice(index, 0, Object.assign(data, {type, position}));
+		this.data.splice(index, 0, make(data, {type, position}));
 		return data;
+	}
+
+	get tail() {
+		return this.data[this.data.length - 1];
 	}
 
 	toString() {
@@ -88,6 +98,9 @@ let c = 0;
 
 	// logic mode
 	"VARIABLE",
+	"STATEMENT_START",
+	"STATEMENT_END",
+	"FOREACH",
 
 ].forEach(type => {
 	Object.defineProperty(Result, type, {value: c++});

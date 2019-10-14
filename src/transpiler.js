@@ -31,9 +31,11 @@ const defaultOptions = {
 		computed: true,
 		capitalIsWidget: false,
 		types: {
-			directive: false,
+			directive: true,
 			argumented: false,
-			children: false
+			children: false,
+			slot: false,
+			special: true
 		}
 	},
 	attributes: {
@@ -324,13 +326,14 @@ class Transpiler {
 						type = Result.TAG_DIRECTIVE;
 						tag.tagName = tagName.substr(1);
 					}
-				} else if(tagName.charAt(0) == "@") {
-					type = Result.TAG_SLOT;
-					tag.tagName = tagName.substr(1);
-				} else if(tagName.charAt(0) == "#") {
-					type = Result.TAG_SPECIAL;
-					tag.tagName = tagName.substr(1);
 				} else {
+					if(tagName.charAt(0) == "@") {
+						type = Result.TAG_SLOT;
+						tag.tagName = tagName.substr(1);
+					} else if(tagName.charAt(0) == "#") {
+						type = Result.TAG_SPECIAL;
+						tag.tagName = tagName.substr(1);
+					}
 					// search for an auto-opening mode
 					newMode = getModeByTagName(tagName, this.currentMode.parser);
 				}
@@ -368,7 +371,7 @@ class Transpiler {
 					this.result.push(Result.ATTRIBUTE_SPREAD, position, {
 						count,
 						subtype: attr.subtype,
-						expr: this.parser.readSingleExpression(false, true), //TODO parse as code
+						expr: this.parseCode(this.parser.readSingleExpression(false, true)),
 						space: skipped
 					});
 					skip();
@@ -415,16 +418,16 @@ class Transpiler {
 						this.parser.parseTemplateLiteral = null;
 						const value = this.parser.readAttributeValue();
 						if(value.startsWith("{{")) {
-							const { source } = this.parseCode(value.slice(1, -1), undefined, false);
 							attr.isFunction = true;
-							attr.value = source;
+							attr.value = this.parseCode(value.slice(1, -1), undefined, false);
 						} else {
-							const optimized = optimize(value);
+							/*const optimized = optimize(value);
 							if(optimized) {
 								attr.value = optimized;
 							} else {
 								attr.value = this.parseCode(value, undefined, true);
-							}
+							}*/
+							attr.value = this.parseCode(value, undefined, true);
 						}
 						skip();
 					}
@@ -531,6 +534,7 @@ class Transpiler {
 			case Result.ATTRIBUTE_PROPERTY:
 			case Result.ATTRIBUTE_WIDGET:
 			case Result.ATTRIBUTE_UPDATE_WIDGET:
+			case Result.ATTRIBUTE_DIRECTIVE:
 				return !negated;
 			case Result.ATTRIBUTE_EVENT:
 				return false;

@@ -1,3 +1,5 @@
+const Result = require("../result");
+const Parser = require("../parser");
 const { TextExprMode } = require("./textexpr");
 
 /**
@@ -56,6 +58,7 @@ class LogicMode extends TextExprMode {
 		const index = this.parser.index;
 		this.parser.index += expected.length - 1;
 		let part;
+		const prev = statement.parts.length ? statement.parts[statement.parts.length - 1].ref : null;
 		const init = () => {
 			this.addCurrent();
 			this.addSource(null, trimmed);
@@ -81,79 +84,67 @@ class LogicMode extends TextExprMode {
 			init();
 			this.parser.parseTemplateLiteral = null;
 			const reparse = (s, parser) => {
-				const {source, observables} = this.transpiler.parseCode(s, parser, true);
-				statement.observables |= observables;
+				return this.transpiler.parseCode(s, parser, true);
+				/*statement.observables |= observables;
 				part.observables |= observables;
-				return source;
+				return source;*/
 			};
 			const position = this.parser.position;
-			const source = this.parser.skipEnclosedContent();
+			const source = this.parser.skipEnclosedContent().slice(1, -1);
 			if(expected == "foreach") {
-				const parser = new Parser(source.slice(1, -1), position);
-				Polyfill.assign(parser.options, {comments: true, strings: true, regexp: true});
+				let type = "foreach-array";
+				let data = {};
+				const parser = new Parser(source, position);
+				Object.assign(parser.options, {comments: true, strings: true, regexp: true});
 				skipped += parser.skipImpl({comments: true});
-				let expr, from, to;
 				// `from` and `to` need to be reparsed searching for observables as `from` and `to`
 				// are only keywords in this specific context
-				if(Polyfill.startsWith.call(parser.input.substr(parser.index), "from ")) {
+				const f = this.transpiler.options.logic.foreach;
+				if(f.range && parser.input.substr(parser.index).startsWith("from ")) {
+					type = "foreach-range";
 					parser.index += 5;
-					from = reparse(parser.readExpression());
+					data.from = reparse(parser.readExpression());
 					parser.expectSequence("to ");
-					to = reparse(parser.readExpression());
-				} else if(Polyfill.startsWith.call(parser.input.substr(parser.index), "to ")) {
+					data.to = reparse(parser.readExpression());
+				} else if(f.range && parser.input.substr(parser.index).startsWith("to ")) {
+					type = "foreach-range";
 					parser.index += 3;
-					from = "0";
-					to = reparse(parser.readExpression());
+					data.to = reparse(parser.readExpression());
 				} else {
-					statement.unparsed = parser.readExpression();
-					expr = reparse(statement.unparsed);
+					data.expr = reparse(parser.readExpression());
 				}
 				let rest = "";
 				if(parser.input.substr(parser.index, 3) == "as ") {
 					parser.index += 3;
-					rest = parser.input.substr(parser.index);
-				}
-				if(expr) {
-					let key, column = rest.indexOf(":");
-					if(column == -1 || (key = rest.substring(0, column)).indexOf("{") != -1 || key.indexOf("[") != -1) {
-						// divided in 4 parts so it can be modified later
-						statement.ref.a = this.source.addIsolatedSource(this.transpiler.feature("forEachArray") + "(");
-						statement.ref.b = this.source.addIsolatedSource(expr);
-						if(this.es6) {
-							statement.ref.c = this.source.addIsolatedSource(", (");
-							this.source.addIsolatedSource(rest + ") =>");
-						} else {
-							statement.ref.c = this.source.addIsolatedSource(", function(");
-							this.source.addIsolatedSource(rest + ")");
+					const rest = parser.input.substr(parser.index);
+					if(f.object && type !== "foreach-range") {
+						const column = rest.indexOf(":");
+						let key;
+						if(column !== -1 && (key = rest.substring(0, column)).indexOf("{") === -1 && key.indexOf("[") === -1) {
+							type = "foreach-object";
+							data.key = reparse(key);
+							data.as = reparse(rest.substr(column + 1));
 						}
-					} else {
-						// object
-						statement.type = part.type = "object-foreach";
-						rest = key + "," + rest.substr(column + 1);
-						this.source.addSource(`${this.transpiler.feature("forEachObject")}(${expr}, ${this.es6 ? `(${rest}) =>` : `function(${rest})`}`);
 					}
-				} else {
-					statement.type = part.type = "range";
-					this.source.addSource(`${this.transpiler.feature("range")}(${from}, ${to}, ${this.es6 ? `(${rest}) =>` : `function(${rest})`}`);
+					if(!data.as) {
+						data.as = reparse(rest);
+					}
 				}
-				if(!this.es6) statement.end += ".bind(this)";
-				statement.end += ");";
-				statement.inlineable = false;
+				part.ref = this.result.push(Result.STATEMENT_START, position, Object.assign({statement: type, prev}, data));
 			} else {
-				part.decl = this.source.addIsolatedSource(expected + skipped + reparse(source));
+				part.ref = this.result.push(Result.STATEMENT_START, position, {statement: expected, condition: reparse(skipped + source), prev});
 			}
 		} else {
 			// without condition
 			init();
-			part.decl = this.source.addIsolatedSource(expected);
+			part.ref = this.result.push(Result.STATEMENT_START, this.parser.position, {statement: expected, prev});
 		}
-		this.source.addSource(this.parser.skipImpl({comments: true}));
-		if(!(statement.inline = part.inline = !this.parser.readIf("{")) || !statement.inlineable) {
-			this.source.addSource("{");
+		if(prev) {
+			prev.next = part.ref;
 		}
-		part.declEnd = this.source.addIsolatedSource("");
+		this.addSource(null, this.parser.skipImpl({comments: true}));
+		statement.inline = part.inline = !this.parser.readIf("{");
 		this.statements.push(statement);
-		this.onStatementStart(statement);
 		return true;
 	}
 
@@ -241,70 +232,17 @@ class LogicMode extends TextExprMode {
 			// no match
 			this.pushText(match);
 		}
-		/*
-		switch(result.match) {
-			case "c":
-				if(!this.parseLogic("const", 0) && !this.parseLogic("case", 0, [":"])) this.pushText("c");
-				break;
-			case "l":
-				if(!this.parseLogic("let", 0)) this.pushText("l");
-				break;
-			case "v":
-				if(!this.parseLogic("var", 0)) this.pushText("v");
-				break;
-			case "b":
-				if(!this.parseLogic("break", 0)) this.pushText("b");
-				break;
-			case "d":
-				if(!this.parseLogic("default", 0, [":"])) this.pushText("d");
-				break;
-			case "i":
-				if(!this.parseLogic("if", 1, [["else if", 1, true], ["else", 2, false]])) this.pushText("i");
-				break;
-			case "f":
-				if(!this.parseLogic("foreach", 1) && !this.parseLogic("for", 1)) this.pushText("f");
-				break;
-			case "w":
-				if(!this.parseLogic("while", 1)) this.pushText("w");
-				break;
-			case "s":
-				if(!this.parseLogic("switch", 1)) this.pushText("s");
-				break;
-			case "}":
-				if(result.pre.slice(-1) == "\\") {
-					let curr = this.current[this.current.length - 1];
-					curr.value = curr.value.slice(0, -1) + "}";
-				} else if(this.statements.length) {
-					this.closeStatement(false);
-				} else {
-					this.pushText("}");
-				}
-				break;
-			case "\n":
-				if(this.statements.length && this.statements[this.statements.length - 1].inline) {
-					this.closeStatement(true);
-				} else {
-					this.pushText("\n");
-				}
-				break;
-			default:
-				this.parseImpl(result.pre, result.match, handle, eof);
-		}*/
 	}
 
 	closeStatement(inline) {
 		const statement = this.statements.pop();
 		const part = statement.parts[statement.parts.length - 1];
 		const trimmed = this.trimEnd();
-		this.endChainable();
-		this.source.addSource(trimmed);
-		if(inline) {
-			if(!statement.inlineable) {
-				this.source.addSource("}");
-			}
-		}
-		statement.endRef = part.close = this.source.addIsolatedSource((inline ? "" : "}") + statement.end);
-		this.onStatementEnd(statement);
+		this.addCurrent();
+		this.addSource(null, trimmed);
+		this.result.push(Result.STATEMENT_END, null, {start: part.ref});
+		//statement.endRef = part.close = this.source.addIsolatedSource((inline ? "" : "}") + statement.end);
+		//this.onStatementEnd(statement);
 		if(inline) {
 			this.pushText("\n");
 		}

@@ -24,14 +24,14 @@ class Mode {
 	 * @since 0.150.0
 	 */
 	addSource(position, value) {
-		this.result.push(Result.SOURCE, position, {value});
+		return this.result.push(Result.SOURCE, position, {value});
 	}
 
 	/**
 	 * @since 0.150.0
 	 */
 	addText(position, value) {
-		this.result.push(Result.TEXT, position, {value});
+		return this.result.push(Result.TEXT, position, {value});
 	}
 
 	/**

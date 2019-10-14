@@ -16,6 +16,8 @@ class SourceCodeMode extends Mode {
 			if(o.computed) this.breakpoints.push("&");
 		}
 		this.parentheses = [];
+		this.brackets = [];
+		this.braces = [];
 	}
 
 	static get name() {
@@ -44,11 +46,19 @@ class SourceCodeMode extends Mode {
 	addObservableImpl(peek, expr = []) {
 		const maybe = !!this.parser.readIf("?");
 		const position = this.parser.position;
+		const undot = () => {
+			if(expr.length) {
+				const tail = expr[expr.length - 1];
+				if(tail.type === Result.SOURCE && /^\s*\.\s*$/.test(tail.value)) {
+					expr.pop();
+					return true;
+				}
+			}
+		};
 		if(!expr.length && this.parser.peek() == "(") {
-			expr.push(...this.parseCodeToSource("skipEnclosedContent", false));
-		} else if(expr.length && this.parser.peek() == "[") {
-			//TODO remove last dot, if any, from the name data
-			//name = name.slice(0, -1) + this.parseCodeToSource("skipEnclosedContent", this.trackable && tracked);
+			expr.push(...this.parseCode("skipEnclosedContent", false));
+		} else if(this.parser.peek() == "[" && undot()) {
+			expr.push(...this.parseCode("skipEnclosedContent"));
 		} else {
 			expr.push(...this.parseCode("readVarName", false, true));
 		}
@@ -71,13 +81,64 @@ class SourceCodeMode extends Mode {
 	}
 
 	lookBehind() {
-		const tail = this.source.tail();
-		let end = tail.value.length;
-		let index = end - 1;
-		while(index >= 0 && /[\s\u0561-\u0588a-zA-Z0-9_$.]/.test(tail.value.charAt(index))) {
-			index--;
+		const MATCH_DOT = /\s*\.\s*$/;
+		const MATCH_S = /\s*$/;
+		let tail = this.result.tail;
+		let match;
+		if(tail && tail.type === Result.SOURCE && (match = tail.value.match(MATCH_DOT))) {
+			// the observable is chained
+			let expr = [];
+			let matchExpr;
+			const parseAt0 = () => {
+				tail = this.result.tail;
+				if(tail) {
+					if(tail.type === Result.SOURCE) {
+						if(tail.value === "]") {
+							const { id } = tail.start;
+							let ref, i = this.result.data.length - 2;
+							while(this.result.data[i].id !== id) {
+								i--;
+							}
+							expr.unshift(...this.result.data.splice(i, this.result.data.length - i));
+							parseAt0();
+							matchExpr = MATCH_S;
+						} else if(tail.value === ")") {
+							//TODO
+						} else {
+							//TODO throw error? or handle variable
+						}
+					} else if(tail.type === Result.OBSERVABLE_VALUE) {
+						expr.unshift(this.result.data.pop());
+						tail = this.result.tail;
+					} else {
+						//TODO throw error?
+					}
+				}
+			};
+			do {
+				matchExpr = MATCH_DOT;
+				expr.unshift({type: Result.SOURCE, value: tail.value.substr(match.index)});
+				if(match.index === 0) {
+					// remove last array value from result
+					this.result.data.pop();
+					parseAt0();
+				} else {
+					tail.value = tail.value.substring(0, match.index);
+					// only possibility is a variable name
+					const vmatch = tail.value.match(/[a-zA-Z0-9_$]+$/);
+					if(vmatch) {
+						const value = tail.value.substr(vmatch.index);
+						tail.value = tail.value.substring(0, vmatch.index);
+						expr.unshift({type: Result.SOURCE, value});
+					} else {
+						//TODO throw error
+					}
+				}
+			} while(tail && (match = tail.value.match(matchExpr)));
+			return expr;
+		} else {
+			return [];
 		}
-		return tail.value.substring(index + 1, end);
 	}
 
 	parse(handle, eof) {
@@ -118,25 +179,28 @@ class SourceCodeMode extends Mode {
 				this.handleParenthesis(match);
 				break;
 			case "[":
-			case "]":
-				//TODO track
-				this.restoreIndex(match);
+				this.brackets.push(this.addSource(this.parser.position, "["));
 				break;
+			case "]": {
+				const start = this.brackets.pop();
+				start.end = this.result.push(Result.SOURCE, this.parser.position, {value: "]", start});
+				break;
+			}
 			case "{":
 				var last = this.parser.last;
 				this.restoreIndex("{");
 				if(!this.attributes.inAttr && last == ")" && !this.parser.lastKeywordAtIn(this.parser.lastParenthesis.lastIndex, "if", "for", "while", "switch", "catch", "with")) {
 					// new function declaration
 					const lp = this.parser.lastParenthesis;
-					this.source.startFunction(this.parser.input.substring(lp.start, lp.end - 1));
+					//this.source.startFunction(this.parser.input.substring(lp.start, lp.end - 1));
 				} else {
 					// loop/conditional statement
-					this.source.startScope();
+					//this.source.startScope();
 				}
 				break;
 			case "}":
 				this.restoreIndex("}");
-				this.source.endScope();
+				//this.source.endScope();
 				break;
 			case "$": {
 				if(this.parser.readIf("$")) {
