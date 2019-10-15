@@ -10,7 +10,7 @@ class ParserRegExp {
 
 	constructor({observables: o, tags: {types: t}, attributes: {types: a}}) {
 		// init observables
-		this.singleExpressionPrefix = new RegExp(`^([-+~!]*((new|delete|typeof|await)\s+)?${o.supported ? `(${o.computed ? "&|" : ""}[*${o.peek ? "^" : ""}]${o.maybe ? "\\??" : ""})?` : ""})`);
+		this.singleExpressionPrefix = new RegExp(`^([-+~!]*((new|delete|typeof|await)\\s+)?${o.supported ? `(${o.computed ? "&|" : ""}[*${o.peek ? "^" : ""}]${o.maybe ? "\\??" : ""})?` : ""})`);
 		// init tag name
 		let tags = [];
 		if(t.directive) tags.push(":");
@@ -492,7 +492,7 @@ class Parser {
 		} else {
 			return false;
 		}
-	};
+	}
 
 	/**
 	 * Reads an attribute name, without the prefix.

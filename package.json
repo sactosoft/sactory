@@ -23,6 +23,7 @@
 	},
 	"homepage": "https://github.com/sactory/sactory",
 	"devDependencies": {
-		"eslint": "^6.5.0"
+		"eslint": "^6.5.0",
+		"eslint-config-sactosoft": "^0.1.1"
 	}
 }

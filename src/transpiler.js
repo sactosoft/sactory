@@ -15,72 +15,87 @@ function getAttributeType(symbol) {
 	}
 }
 
-const defaultOptions = {
-	mode: "auto-code:logic",
-	modes: true,
+const checkOptions = {
+	mode: String,
 	observables: {
-		supported: true,
-		peek: true,
-		maybe: true,
-		computed: true,
-		functionAttributes: ["async"]
+		supported: Boolean,
+		peek: Boolean,
+		maybe: Boolean,
+		computed: Boolean,
+		functionAttributes: Array
 	},
 	tags: {
-		computed: true,
-		capitalIsWidget: false,
+		computed: Boolean,
+		capitalIsWidget: Boolean,
 		types: {
-			directive: true,
-			argumented: false,
-			children: true,
-			slot: false,
-			special: true
+			directive: Boolean,
+			argumented: Boolean,
+			children: Boolean,
+			slot: Boolean,
+			special: Boolean
 		}
 	},
 	attributes: {
-		computed: true,
-		interpolated: true,
-		spread: true,
+		computed: Boolean,
+		interpolated: Boolean,
+		spread: Boolean,
 		types: {
-			directive: true,
-			prop: true,
-			style: true,
-			event: true,
-			widget: true,
-			updateWidget: true,
-			bind: true
+			directive: Boolean,
+			prop: Boolean,
+			style: Boolean,
+			event: Boolean,
+			widget: Boolean,
+			updateWidget: Boolean,
+			bind: Boolean
 		}
 	},
 	interpolation: {
-		text: true,
-		html: true,
-		value: true,
-		string: true,
-		custom1: false,
-		custom2: false,
-		custom3: false
+		text: Boolean,
+		html: Boolean,
+		value: Boolean,
+		string: Boolean,
+		custom1: Boolean,
+		custom2: Boolean,
+		custom3: Boolean
 	},
 	logic: {
-		variables: ["var", "let", "const"],
-		statements: [
-			[["if", 1], ["else if", 1, 1], ["else", 0]],
-			[["for", 1]],
-			[["while", 1]],
-			//[["await", 1], ["then", 1, 1], ["catch", 1, 1]],
-			//[["await then", 1], ["catch", 1, 1]]
-		],
+		variables: Array,
+		statements: Array,
 		foreach: {
-			array: true,
-			object: true,
-			range: true
+			array: Boolean,
+			object: Boolean,
+			range: Boolean
 		}
 	}
 };
 
-class Transpiler {
+const check = (map, from, to) => {
+	const err = type => {
+		throw new Error(`Option ${map.join(".")} must be of type ${type}.`);
+	};
+	if(from === Array) {
+		if(!Array.isArray(to)) err("array");
+	} else if(from === Boolean) {
+		if(typeof to !== "boolean") err("boolean");
+	} else if(from === String) {
+		if(typeof to !== "string") err("string");
+	} else if(typeof from === "object") {
+		if(typeof to !== "object") {
+			err("object");
+		} else {
+			for(let key in from) {
+				check(map.concat(key), from[key], to[key]);
+			}
+		}
+	}
+};
+
+class TranspilerFactory {
 
 	constructor(options = {}) {
-		this.options = Object.assign({}, defaultOptions, options);
-		//TODO better merge
+		this.options = Object.assign({}, options);
+		// validate options against optionsTypes
+		check([], checkOptions, this.options);
 		// separate mode and mode attributes
 		this.options.modeAttributes = {};
 		const column = this.options.mode.indexOf(":");
@@ -100,10 +115,58 @@ class Transpiler {
 	}
 
 	/**
+	 * @since 0.50.0
+	 */
+	transpile(input) {
+
+		const transpiler = new Transpiler(this, input);
+		
+		//TODO check mode before starting
+		transpiler.startMode(getModeByName(this.options.mode), this.options.modeAttributes).start();
+		
+		const open = transpiler.open.bind(transpiler);
+		const close = transpiler.close.bind(transpiler);
+
+		while(!transpiler.parser.eof()) {
+			transpiler.updateTemplateLiteralParser();
+			transpiler.currentMode.parser.parse(open, close);
+		}
+
+		// check whether all tags were closed properly
+		if(transpiler.tags.length) {
+			const { tagName, position } = transpiler.tags.pop();
+			transpiler.parser.errorAt(position, `Tag \`<${tagName}>\` was never closed.`);
+		}
+		
+		transpiler.endMode();
+
+		if(!this.options.silent) {
+			transpiler.warnings.forEach(({message, position}) => console.warn(`${filename}[${position.line + 1}:${position.column}]: ${message}`));
+		}
+		
+		return transpiler.result.data;
+		
+	}
+
+}
+
+class Transpiler {
+
+	constructor(factory, input) {
+		this.factory = factory;
+		this.options = factory.options;
+		this.parser = this.newParser(input);
+		this.result = new Result();
+		this.warnings = [];
+		this.tags = [];
+		this.modes = [];
+	}
+
+	/**
 	 * @since 0.150.0
 	 */
 	newParser(input, position) {
-		return new Parser(input, this.regexp, position);
+		return new Parser(input, this.factory.regexp, position);
 	}
 
 	/**
@@ -442,7 +505,7 @@ class Transpiler {
 
 		}
 		this.parser.last = undefined;
-	};
+	}
 
 	/**
 	 * @since 0.107.0
@@ -515,52 +578,7 @@ class Transpiler {
 		this.parser.error("Value for attribute is required.");
 	}
 
-	/**
-	 * @since 0.50.0
-	 */
-	transpile(filename, input) {
-
-		if(arguments.length === 1) {
-			input = filename;
-			filename = "";
-		}
-		
-		this.parser = this.newParser(input);
-		this.result = new Result();
-
-		this.warnings = [];
-		
-		this.tags = [];
-		this.modes = [];
-		
-		//TODO check mode before starting
-		this.startMode(getModeByName(this.options.mode), this.options.modeAttributes).start();
-		
-		const open = this.open.bind(this);
-		const close = this.close.bind(this);
-
-		while(!this.parser.eof()) {
-			this.updateTemplateLiteralParser();
-			this.currentMode.parser.parse(open, close);
-		}
-
-		// check whether all tags were closed properly
-		if(this.tags.length) {
-			const { tagName, position } = this.tags.pop();
-			this.parser.errorAt(position, `Tag \`<${tagName}>\` was never closed.`);
-		}
-		
-		this.endMode();
-
-		if(!this.options.silent) {
-			this.warnings.forEach(({message, position}) => console.warn(`${filename}[${position.line + 1}:${position.column}]: ${message}`));
-		}
-		
-		return this.result.data;
-		
-	}
-
 }
 
-module.exports = Transpiler;
+module.exports = { TranspilerFactory, Transpiler };
 	
