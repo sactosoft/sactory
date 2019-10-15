@@ -1,5 +1,6 @@
 const { SourceCodeMode, AutoSourceCodeMode } = require("./sourcecode");
 const { HTMLMode, AutoHTMLMode } = require("./html");
+const { ScriptMode, StyleMode, CommentMode } = require("./misc");
 
 const modeRegistry = [];
 const modeNames = {};
@@ -49,10 +50,9 @@ function getModeByTagName(tagName, currentMode) {
 
 registerMode(SourceCodeMode, true);
 registerMode(HTMLMode);
-//defineMode(["script"], ScriptMode);
-//defineMode(["css"], CSSMode);
-//defineMode(["ssb", "style"], SSBMode);
-//defineMode(["_comment"], HTMLCommentMode); // private define
+registerMode(ScriptMode);
+registerMode(StyleMode);
+registerMode(CommentMode); // private mode
 
 // register auto modes after default modes to give less precedence to `matchesTag`
 

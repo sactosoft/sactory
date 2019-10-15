@@ -80,7 +80,6 @@ let c = 0;
 	"ATTRIBUTE",
 	"ATTRIBUTE_INTERPOLATED",
 	"ATTRIBUTE_SPREAD",
-	"ATTRIBUTE_END",
 
 	// attribute type, only used as subtypes
 	"ATTRIBUTE_NONE",
@@ -93,8 +92,7 @@ let c = 0;
 	"ATTRIBUTE_DIRECTIVE",
 
 	// xml comments
-	"COMMENT_START",
-	"COMMENT_END",
+	"COMMENT",
 
 	// logic mode
 	"VARIABLE",

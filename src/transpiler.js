@@ -1,4 +1,4 @@
-const Parser = require("./parser");
+const { ParserRegExp, Parser } = require("./parser");
 const Result = require("./result");
 const { getModeByName, getModeByTagName, startMode } = require("./mode/registry");
 
@@ -31,7 +31,7 @@ const defaultOptions = {
 		types: {
 			directive: true,
 			argumented: false,
-			children: false,
+			children: true,
 			slot: false,
 			special: true
 		}
@@ -41,13 +41,13 @@ const defaultOptions = {
 		interpolated: true,
 		spread: true,
 		types: {
-			directive: false,
-			prop: false,
-			style: false,
-			event: false,
-			widget: false,
-			updateWidget: false,
-			bind: false
+			directive: true,
+			prop: true,
+			style: true,
+			event: true,
+			widget: true,
+			updateWidget: true,
+			bind: true
 		}
 	},
 	interpolation: {
@@ -95,14 +95,15 @@ class Transpiler {
 				}
 			});
 		}
-		//TODO create common regular expressions used by the parser
+		// init common regular expressions used by the parser
+		this.regexp = new ParserRegExp(this.options);
 	}
 
 	/**
 	 * @since 0.150.0
 	 */
-	newParser() {
-		return new Parser();
+	newParser(input, position) {
+		return new Parser(input, this.regexp, position);
 	}
 
 	/**
@@ -144,44 +145,35 @@ class Transpiler {
 	/**
 	 * @since 0.124.0
 	 */
-	parseImpl(modeId, input, parentParser, trackable) {
-		const parser = new Parser(input, (parentParser || this.parser).position);
+	parseImpl(modeId, position, input) {
+		const parser = this.newParser(input, position);
 		parser.parseTemplateLiteral = expr => {
-			const parsed = this.parseCode(expr, parser, trackable);
+			const parsed = this.parseCode(parser.position, expr);
 			mode.observables |= parsed.observables;
 			return parsed.source;
 		};
 		const result = new Result();
-		const mode = startMode(modeId, this, parser, result, {inAttr: true});
-		mode.trackable = trackable;
+		const mode = startMode(modeId, this, parser, result);
 		mode.start();
 		while(parser.index < input.length) {
 			mode.parse(() => source.addSource("<"), () => {});
 		}
 		mode.end();
-		return {mode, result};
+		return result.data;
 	}
 
 	/**
 	 * @since 0.42.0
 	 */
-	parseCode(input, parentParser, trackable) {
-		let {mode: {observables}, result} = this.parseImpl(0, input, parentParser, trackable);
-		return result.data;
-	}
-
-	/**
-	 * @since 0.124.0
-	 */
-	parseText(input, parentParser) {
-		return this.parseImpl(getModeByName("_comment"), input, parentParser).mode.values.join(" + ");
+	parseCode(position, input) {
+		return this.parseImpl(0, position, input);
 	}
 
 	/**
 	 * @since 0.51.0
 	 */
 	parseTemplateLiteral(expr, parser, trackable) {
-		return this.parseCode(expr, parser, trackable).source;
+		return this.parseCode(parser, expr).source;
 	}
 
 	/**
@@ -209,10 +201,6 @@ class Transpiler {
 			}
 			return closeInfo.resultRef;
 		}
-		if(this.closing.length) {
-			this.source.push(this.closing.pop());
-			this.addSemicolon();
-		}
 	}
 
 	/**
@@ -234,10 +222,9 @@ class Transpiler {
 			if(next === "--") {
 				// xml comment
 				this.parser.index += 2;
-				this.result.push(Result.COMMENT_START, this.parser.position);
-				this.parseText(this.parser.findSequence("-->", true).slice(0, -3)); //TODO
-				this.result.push(Result.COMMENT_END);
-				this.addSemicolon();
+				const position = this.parser.position;
+				const expr = this.parseImpl(getModeByName("_comment"), position, this.parser.findSequence("-->", true).slice(0, -3));
+				this.result.push(Result.COMMENT, position, {expr});
 			} else if(next === "/*") {
 				// code comment
 				this.result.push(Result.SOURCE, this.parser.position, {value: this.parser.findSequence("*/>", true).slice(0, -1)});
@@ -269,13 +256,13 @@ class Transpiler {
 				level: this.tags.length
 			};
 
-			let attributes = [];
+			let attributes = new Result();
 			let newMode = -1;
 
 			this.updateTemplateLiteralParser();
 			if(this.options.tags.computed && (tagName = this.parser.readComputedExpr())) {
 				// [tagName]
-				tag.tagName = this.parseCode(tagName);
+				tag.tagName = this.parseCode(position, tagName);
 				tag.computed = true;
 			} else {
 				tagName = tag.tagName = this.parser.readTagName(true);
@@ -359,10 +346,10 @@ class Transpiler {
 				if(this.isSpreadAttribute()) {
 					//TODO assert not optional nor negated
 					//TODO directives and binds cannot be spread
-					this.result.push(Result.ATTRIBUTE_SPREAD, position, {
+					attributes.push(Result.ATTRIBUTE_SPREAD, position, {
 						count,
 						subtype: attr.subtype,
-						expr: this.parseCode(this.parser.readSingleExpression(false, true)),
+						expr: this.parseCode(this.parser.position, this.parser.readSingleExpression(false, true)),
 						space: skipped
 					});
 					skip();
@@ -372,6 +359,7 @@ class Transpiler {
 					if(this.parser.readIf("{")) {
 						//TODO directives and binds cannot be interpolated
 						// interpolated
+						type = Result.ATTRIBUTE_INTERPOLATED;
 						attr.before = content;
 						attr.inner = [];
 						do {
@@ -383,7 +371,6 @@ class Transpiler {
 								});
 							} else {
 								curr = this.parseAttributeName(true);
-								this.compileAttributeParts(curr);
 								attr.inner.push(curr);
 							}
 							curr.beforeValue = before;
@@ -393,12 +380,10 @@ class Transpiler {
 							this.parser.error("Expected `}` after interpolated attributes list.");
 						}
 						attr.after = this.parseAttributeName(false);
-						this.compileAttributeParts(attr.before);
-						this.compileAttributeParts(attr.after);
-					} else if(content.parts.length === 0 && attr.type !== "$") {
+					} else if(!content.value) {
 						this.parser.error("Cannot find a valid attribute name.");
 					} else {
-						Object.assign(attr, content);
+						attr.name = content;
 					}
 
 					// read value
@@ -410,34 +395,23 @@ class Transpiler {
 						const value = this.parser.readAttributeValue();
 						if(value.startsWith("{{")) {
 							attr.isFunction = true;
-							attr.value = this.parseCode(value.slice(1, -1), undefined, false);
+							attr.value = this.parseCode(this.parser.position, value.slice(1, -1));
 						} else {
-							/*const optimized = optimize(value);
-							if(optimized) {
-								attr.value = optimized;
-							} else {
-								attr.value = this.parseCode(value, undefined, true);
-							}*/
-							attr.value = this.parseCode(value, undefined, true);
+							attr.value = this.parseCode(this.parser.position, value);
 						}
 						skip();
 					}
-					if(attr.inner) {
-						if(!Object.prototype.hasOwnProperty.call(attr, "value")) {
-							attr.value = this.getDefaultAttributeValue(attr);
-						}
-						this.result.push(Result.ATTRIBUTE_INTERPOLATED, position, attr);
-					} else {
-						this.compileAttributeParts(attr);
-						if(!Object.prototype.hasOwnProperty.call(attr, "value")) {
-							attr.value = [{type: Result.SOURCE, value: this.getDefaultAttributeValue(attr)}];
-						}
-						this.result.push(Result.ATTRIBUTE, position, attr);
+					// add default value is needed
+					if(!Object.prototype.hasOwnProperty.call(attr, "value")) {
+						attr.value = [{type: Result.SOURCE, value: this.getDefaultAttributeValue(attr)}];
 					}
+					attributes.push(type, position, attr);
 				}
 				next = false;
 				count++;
 			}
+
+			tag.attributes = attributes.data;
 
 			// check end of tag declaration
 			this.parser.index++;
@@ -486,33 +460,39 @@ class Transpiler {
 	 * @since 0.60.0
 	 */
 	parseAttributeName(force) {
-		var attr = {
-			computed: false,
-			parts: []
-		};
-		var required = force;
+		let computed = false;
+		let parts = [];
+		let required = force;
 		// eslint-disable-next-line no-constant-condition
 		while(true) {
-			let ret = {};
-			if(ret.name = this.parser.readComputedExpr()) {
-				attr.computed = ret.computed = true;
-				if(ret.name.charAt(0) == "[" && ret.name.charAt(ret.name.length - 1) == "]") {
-					ret.name = ret.name.slice(1, -1);
-					if(ret.name.charAt(0) == "[") {
-						ret.name = `${this.runtime}.config.s${ret.name}`;
+			let part = {};
+			const position = this.parser.position;
+			if(part.value = this.parser.readComputedExpr()) {
+				computed = part.computed = true;
+				if(part.value.charAt(0) == "[" && part.value.charAt(part.value.length - 1) == "]") {
+					part.value = part.value.slice(1, -1);
+					part.config = true;
+					if(part.value.charAt(0) === "[" && part.value.slice(-1) === "]") {
+						part.value = this.parseCode(position, part.value.slice(1, -1));
 					} else {
-						ret.name = `${this.runtime}.config.s["${ret.name}"]`;
+						part.computed = false;
 					}
 				} else {
-					ret.name = this.parseCode(ret.name).source;
+					part.value = this.parseCode(position, part.value);
 				}
-			} else if(!(ret.name = this.parser.readAttributeName(required))) {
+			} else if(!(part.value = this.parser.readAttributeName(required))) {
 				break;
 			}
-			attr.parts.push(ret);
+			parts.push(part);
 			required = false;
 		}
-		return attr;
+		let ret = {computed};
+		if(computed) {
+			ret.value = parts.map(({computed = false, config = false, value}) => ({computed, config, value}));
+		} else if(parts.length) {
+			ret.value = parts[0].value;
+		}
+		return ret;
 	}
 
 	/**
@@ -536,29 +516,6 @@ class Transpiler {
 	}
 
 	/**
-	 * @since 0.82.0
-	 */
-	compileAttributeParts(attr) {
-		if(attr.computed) {
-			var names = [];
-			attr.parts.forEach(part => {
-				if(part.computed) names.push(`(${part.name})`);
-				else names.push(JSON.stringify(part.name));
-			});
-			attr.name = `${this.feature("attr")}(${names.join(", ")})`;
-		} else {
-			attr.name = attr.parts.map(part => part.name).join("");
-		}
-	}
-
-	/**
-	 * @since 0.84.0
-	 */
-	stringifyAttribute(attr) {
-		return attr.computed ? attr.name : "\"" + attr.name + "\"";
-	}
-
-	/**
 	 * @since 0.50.0
 	 */
 	transpile(filename, input) {
@@ -568,7 +525,7 @@ class Transpiler {
 			filename = "";
 		}
 		
-		this.parser = new Parser(input);
+		this.parser = this.newParser(input);
 		this.result = new Result();
 
 		this.warnings = [];
@@ -590,7 +547,7 @@ class Transpiler {
 		// check whether all tags were closed properly
 		if(this.tags.length) {
 			const { tagName, position } = this.tags.pop();
-			this.parser.errorAt(position, `Tag was never closed.`);
+			this.parser.errorAt(position, `Tag \`<${tagName}>\` was never closed.`);
 		}
 		
 		this.endMode();

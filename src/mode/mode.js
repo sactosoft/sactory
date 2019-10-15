@@ -1,5 +1,4 @@
 const Result = require("../result");
-const Parser = require("../parser");
 
 /**
  * @since 0.15.0
@@ -37,20 +36,11 @@ class Mode {
 	/**
 	 * @since 0.69.0
 	 */
-	parseCode(fun, trackable) {
+	parseCode(position, fun, ...args) {
 		this.parser.parseTemplateLiteral = null;
-		var expr = Parser.prototype[fun].apply(this.parser, Array.prototype.slice.call(arguments, 2));
+		const expr = this.parser[fun](...args);
 		this.transpiler.updateTemplateLiteralParser();
-		return this.transpiler.parseCode(expr, this.parser, trackable);
-	}
-
-	parseCodeToSource(fun, trackable) {
-		var expr = Parser.prototype[fun].apply(this.parser, Array.prototype.slice.call(arguments, 2));
-		return this.transpiler.parseCode(expr, this.parser, trackable).source;
-	}
-
-	parseCodeToValue(/*fun*/) {
-		return this.parseCode.apply(this, arguments).toValue();
+		return this.transpiler.parseCode(position, expr);
 	}
 
 	start() {}

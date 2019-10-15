@@ -76,6 +76,7 @@ class TextExprMode extends Mode {
 
 	parseImpl(pre, match, handle, eof) {
 		if(!match) {
+			this.addCurrent();
 			eof();
 		} else if(match === "<") {
 			if(this.handle()) {
@@ -91,7 +92,7 @@ class TextExprMode extends Mode {
 			} else {
 				this.addCurrent();
 				const position = this.parser.position;
-				const expr = this.parseCode("skipEnclosedContent", true, true);
+				const expr = this.parseCode(position, "skipEnclosedContent", true);
 				this.result.push(INTERPOLATED[match][1], position, {expr});
 			}
 		} else {

@@ -1,5 +1,4 @@
 const Result = require("../result");
-const Parser = require("../parser");
 const { TextExprMode } = require("./textexpr");
 
 /**
@@ -83,18 +82,13 @@ class LogicMode extends TextExprMode {
 			}
 			init();
 			this.parser.parseTemplateLiteral = null;
-			const reparse = (s, parser) => {
-				return this.transpiler.parseCode(s, parser, true);
-				/*statement.observables |= observables;
-				part.observables |= observables;
-				return source;*/
-			};
+			const reparse = (position, expr) => this.transpiler.parseCode(position, expr);
 			const position = this.parser.position;
 			const source = this.parser.skipEnclosedContent().slice(1, -1);
 			if(expected == "foreach") {
 				let type = "foreach-array";
 				let data = {};
-				const parser = new Parser(source, position);
+				const parser = this.transpiler.newParser(source, position);
 				Object.assign(parser.options, {comments: true, strings: true, regexp: true});
 				skipped += parser.skipImpl({comments: true});
 				// `from` and `to` need to be reparsed searching for observables as `from` and `to`
@@ -103,36 +97,36 @@ class LogicMode extends TextExprMode {
 				if(f.range && parser.input.substr(parser.index).startsWith("from ")) {
 					type = "foreach-range";
 					parser.index += 5;
-					data.from = reparse(parser.readExpression());
+					data.from = reparse(parser.position, parser.readExpression());
 					parser.expectSequence("to ");
-					data.to = reparse(parser.readExpression());
+					data.to = reparse(parser.position, parser.readExpression());
 				} else if(f.range && parser.input.substr(parser.index).startsWith("to ")) {
 					type = "foreach-range";
 					parser.index += 3;
-					data.to = reparse(parser.readExpression());
+					data.to = reparse(parser.position, parser.readExpression());
 				} else {
-					data.expr = reparse(parser.readExpression());
+					data.expr = reparse(parser.position, parser.readExpression());
 				}
-				let rest = "";
 				if(parser.input.substr(parser.index, 3) == "as ") {
 					parser.index += 3;
+					const position = parser.position;
 					const rest = parser.input.substr(parser.index);
 					if(f.object && type !== "foreach-range") {
 						const column = rest.indexOf(":");
 						let key;
 						if(column !== -1 && (key = rest.substring(0, column)).indexOf("{") === -1 && key.indexOf("[") === -1) {
 							type = "foreach-object";
-							data.key = reparse(key);
-							data.as = reparse(rest.substr(column + 1));
+							data.key = reparse(position, key);
+							data.as = reparse(position, rest.substr(column + 1)); //TODO increse position by key's position
 						}
 					}
 					if(!data.as) {
-						data.as = reparse(rest);
+						data.as = reparse(position, rest);
 					}
 				}
 				part.ref = this.result.push(Result.STATEMENT_START, position, Object.assign({statement: type, prev}, data));
 			} else {
-				part.ref = this.result.push(Result.STATEMENT_START, position, {statement: expected, condition: reparse(skipped + source), prev});
+				part.ref = this.result.push(Result.STATEMENT_START, position, {statement: expected, condition: reparse(position, skipped + source), prev});
 			}
 		} else {
 			// without condition
@@ -160,7 +154,7 @@ class LogicMode extends TextExprMode {
 				if(end.match == "=") {
 					// add the value/body of the variable
 					this.parser.parseTemplateLiteral = null;
-					this.result.pushAll(this.transpiler.parseCode(this.parser.readExpression(), this.parser, true));
+					this.result.pushAll(this.transpiler.parseCode(this.parser.position, this.parser.readExpression()));
 					if(this.parser.readIf(";")) this.addSource(null, ";");
 				}
 				return true;
@@ -224,7 +218,7 @@ class LogicMode extends TextExprMode {
 			// check statements
 			for(let i=0; i<o.statements.length; i++) {
 				const chain = o.statements[i];
-				const [ type, args, repeated ] = chain[0];
+				const [ type, args ] = chain[0];
 				if(this.parseLogic(type, +args, chain.slice(1))) {
 					return;
 				}
@@ -241,8 +235,6 @@ class LogicMode extends TextExprMode {
 		this.addCurrent();
 		this.addSource(null, trimmed);
 		this.result.push(Result.STATEMENT_END, null, {start: part.ref});
-		//statement.endRef = part.close = this.source.addIsolatedSource((inline ? "" : "}") + statement.end);
-		//this.onStatementEnd(statement);
 		if(inline) {
 			this.pushText("\n");
 		}
@@ -266,10 +258,6 @@ class LogicMode extends TextExprMode {
 		}
 		this.popped.push(statement);
 	}
-
-	onStatementStart(/*statement*/) {}
-
-	onStatementEnd(/*statement*/) {}
 
 }
 

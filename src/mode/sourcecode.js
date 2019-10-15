@@ -56,11 +56,11 @@ class SourceCodeMode extends Mode {
 			}
 		};
 		if(!expr.length && this.parser.peek() == "(") {
-			expr.push(...this.parseCode("skipEnclosedContent", false));
+			expr.push(...this.parseCode(this.parser.position, "skipEnclosedContent"));
 		} else if(this.parser.peek() == "[" && undot()) {
-			expr.push(...this.parseCode("skipEnclosedContent"));
+			expr.push(...this.parseCode(this.parser.position, "skipEnclosedContent"));
 		} else {
-			expr.push(...this.parseCode("readVarName", false, true));
+			expr.push(...this.parseCode(this.parser.position, "readVarName", true));
 		}
 		this.result.push(Result.OBSERVABLE_VALUE, position, {peek, maybe, expr});
 		this.parser.last = "]"; // see issue#57
@@ -95,7 +95,7 @@ class SourceCodeMode extends Mode {
 					if(tail.type === Result.SOURCE) {
 						if(tail.value === "]") {
 							const { id } = tail.start;
-							let ref, i = this.result.data.length - 2;
+							let i = this.result.data.length - 2;
 							while(this.result.data[i].id !== id) {
 								i--;
 							}
@@ -292,7 +292,7 @@ class SourceCodeMode extends Mode {
 						source = `()${space}=>`;
 					} else {
 						// from variable
-						const expr = this.transpiler.parseCode(this.parser.readSingleExpression(true));
+						const expr = this.transpiler.parseCode(this.parser.position, this.parser.readSingleExpression(true));
 						//TODO add space
 						this.result.push(Result.OBSERVABLE, null, {expr});
 						computed = false;
@@ -311,7 +311,7 @@ class SourceCodeMode extends Mode {
 						}*/
 						// add expression
 						const position = this.parser.position;
-						const expr = this.transpiler.parseCode(source + this.parser.readExpression(), null, true);
+						const expr = this.transpiler.parseCode(this.parser.position, source + this.parser.readExpression());
 						this.result.push(Result.COMPUTED_OBSERVABLE, position, {expr});
 					}
 					this.transpiler.updateTemplateLiteralParser();
