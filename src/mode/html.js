@@ -23,8 +23,8 @@ class HTMLMode extends OptionalLogicMode {
 
 if(typeof entities === "object") {
 	HTMLMode.prototype.replaceText = function(data){
-		//TODO replace
-		return data;
+		return data.replace(/&(#(x)?)?([a-zA-Z0-9]+);/gm, (_, hash, hex, value) =>
+			String.fromCharCode(hash ? (hex ? parseInt(value, 16) : value) : entities[value]));
 	};
 } else {
 	let converter;

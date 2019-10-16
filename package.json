@@ -9,7 +9,7 @@
 	},
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/sactory/sactory.git"
+		"url": "https://github.com/sactosoft/sactory.git"
 	},
 	"keywords": [
 		"sactory",
@@ -19,9 +19,9 @@
 	"author": "Mark White",
 	"license": "MIT",
 	"bugs": {
-		"url": "https://github.com/sactory/sactory/issues"
+		"url": "https://github.com/sactosoft/sactory/issues"
 	},
-	"homepage": "https://github.com/sactory/sactory",
+	"homepage": "https://github.com/sactosoft/sactory",
 	"devDependencies": {
 		"eslint": "^6.5.0",
 		"eslint-config-sactosoft": "^0.1.1"

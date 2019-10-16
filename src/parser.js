@@ -60,13 +60,16 @@ class Parser {
 		this.last = undefined;
 		this.lastIndex = undefined;
 		this.regexp = regexp;
-		this.parseTemplateLiteral = null;
 		this.parentheses = [];
 		this.lastParenthesis = undefined;
 		this.options = Object.assign({}, defaultOptions);
 		this._position = position || {index: 0, line: 0, column: 0};
 	}
 
+	/**
+	 * Gets the current 0-indexed position of the reading index.
+	 * @since 0.150.0
+	 */
 	get position() {
 		const index = this._position.index + this.index;
 		const line = this._position.line + this.line;
@@ -505,6 +508,15 @@ class Parser {
 	}
 
 	/**
+	 * Reads a single expression that cannot contains whitespaces and throws an error if empty.
+	 * @throws {ParserError} If no expression could be found.
+	 * @since 0.37.0
+	 */
+	readAttributeValue(){
+		return this.readSingleExpression(false) || this.error("Could not find a valid expression for the attribute's value.");
+	}
+
+	/**
 	 * Reads an expression wrapped in square brackets (and removes them).
 	 * @returns A string if found, false otherwise.
 	 * @since 0.42.0
@@ -585,29 +597,6 @@ class Parser {
 		}
 		if(!ret.trim().length) this.error("Could not find a valid expression.");
 		else return ret;
-	}
-
-	/**
-	 * Reads a single expression that cannot contains whitespaces and throws an error if empty.
-	 * @throws {ParserError} If no expression could be found.
-	 * @since 0.37.0
-	 */
-	readAttributeValue(){
-		return this.readSingleExpression(false) || this.error("Could not find a valid expression for the attribute's value.");
-	}
-
-	/**
-	 * Reads a valid javascript variable name or an expression wrapped in braces (and replaces them with parentheses).
-	 * @param {boolean=} force - Indicates whether to return false or throw an error when a result could not be found.
-	 * @throws {ParserError} When the force param is true and a result could not be found.
-	 * @since 0.29.0
-	 */
-	readVar(force){
-		if(this.peek() === "{") {
-			return "(" + this.skipEnclosedContent().slice(1, -1) + ")";
-		} else {
-			return this.readVarName(force);
-		}
 	}
 
 }

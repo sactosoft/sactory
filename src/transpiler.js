@@ -2,19 +2,6 @@ const { ParserRegExp, Parser } = require("./parser");
 const Result = require("./result");
 const { getModeByName, getModeByTagName, startMode } = require("./mode/registry");
 
-function getAttributeType(symbol) {
-	switch(symbol) {
-		case "": return Result.ATTRIBUTE_NONE;
-		case "@": return Result.ATTRIBUTE_PROPERTY;
-		case "&": return Result.ATTRIBUTE_STYLE;
-		case "+": return Result.ATTRIBUTE_EVENT;
-		case "$": return Result.ATTRIBUTE_WIDGET;
-		case "~": return Result.ATTRIBUTE_UPDATE_WIDGET;
-		case "*": return Result.ATTRIBUTE_BIND;
-		case ":": return Result.ATTRIBUTE_DIRECTIVE;
-	}
-}
-
 const checkOptions = {
 	mode: String,
 	observables: {
@@ -121,24 +108,7 @@ class TranspilerFactory {
 
 		const transpiler = new Transpiler(this, input);
 		
-		//TODO check mode before starting
-		transpiler.startMode(getModeByName(this.options.mode), this.options.modeAttributes).start();
-		
-		const open = transpiler.open.bind(transpiler);
-		const close = transpiler.close.bind(transpiler);
-
-		while(!transpiler.parser.eof()) {
-			transpiler.updateTemplateLiteralParser();
-			transpiler.currentMode.parser.parse(open, close);
-		}
-
-		// check whether all tags were closed properly
-		if(transpiler.tags.length) {
-			const { tagName, position } = transpiler.tags.pop();
-			transpiler.parser.errorAt(position, `Tag \`<${tagName}>\` was never closed.`);
-		}
-		
-		transpiler.endMode();
+		transpiler.run();
 
 		if(!this.options.silent) {
 			transpiler.warnings.forEach(({message, position}) => console.warn(`${filename}[${position.line + 1}:${position.column}]: ${message}`));
@@ -155,11 +125,36 @@ class Transpiler {
 	constructor(factory, input) {
 		this.factory = factory;
 		this.options = factory.options;
-		this.parser = this.newParser(input);
+		this.parser = input instanceof Parser ? input : this.newParser(input);
 		this.result = new Result();
 		this.warnings = [];
 		this.tags = [];
 		this.modes = [];
+	}
+
+	/**
+	 * @since 0.150.0
+	 */
+	run() {
+
+		this.startMode(getModeByName(this.options.mode), this.options.modeAttributes).start();
+		
+		const open = this.open.bind(this);
+		const close = this.close.bind(this);
+
+		while(!this.parser.eof()) {
+			this.updateTemplateLiteralParser();
+			this.currentMode.parser.parse(open, close);
+		}
+
+		// check whether all tags were closed properly
+		if(this.tags.length) {
+			const { tagName, position } = this.tags.pop();
+			this.parser.errorAt(position, `Tag \`<${tagName}>\` was never closed.`);
+		}
+		
+		this.endMode();
+
 	}
 
 	/**
@@ -209,20 +204,13 @@ class Transpiler {
 	 * @since 0.124.0
 	 */
 	parseImpl(modeId, position, input) {
-		const parser = this.newParser(input, position);
-		parser.parseTemplateLiteral = expr => {
-			const parsed = this.parseCode(parser.position, expr);
-			mode.observables |= parsed.observables;
-			return parsed.source;
-		};
-		const result = new Result();
-		const mode = startMode(modeId, this, parser, result);
-		mode.start();
-		while(parser.index < input.length) {
-			mode.parse(() => source.addSource("<"), () => {});
+		const transpiler = new Transpiler(this.factory, this.newParser(input, position));
+		transpiler.run();
+		if(transpiler.warnings.length) {
+			// merge new warning with current ones
+			this.warnings.push(...transpiler.warnings);
 		}
-		mode.end();
-		return result.data;
+		return transpiler.result.data;
 	}
 
 	/**
@@ -231,6 +219,17 @@ class Transpiler {
 	parseCode(position, input) {
 		return this.parseImpl(0, position, input);
 	}
+
+	/**
+	 * @since 0.150.0
+	 */
+	parseCodeWith(fname, ...args) {
+		const ret = this.parser[fname](...args);
+		// e.g. ["value = `A string with value ${", ["*value"], "}`"]
+		return this.parseCode(this.parser.position, ret);
+	}
+
+	parseCodeInEnclosedContent() {}
 
 	/**
 	 * @since 0.51.0
@@ -393,7 +392,7 @@ class Transpiler {
 			// read attributes
 			let next = false;
 			let count = 0;
-			while(!this.parser.eof() && (next = this.parser.peek()) != ">" && next != "/") {
+			while(!this.parser.eof() && (next = this.parser.peek()) !== ">" && next !== "/") {
 				if(!/[\n\t ]/.test(skipped)) {
 					this.parser.errorAt(sposition, "Space is required between attribute names.");
 				}
@@ -403,12 +402,12 @@ class Transpiler {
 					count,
 					optional: !!this.parser.readIf("?"),
 					negated: !!this.parser.readIf("!"),
-					subtype: getAttributeType(this.parser.readAttributePrefix() || ""),
+					subtype: this.getAttributeType(this.parser.readAttributePrefix() || ""),
 					beforeName: skipped
 				};
-				if(this.isSpreadAttribute()) {
-					//TODO assert not optional nor negated
-					//TODO directives and binds cannot be spread
+				if(attr.subtype !== Result.ATTRIBUTE_DIRECTIVE && attr.subtype !== Result.ATTRIBUTE_BIND
+					&& !attr.optional && !attr.negated
+					&& this.isSpreadAttribute()) {
 					attributes.push(Result.ATTRIBUTE_SPREAD, position, {
 						count,
 						subtype: attr.subtype,
@@ -505,6 +504,19 @@ class Transpiler {
 
 		}
 		this.parser.last = undefined;
+	}
+
+	getAttributeType(symbol) {
+		switch(symbol) {
+			case "": return Result.ATTRIBUTE_NONE;
+			case "@": return Result.ATTRIBUTE_PROPERTY;
+			case "&": return Result.ATTRIBUTE_STYLE;
+			case "+": return Result.ATTRIBUTE_EVENT;
+			case "$": return Result.ATTRIBUTE_WIDGET;
+			case "~": return Result.ATTRIBUTE_UPDATE_WIDGET;
+			case "*": return Result.ATTRIBUTE_BIND;
+			case ":": return Result.ATTRIBUTE_DIRECTIVE;
+		}
 	}
 
 	/**

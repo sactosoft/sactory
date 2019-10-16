@@ -202,32 +202,6 @@ class SourceCodeMode extends Mode {
 				this.restoreIndex("}");
 				//this.source.endScope();
 				break;
-			case "$": {
-				if(this.parser.readIf("$")) {
-					let input = this.parser.input.substr(this.parser.index);
-					if(Polyfill.startsWith.call(input, "context")) {
-						this.parser.index += 7;
-						this.source.addContext();
-						this.parser.last = "t";
-						return;
-					}
-					const functions = ["on", "subscribe", "depend", "rollback", "bind", "unbind", "bindInput"];
-					for(let i in functions) {
-						let fname = functions[i];
-						if(Polyfill.startsWith.call(input, fname + "(")) {
-							this.parser.index += fname.length + 1;
-							this.source.addSource(`$$${fname}(`);
-							this.source.addContext();
-							this.source.addSource(", ");
-							this.parser.last = ",";
-							return;
-						}
-					}
-					this.restoreIndex("$");
-				}
-				this.restoreIndex("$");
-				break;
-			}
 			case "&": {
 				if(this.parser.couldStartRegExp() || this.parser.lastKeywordIn(...this.transpiler.options.observables.functionAttributes)) {
 					const space = this.parser.skipImpl({comments: true});
@@ -292,9 +266,11 @@ class SourceCodeMode extends Mode {
 						source = `()${space}=>`;
 					} else {
 						// from variable
-						const expr = this.transpiler.parseCode(this.parser.position, this.parser.readSingleExpression(true));
+						let type = this.parser.readIf(":") ? Result.OBSERVABLE_ARRAY : Result.OBSERVABLE;
+						const position = this.parser.position;
+						const expr = this.transpiler.parseCode(position, this.parser.readSingleExpression(true));
 						//TODO add space
-						this.result.push(Result.OBSERVABLE, null, {expr});
+						this.result.push(type, position, {expr});
 						computed = false;
 					}
 					if(computed) {

@@ -28,21 +28,21 @@ class Result {
 		return this.data[this.data.length - 1];
 	}
 
-	toString() {
-		return JSON.stringify(this.data, null, 4);
+	static collectObservables(data) {
+		let ret = [];
+		data.forEach(({type, expr}) => {
+			if(type === Result.OBSERVABLE_VALUE) {
+				ret.push(expr);
+			}
+			if(expr) {
+				ret.push(...Result.collectObservables(expr));
+			}
+		});
+		return ret;
 	}
 
 	static countObservables(data) {
-		let count = 0;
-		data.forEach(({type, expr}) => {
-			if(type === Result.OBSERVABLE_VALUE) {
-				count++;
-			}
-			if(expr) {
-				count += Result.countObservables(expr);
-			}
-		});
-		return count;
+		return Result.collectObservables(data).length;
 	}
 
 }
@@ -60,7 +60,6 @@ let c = 0;
 	"INTERPOLATED_CUSTOM_1",
 	"INTERPOLATED_CUSTOM_2",
 	"INTERPOLATED_CUSTOM_3",
-	"INTERPOLATED_END",
 
 	// observables
 	"OBSERVABLE",
