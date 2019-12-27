@@ -1,4 +1,4 @@
-const Result = require("../result");
+const { ReaderType } = require("../reader");
 const { TextExprMode } = require("./textexpr");
 
 /**
@@ -124,14 +124,14 @@ class LogicMode extends TextExprMode {
 						data.as = reparse(position, rest);
 					}
 				}
-				part.ref = this.result.push(Result.STATEMENT_START, position, Object.assign({statement: type, prev}, data));
+				part.ref = this.result.push(ReaderType.STATEMENT_START, position, Object.assign({statement: type, prev}, data));
 			} else {
-				part.ref = this.result.push(Result.STATEMENT_START, position, {statement: expected, condition: reparse(position, skipped + source), prev});
+				part.ref = this.result.push(ReaderType.STATEMENT_START, position, {statement: expected, condition: reparse(position, skipped + source), prev});
 			}
 		} else {
 			// without condition
 			init();
-			part.ref = this.result.push(Result.STATEMENT_START, this.parser.position, {statement: expected, prev});
+			part.ref = this.result.push(ReaderType.STATEMENT_START, this.parser.position, {statement: expected, prev});
 		}
 		if(prev) {
 			prev.next = part.ref;
@@ -234,7 +234,7 @@ class LogicMode extends TextExprMode {
 		const trimmed = this.trimEnd();
 		this.addCurrent();
 		this.addSource(null, trimmed);
-		this.result.push(Result.STATEMENT_END, null, {start: part.ref});
+		this.result.push(ReaderType.STATEMENT_END, null, {start: part.ref});
 		if(inline) {
 			this.pushText("\n");
 		}

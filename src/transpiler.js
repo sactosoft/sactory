@@ -1,5 +1,5 @@
 const { ParserRegExp, Parser } = require("./parser");
-const Result = require("./result");
+const { ReaderType, Reader } = require("./reader");
 const { getModeByName, getModeByTagName, startMode } = require("./mode/registry");
 
 const checkOptions = {
@@ -58,7 +58,7 @@ const checkOptions = {
 
 const check = (map, from, to) => {
 	const err = type => {
-		throw new Error(`Option ${map.join(".")} must be of type ${type}.`);
+		throw new Error(`Option ${map.join(".")} must be of type ${type} (type ${typeof to} given).`);
 	};
 	if(from === Array) {
 		if(!Array.isArray(to)) err("array");
@@ -118,6 +118,13 @@ class TranspilerFactory {
 		
 	}
 
+	/**
+	 * @since 0.150.0
+	 */
+	transpileWith(writer, input) {
+		return writer.write(this.transpile(input));
+	}
+
 }
 
 class Transpiler {
@@ -126,7 +133,7 @@ class Transpiler {
 		this.factory = factory;
 		this.options = factory.options;
 		this.parser = input instanceof Parser ? input : this.newParser(input);
-		this.result = new Result();
+		this.result = new Reader();
 		this.warnings = [];
 		this.tags = [];
 		this.modes = [];
@@ -276,7 +283,7 @@ class Transpiler {
 			const start = this.close(pre, position);
 			if(start) {
 				// tag was not mode, add to result
-				this.result.push(Result.TAG_CLOSE, position, {start});
+				this.result.push(ReaderType.TAG_CLOSE, position, {start});
 			}
 		} else if(this.parser.readIf("!")) {
 			// some kind of comment
@@ -286,13 +293,13 @@ class Transpiler {
 				this.parser.index += 2;
 				const position = this.parser.position;
 				const expr = this.parseImpl(getModeByName("_comment"), position, this.parser.findSequence("-->", true).slice(0, -3));
-				this.result.push(Result.COMMENT, position, {expr});
+				this.result.push(ReaderType.COMMENT, position, {expr});
 			} else if(next === "/*") {
 				// code comment
-				this.result.push(Result.SOURCE, this.parser.position, {value: this.parser.findSequence("*/>", true).slice(0, -1)});
+				this.result.push(ReaderType.SOURCE, this.parser.position, {value: this.parser.findSequence("*/>", true).slice(0, -1)});
 			} else if(next === "//") {
 				// inline code comment
-				this.result.push(Result.SOURCE, this.parser.position, {value: this.parser.findSequence("\n", false)});
+				this.result.push(ReaderType.SOURCE, this.parser.position, {value: this.parser.findSequence("\n", false)});
 			} else {
 				this.parser.error("Expected a comment after `<!`.");
 			}
@@ -309,16 +316,16 @@ class Transpiler {
 			};
 
 			// options
-			let type = Result.TAG;
 			let tagName;
 			const tag = {
+				type: "none",
 				optional: !!this.parser.readIf("?"),
 				computed: false,
 				inline: false,
 				level: this.tags.length
 			};
 
-			let attributes = new Result();
+			let attributes = new Reader();
 			let newMode = -1;
 
 			this.updateTemplateLiteralParser();
@@ -363,15 +370,15 @@ class Transpiler {
 							return;
 						}
 					} else {
-						type = Result.TAG_DIRECTIVE;
+						tag.type = "directive";
 						tag.tagName = tagName.substr(1);
 					}
 				} else {
 					if(tagName.charAt(0) == "@") {
-						type = Result.TAG_SLOT;
+						tag.type = "slot";
 						tag.tagName = tagName.substr(1);
 					} else if(tagName.charAt(0) == "#") {
-						type = Result.TAG_SPECIAL;
+						tag.type = "special";
 						tag.tagName = tagName.substr(1);
 					}
 					// search for an auto-opening mode
@@ -387,7 +394,7 @@ class Transpiler {
 			}
 
 			// add to result
-			this.result.push(type, position, tag);
+			this.result.push(ReaderType.TAG, position, tag);
 
 			// read attributes
 			let next = false;
@@ -405,10 +412,10 @@ class Transpiler {
 					subtype: this.getAttributeType(this.parser.readAttributePrefix() || ""),
 					beforeName: skipped
 				};
-				if(attr.subtype !== Result.ATTRIBUTE_DIRECTIVE && attr.subtype !== Result.ATTRIBUTE_BIND
+				if(attr.subtype !== ReaderType.ATTRIBUTE_DIRECTIVE && attr.subtype !== ReaderType.ATTRIBUTE_BIND
 					&& !attr.optional && !attr.negated
 					&& this.isSpreadAttribute()) {
-					attributes.push(Result.ATTRIBUTE_SPREAD, position, {
+					attributes.push(ReaderType.ATTRIBUTE_SPREAD, position, {
 						count,
 						subtype: attr.subtype,
 						expr: this.parseCode(this.parser.position, this.parser.readSingleExpression(false, true)),
@@ -416,12 +423,12 @@ class Transpiler {
 					});
 					skip();
 				} else {
-					let type = Result.ATTRIBUTE_NONE;
+					let type = ReaderType.ATTRIBUTE_NONE;
 					const content = this.parseAttributeName(false);
 					if(this.parser.readIf("{")) {
 						//TODO directives and binds cannot be interpolated
 						// interpolated
-						type = Result.ATTRIBUTE_INTERPOLATED;
+						type = ReaderType.ATTRIBUTE_INTERPOLATED;
 						attr.before = content;
 						attr.inner = [];
 						do {
@@ -465,7 +472,7 @@ class Transpiler {
 					}
 					// add default value is needed
 					if(!Object.prototype.hasOwnProperty.call(attr, "value")) {
-						attr.value = [{type: Result.SOURCE, value: this.getDefaultAttributeValue(attr)}];
+						attr.value = [{type: ReaderType.SOURCE, value: this.getDefaultAttributeValue(attr)}];
 					}
 					attributes.push(type, position, attr);
 				}
@@ -499,7 +506,7 @@ class Transpiler {
 						this.startMode(newMode, {}).start();
 					}
 				}
-				this.result.push(Result.TAG_END, null, {start: tag, inline: tag.inline});
+				this.result.push(ReaderType.TAG_CLOSE, null, {start: tag, inline: tag.inline});
 			}
 
 		}
@@ -508,14 +515,14 @@ class Transpiler {
 
 	getAttributeType(symbol) {
 		switch(symbol) {
-			case "": return Result.ATTRIBUTE_NONE;
-			case "@": return Result.ATTRIBUTE_PROPERTY;
-			case "&": return Result.ATTRIBUTE_STYLE;
-			case "+": return Result.ATTRIBUTE_EVENT;
-			case "$": return Result.ATTRIBUTE_WIDGET;
-			case "~": return Result.ATTRIBUTE_UPDATE_WIDGET;
-			case "*": return Result.ATTRIBUTE_BIND;
-			case ":": return Result.ATTRIBUTE_DIRECTIVE;
+			case "": return ReaderType.ATTRIBUTE_NONE;
+			case "@": return ReaderType.ATTRIBUTE_PROPERTY;
+			case "&": return ReaderType.ATTRIBUTE_STYLE;
+			case "+": return ReaderType.ATTRIBUTE_EVENT;
+			case "$": return ReaderType.ATTRIBUTE_WIDGET;
+			case "~": return ReaderType.ATTRIBUTE_UPDATE_WIDGET;
+			case "*": return ReaderType.ATTRIBUTE_BIND;
+			case ":": return ReaderType.ATTRIBUTE_DIRECTIVE;
 		}
 	}
 
@@ -575,16 +582,16 @@ class Transpiler {
 	 */
 	getDefaultAttributeValue({subtype, negated}) {
 		switch(subtype) {
-			case Result.ATTRIBUTE_NONE:
+			case ReaderType.ATTRIBUTE_NONE:
 				return "\"\"";
-			case Result.ATTRIBUTE_PROPERTY:
-			case Result.ATTRIBUTE_WIDGET:
-			case Result.ATTRIBUTE_UPDATE_WIDGET:
-			case Result.ATTRIBUTE_DIRECTIVE:
+			case ReaderType.ATTRIBUTE_PROPERTY:
+			case ReaderType.ATTRIBUTE_WIDGET:
+			case ReaderType.ATTRIBUTE_UPDATE_WIDGET:
+			case ReaderType.ATTRIBUTE_DIRECTIVE:
 				return !negated;
-			case Result.ATTRIBUTE_EVENT:
+			case ReaderType.ATTRIBUTE_EVENT:
 				return false;
-			case Result.ATTRIBUTE_STYLE:
+			case ReaderType.ATTRIBUTE_STYLE:
 				if(negated) return "!1";
 		}
 		this.parser.error("Value for attribute is required.");

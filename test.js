@@ -1,21 +1,22 @@
-const Transpiler = require("./src/transpiler");
-const Result = require("./src/result");
+const { TranspilerFactory } = require("./src/transpiler");
+const { ReaderType } = require("./src/reader");
 
 function strImpl(data, html = false) {
-	switch(data.type) {
-		case Result.SOURCE:
+	switch(data.rt) {
+		case ReaderType.SOURCE:
 			return data.value;
-		case Result.TEXT:
+		case ReaderType.TEXT:
 			return data.value; //TODO replace ` and $
-		case Result.INTERPOLATED_TEXT:
+		case ReaderType.INTERPOLATED_TEXT:
+			console.log(data);
 			return "<!-- ko text: " + str(data.expr, true) + " --><!-- /ko -->";
-		case Result.OBSERVABLE:
+		case ReaderType.OBSERVABLE:
 			return `ko.observable(${str(data.expr)})`;
-		case Result.OBSERVABLE_VALUE:
+		case ReaderType.OBSERVABLE_VALUE:
 			return str(data.expr) + (html ? (data.peek ? ".peek()" : "()") : ".value");
-		case Result.COMPUTED_OBSERVABLE:
+		case ReaderType.COMPUTED_OBSERVABLE:
 			return `ko.computed(${str(data.expr)})`;
-		case Result.TAG: {
+		case ReaderType.TAG: {
 			let ret = "";
 			if(data.level === 0) {
 				ret += "$(`";
@@ -28,24 +29,14 @@ function strImpl(data, html = false) {
 			}
 			return ret;
 		}
-		case Result.TAG_END:
-			if(data.start.inline) {
-				if(data.start.level === 0) {
-					return "/>`)[0]";
-				} else {
-					return "/>";
-				}
-			} else {
-				return ">";
-			}
-		case Result.TAG_CLOSE: {
+		case ReaderType.TAG_CLOSE: {
 			let ret = `</${data.start.tagName}>`;
 			if(data.start.level === 0) {
 				ret += "`)[0]";
 			}
 			return ret;
 		}
-		case Result.ATTRIBUTE: {
+		case ReaderType.ATTRIBUTE: {
 			let ret = " ";
 			if(data.computed) {
 				ret += `\${${str(data.name)}}`;
@@ -60,13 +51,65 @@ function strImpl(data, html = false) {
 	}
 }
 
-function str(data) {
+const str = data => {
 	let ret = "";
 	data.forEach(d => ret += strImpl(d));
 	return ret;
-}
+};
 
-const data = new Transpiler().transpile(`const section = <section title="Hello world!" />
+const data = new TranspilerFactory({
+	mode: "auto-code:logic",
+	observables: {
+		supported: true,
+		peek: true,
+		maybe: true,
+		computed: true,
+		functionAttributes: []
+	},
+	tags: {
+		computed: true,
+		capitalIsWidget: true,
+		types: {
+			directive: true,
+			argumented: true,
+			children: true,
+			slot: true,
+			special: true
+		}
+	},
+	attributes: {
+		computed: true,
+		interpolated: true,
+		spread: true,
+		types: {
+			directive: true,
+			prop: true,
+			style: true,
+			event: true,
+			widget: true,
+			updateWidget: true,
+			bind: true
+		}
+	},
+	interpolation: {
+		text: true,
+		html: true,
+		value: true,
+		string: true,
+		custom1: true,
+		custom2: true,
+		custom3: true
+	},
+	logic: {
+		variables: ["var", "let", "const"],
+		statements: ["for"],
+		foreach: {
+			array: true,
+			object: true,
+			range: true
+		}
+	}
+}).transpile(`const section = <section title="Hello world!" />
 
 let a = &1;
 
@@ -85,4 +128,3 @@ let d = & => *b + *c;
 `);
 
 console.log(str(data));
-console.log(Result.countObservables(data));

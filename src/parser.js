@@ -589,7 +589,7 @@ class Parser {
 		var expr;
 		if(expr = this.readSingleExpression(true)) {
 			ret += expr + this.skipImpl({comments: true});
-			while(!this.eof() && (expr = this.readImpl(/^(\*\*|&&?|\|\|?|\^|=>|==?=?|!==?|<<|>>>?|\?|:|[+*/%<>-]=?|in(stanceof)?\s)/, false))) {
+			while(!this.eof() && (expr = this.readImpl(/^(\*\*|&&?|\|\|?|\^|=>|==?=?|!==?|<<|>>>?|\?|:|[+*/%<>-]=?|of|in(stanceof)?\s)/, false))) {
 				ret += expr + this.skipImpl({comments: true});
 				if(!(expr = this.readSingleExpression(true)).trim()) this.error("Could not find a valid expression.");
 				ret += expr + this.skipImpl({comments: true});

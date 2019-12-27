@@ -1,14 +1,14 @@
-const Result = require("../result");
+const { ReaderType } = require("../reader");
 const { Mode } = require("./mode");
 
 const INTERPOLATED = {
-	"$": ["text", Result.INTERPOLATED_TEXT],
-	"#": ["html", Result.INTERPOLATED_HTML],
-	"%": ["value", Result.INTERPOLATED_VALUE],
-	"@": ["string", Result.INTERPOLATED_STRING],
-	"*": ["custom1", Result.INTERPOLATED_CUSTOM_1],
-	"^": ["custom2", Result.INTERPOLATED_CUSTOM_2],
-	"~": ["custom3", Result.INTERPOLATED_CUSTOM_3]
+	"$": "text",
+	"#": "html",
+	"%": "value",
+	"@": "string",
+	"*": "custom1",
+	"^": "custom2",
+	"~": "custom3"
 };
 
 /**
@@ -21,8 +21,8 @@ class TextExprMode extends Mode {
 		super(transpiler, parser, result, attributes);
 		this.current = "";
 		this.matches = ["<"];
-		for(let symbol in INTERPOLATED) {
-			if(transpiler.options.interpolation[INTERPOLATED[symbol][0]]) {
+		for(let [symbol, type] of Object.entries(INTERPOLATED)) {
+			if(transpiler.options.interpolation[type]) {
 				this.matches.push(symbol);
 			}
 		}
@@ -93,7 +93,7 @@ class TextExprMode extends Mode {
 				this.addCurrent();
 				const position = this.parser.position;
 				const expr = this.parseCode(position, "skipEnclosedContent", true);
-				this.result.push(INTERPOLATED[match][1], position, {expr});
+				this.result.push(ReaderType.INTERPOLATED, position, {type: INTERPOLATED[match], expr});
 			}
 		} else {
 			this.pushText(match);

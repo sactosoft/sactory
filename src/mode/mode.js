@@ -1,4 +1,4 @@
-const Result = require("../result");
+const { ReaderType } = require("../reader");
 
 /**
  * @since 0.15.0
@@ -23,14 +23,14 @@ class Mode {
 	 * @since 0.150.0
 	 */
 	addSource(position, value) {
-		return this.result.push(Result.SOURCE, position, {value});
+		return this.result.push(ReaderType.SOURCE, position, {value});
 	}
 
 	/**
 	 * @since 0.150.0
 	 */
 	addText(position, value) {
-		return this.result.push(Result.TEXT, position, {value});
+		return this.result.push(ReaderType.TEXT, position, {value});
 	}
 
 	/**

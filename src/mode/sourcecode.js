@@ -1,4 +1,4 @@
-const Result = require("../result");
+const { ReaderType } = require("../reader");
 const { Mode } = require("./mode");
 
 /**
@@ -49,7 +49,7 @@ class SourceCodeMode extends Mode {
 		const undot = () => {
 			if(expr.length) {
 				const tail = expr[expr.length - 1];
-				if(tail.type === Result.SOURCE && /^\s*\.\s*$/.test(tail.value)) {
+				if(tail.type === ReaderType.SOURCE && /^\s*\.\s*$/.test(tail.value)) {
 					expr.pop();
 					return true;
 				}
@@ -62,7 +62,7 @@ class SourceCodeMode extends Mode {
 		} else {
 			expr.push(...this.parseCode(this.parser.position, "readVarName", true));
 		}
-		this.result.push(Result.OBSERVABLE_VALUE, position, {peek, maybe, expr});
+		this.result.push(ReaderType.OBSERVABLE_VALUE, position, {peek, maybe, expr});
 		this.parser.last = "]"; // see issue#57
 		this.parser.lastIndex = this.parser.index - 1;
 	}
@@ -85,14 +85,14 @@ class SourceCodeMode extends Mode {
 		const MATCH_S = /\s*$/;
 		let tail = this.result.tail;
 		let match;
-		if(tail && tail.type === Result.SOURCE && (match = tail.value.match(MATCH_DOT))) {
+		if(tail && tail.type === ReaderType.SOURCE && (match = tail.value.match(MATCH_DOT))) {
 			// the observable is chained
 			let expr = [];
 			let matchExpr;
 			const parseAt0 = () => {
 				tail = this.result.tail;
 				if(tail) {
-					if(tail.type === Result.SOURCE) {
+					if(tail.type === ReaderType.SOURCE) {
 						if(tail.value === "]") {
 							const { id } = tail.start;
 							let i = this.result.data.length - 2;
@@ -107,7 +107,7 @@ class SourceCodeMode extends Mode {
 						} else {
 							//TODO throw error? or handle variable
 						}
-					} else if(tail.type === Result.OBSERVABLE_VALUE) {
+					} else if(tail.type === ReaderType.OBSERVABLE_VALUE) {
 						expr.unshift(this.result.data.pop());
 						tail = this.result.tail;
 					} else {
@@ -117,7 +117,7 @@ class SourceCodeMode extends Mode {
 			};
 			do {
 				matchExpr = MATCH_DOT;
-				expr.unshift({type: Result.SOURCE, value: tail.value.substr(match.index)});
+				expr.unshift({type: ReaderType.SOURCE, value: tail.value.substr(match.index)});
 				if(match.index === 0) {
 					// remove last array value from result
 					this.result.data.pop();
@@ -129,7 +129,7 @@ class SourceCodeMode extends Mode {
 					if(vmatch) {
 						const value = tail.value.substr(vmatch.index);
 						tail.value = tail.value.substring(0, vmatch.index);
-						expr.unshift({type: Result.SOURCE, value});
+						expr.unshift({type: ReaderType.SOURCE, value});
 					} else {
 						//TODO throw error
 					}
@@ -183,7 +183,7 @@ class SourceCodeMode extends Mode {
 				break;
 			case "]": {
 				const start = this.brackets.pop();
-				start.end = this.result.push(Result.SOURCE, this.parser.position, {value: "]", start});
+				start.end = this.result.push(ReaderType.SOURCE, this.parser.position, {value: "]", start});
 				break;
 			}
 			case "{":
@@ -266,7 +266,7 @@ class SourceCodeMode extends Mode {
 						source = `()${space}=>`;
 					} else {
 						// from variable
-						let type = this.parser.readIf(":") ? Result.OBSERVABLE_ARRAY : Result.OBSERVABLE;
+						let type = this.parser.readIf(":") ? ReaderType.OBSERVABLE_ARRAY : ReaderType.OBSERVABLE;
 						const position = this.parser.position;
 						const expr = this.transpiler.parseCode(position, this.parser.readSingleExpression(true));
 						//TODO add space
@@ -288,7 +288,7 @@ class SourceCodeMode extends Mode {
 						// add expression
 						const position = this.parser.position;
 						const expr = this.transpiler.parseCode(this.parser.position, source + this.parser.readExpression());
-						this.result.push(Result.COMPUTED_OBSERVABLE, position, {expr});
+						this.result.push(ReaderType.COMPUTED_OBSERVABLE, position, {expr});
 					}
 					this.transpiler.updateTemplateLiteralParser();
 					this.parser.last = "]"; // see issue#57
