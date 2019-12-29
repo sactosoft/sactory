@@ -1,7 +1,7 @@
 {
-	"name": "sactory",
+	"name": "sac-syntax",
 	"version": "0.150.0",
-	"description": "Sactory syntax transpiler for HTML-in-JS and observables",
+	"description": "Sac syntax transpiler for HTML-in-JS and observables",
 	"main": "index.js",
 	"scripts": {
 		"dist": "gulp dist",
@@ -9,19 +9,19 @@
 	},
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/sactosoft/sactory.git"
+		"url": "https://github.com/sactosoft/sac.git"
 	},
 	"keywords": [
-		"sactory",
+		"sac",
 		"html",
 		"xml"
 	],
 	"author": "Mark White",
 	"license": "MIT",
 	"bugs": {
-		"url": "https://github.com/sactosoft/sactory/issues"
+		"url": "https://github.com/sactosoft/sac/issues"
 	},
-	"homepage": "https://github.com/sactosoft/sactory",
+	"homepage": "https://github.com/sactosoft/sac",
 	"devDependencies": {
 		"eslint": "^6.5.0",
 		"eslint-config-sactosoft": "^0.1.1"
