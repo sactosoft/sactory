@@ -108,13 +108,8 @@ Sactory.prototype.style = function(name, value, bind){
 			this.styleImpl([{name, value}], bind);
 		}
 	} else {
-		var prop = name;
-		var get = value => value;
-		var update = value => this.element.style[prop] = get(value);
-		if(name.charAt(0) == "!") {
-			prop = name.substr(1);
-			get = value => `${value} !important`;
-		}
+		const [ property, important ] = name.charAt(0) === "!" ? [ name.substr(1), "important" ] : [ name ];
+		const update = value => this.element.style.setProperty(property, value, important);
 		if(SactoryObservable.isObservable(value)) {
 			const subscription = this.observe(bind, value, update);
 			this.styles.push({name, value, subscription, bind});
