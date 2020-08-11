@@ -1,4 +1,4 @@
-var { version } = require("./package.json");
-var [ major, minor, patch ] = version.split(".").map(v => parseInt(v));
+const { version } = require("./package.json");
+const [ major, minor, patch ] = version.split(".").map(v => parseInt(v));
 
 module.exports = { version, major, minor, patch };

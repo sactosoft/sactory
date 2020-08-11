@@ -1,29 +1,45 @@
 {
-	"name": "sac-syntax",
-	"version": "0.150.0",
-	"description": "Sac syntax transpiler for HTML-in-JS and observables",
+	"name": "sactory",
+	"version": "0.148.0",
+	"description": "HTML-spiced javascript for DOM creation and manipulation",
 	"main": "index.js",
 	"scripts": {
 		"dist": "gulp dist",
+		"test": "node ./test.js",
+		"test-open": "node ./test.js && start ./_test/index.html",
 		"lint": "eslint ./src"
 	},
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/sactosoft/sac.git"
+		"url": "https://github.com/sactosoft/sactory.git"
 	},
 	"keywords": [
-		"sac",
+		"sactory",
 		"html",
-		"xml"
+		"xml",
+		"dom"
 	],
 	"author": "Mark White",
 	"license": "MIT",
 	"bugs": {
-		"url": "https://github.com/sactosoft/sac/issues"
+		"url": "https://github.com/sactosoft/sactory/issues"
 	},
-	"homepage": "https://github.com/sactosoft/sac",
+	"homepage": "https://github.com/sactosoft/sactory",
 	"devDependencies": {
-		"eslint": "^6.5.0",
-		"eslint-config-sactosoft": "^0.1.1"
+		"babel-core": "^6.26.3",
+		"babel-preset-env": "^1.7.0",
+		"eslint": "^6.3.0",
+		"eslint-config-sactosoft": "^0.1.1",
+		"event-stream": "^4.0.1",
+		"gulp": "^4.0.2",
+		"gulp-append-prepend": "^1.0.8",
+		"gulp-babel": "^7.0.1",
+		"gulp-clone": "^2.0.1",
+		"gulp-concat": "^2.6.1",
+		"gulp-nop": "0.0.3",
+		"gulp-rename": "^1.4.0",
+		"gulp-replace": "^1.0.0",
+		"gulp-sourcemaps": "^2.6.5",
+		"gulp-terser": "^1.2.0"
 	}
 }
